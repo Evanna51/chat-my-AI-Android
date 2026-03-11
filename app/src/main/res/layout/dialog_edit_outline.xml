@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingTop="8dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="类型"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/textOutlineTypeValue"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="6dp"
+        android:background="@drawable/bg_pill_outline_type"
+        android:text="章节"
+        android:textColor="?attr/colorPrimary" />
+
+    <EditText
+        android:id="@+id/editOutlineTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="标题（如：章节1）"
+        android:maxLines="2" />
+
+    <EditText
+        android:id="@+id/editOutlineContent"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:hint="内容"
+        android:minLines="4"
+        android:gravity="top|start"
+        android:inputType="textMultiLine|textCapSentences" />
+
+</LinearLayout>

@@ -62,6 +62,17 @@
             android:tint="?attr/colorOnSurface"
             android:contentDescription="复制" />
         <ImageButton
+            android:id="@+id/actionOutline"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:padding="9dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_action_outline"
+            android:tint="?attr/colorOnSurface"
+            android:contentDescription="提取到大纲"
+            android:visibility="gone" />
+        <ImageButton
             android:id="@+id/actionDelete"
             android:layout_width="32dp"
             android:layout_height="32dp"
