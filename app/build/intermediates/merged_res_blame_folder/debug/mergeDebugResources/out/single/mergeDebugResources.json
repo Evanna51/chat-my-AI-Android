@@ -1,0 +1,230 @@
+[
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_settings.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_settings.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_add.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_add.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_bubble_user.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/bubble_user.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_message_assistant.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_message_assistant.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_dialog_edit_message.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/dialog_edit_message.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/menu_menu_chat_session.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/menu/menu_chat_session.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_layout_model_management.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/layout_model_management.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_session.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_session.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_bubble_assistant.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/bubble_assistant.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_chevron_right.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_chevron_right.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_home_assistant.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_home_assistant.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_dialog_model_picker.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/dialog_model_picker.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable-night_input_background.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable-night/input_background.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_dialog_model_alias.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/dialog_model_alias.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_model_config.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_model_config.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_conversation_manage.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_conversation_manage.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_conversation_category_header.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_conversation_category_header.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_model_simple.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_model_simple.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_check_circle.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_check_circle.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_action_pin.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_action_pin.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_action_delete.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_action_delete.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_provider_catalog.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_provider_catalog.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_chat_session.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_chat_session.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_provider_catalog_header.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_provider_catalog_header.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_action_edit.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_action_edit.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_model_added.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_model_added.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_action_copy.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_action_copy.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_config.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_config.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_bubble_reasoning.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/bubble_reasoning.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_settings.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_settings.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_default_model.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_default_model.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_launcher_background.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_chevron_down.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_chevron_down.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_action_regenerate.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_action_regenerate.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_provider.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_provider.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_my_assistants.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_my_assistants.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_general_settings.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_general_settings.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_model_available.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_model_available.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_model_picker.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_model_picker.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_provider_detail.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_provider_detail.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_dialog_provider_select.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/dialog_provider_select.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_edit_my_assistant.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_edit_my_assistant.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_main.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_main.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_message_user.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_message_user.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-debug-37:/layout_item_message_assistant.xml.flat",
+        "source": "com.example.aichat.app-main-39:/layout/item_message_assistant.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_item_my_assistant.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/item_my_assistant.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_input_background.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/input_background.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_action_hide.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_action_hide.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/menu_main_menu.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/menu/main_menu.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_action_category.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_action_category.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_session_chat_settings.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_session_chat_settings.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/drawable_ic_action_favorite.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/drawable/ic_action_favorite.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_view_chat_settings_form.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/view_chat_settings_form.xml"
+    },
+    {
+        "merged": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-debug-37:/layout_activity_all_conversations.xml.flat",
+        "source": "/Users/evannawu/.gradle/daemon/8.11.1/com.example.aichat.app-main-39:/layout/activity_all_conversations.xml"
+    }
+]

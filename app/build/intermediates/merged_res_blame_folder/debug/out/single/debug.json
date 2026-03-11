@@ -1,0 +1,50 @@
+[
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/menu_main_menu.xml.flat",
+        "source": "com.example.aichat.app-main-38:/menu/main_menu.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/mipmap-anydpi-v26_ic_launcher_round.xml.flat",
+        "source": "com.example.aichat.app-main-38:/mipmap-anydpi-v26/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.example.aichat.app-main-38:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/mipmap-anydpi-v26_ic_launcher.xml.flat",
+        "source": "com.example.aichat.app-main-38:/mipmap-anydpi-v26/ic_launcher.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/layout_item_message_user.xml.flat",
+        "source": "com.example.aichat.app-main-38:/layout/item_message_user.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/layout_activity_config.xml.flat",
+        "source": "com.example.aichat.app-main-38:/layout/activity_config.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/drawable_ic_launcher_background.xml.flat",
+        "source": "com.example.aichat.app-main-38:/drawable/ic_launcher_background.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/drawable_bubble_user.xml.flat",
+        "source": "com.example.aichat.app-main-38:/drawable/bubble_user.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/drawable_input_background.xml.flat",
+        "source": "com.example.aichat.app-main-38:/drawable/input_background.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/layout_activity_main.xml.flat",
+        "source": "com.example.aichat.app-main-38:/layout/activity_main.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/drawable_bubble_assistant.xml.flat",
+        "source": "com.example.aichat.app-main-38:/drawable/bubble_assistant.xml"
+    },
+    {
+        "merged": "com.example.aichat.app-merged_res-36:/layout_item_message_assistant.xml.flat",
+        "source": "com.example.aichat.app-main-38:/layout/item_message_assistant.xml"
+    }
+]

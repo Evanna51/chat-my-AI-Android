@@ -1,0 +1,242 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.example.aichat"
+4    android:versionCode="1"
+5    android:versionName="1.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="26"
+9        android:targetSdkVersion="34" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:5:5-67
+11-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:5:22-64
+12    <uses-permission
+12-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:6:5-8:40
+13        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+13-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:6:22-78
+14        android:maxSdkVersion="28" />
+14-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:7:9-35
+15
+16    <permission
+16-->[androidx.core:core:1.9.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/93d2d21d389fda3d8e4945e21aff6689/transformed/core-1.9.0/AndroidManifest.xml:22:5-24:47
+17        android:name="com.example.aichat.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+17-->[androidx.core:core:1.9.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/93d2d21d389fda3d8e4945e21aff6689/transformed/core-1.9.0/AndroidManifest.xml:23:9-81
+18        android:protectionLevel="signature" />
+18-->[androidx.core:core:1.9.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/93d2d21d389fda3d8e4945e21aff6689/transformed/core-1.9.0/AndroidManifest.xml:24:9-44
+19
+20    <uses-permission android:name="com.example.aichat.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+20-->[androidx.core:core:1.9.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/93d2d21d389fda3d8e4945e21aff6689/transformed/core-1.9.0/AndroidManifest.xml:26:5-97
+20-->[androidx.core:core:1.9.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/93d2d21d389fda3d8e4945e21aff6689/transformed/core-1.9.0/AndroidManifest.xml:26:22-94
+21
+22    <application
+22-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:10:5-75:19
+23        android:name="com.example.aichat.AIChatApp"
+23-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:11:9-34
+24        android:allowBackup="true"
+24-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:12:9-35
+25        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+25-->[androidx.core:core:1.9.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/93d2d21d389fda3d8e4945e21aff6689/transformed/core-1.9.0/AndroidManifest.xml:28:18-86
+26        android:debuggable="true"
+27        android:extractNativeLibs="false"
+28        android:icon="@mipmap/ic_launcher"
+28-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:13:9-43
+29        android:label="@string/app_name"
+29-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:14:9-41
+30        android:roundIcon="@mipmap/ic_launcher_round"
+30-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:15:9-54
+31        android:supportsRtl="true"
+31-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:16:9-35
+32        android:theme="@style/Theme.AIChat"
+32-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:17:9-44
+33        android:usesCleartextTraffic="true" >
+33-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:18:9-44
+34        <activity
+34-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:20:9-29:20
+35            android:name="com.example.aichat.MainActivity"
+35-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:21:13-41
+36            android:exported="true"
+36-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:22:13-36
+37            android:launchMode="singleTop"
+37-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:23:13-43
+38            android:theme="@style/Theme.AIChat" >
+38-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:24:13-48
+39            <intent-filter>
+39-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:25:13-28:29
+40                <action android:name="android.intent.action.MAIN" />
+40-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:26:17-69
+40-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:26:25-66
+41
+42                <category android:name="android.intent.category.LAUNCHER" />
+42-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:27:17-77
+42-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:27:27-74
+43            </intent-filter>
+44        </activity>
+45        <activity
+45-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:30:9-34:51
+46            android:name="com.example.aichat.ConfigActivity"
+46-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:31:13-43
+47            android:exported="false"
+47-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:32:13-37
+48            android:parentActivityName="com.example.aichat.MainActivity"
+48-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:33:13-55
+49            android:theme="@style/Theme.AIChat" />
+49-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:34:13-48
+50        <activity
+50-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:35:9-39:51
+51            android:name="com.example.aichat.SettingsActivity"
+51-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:36:13-45
+52            android:exported="false"
+52-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:37:13-37
+53            android:parentActivityName="com.example.aichat.MainActivity"
+53-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:38:13-55
+54            android:theme="@style/Theme.AIChat" />
+54-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:39:13-48
+55        <activity
+55-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:40:9-44:51
+56            android:name="com.example.aichat.ModelConfigActivity"
+56-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:41:13-48
+57            android:exported="false"
+57-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:42:13-37
+58            android:parentActivityName="com.example.aichat.SettingsActivity"
+58-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:43:13-59
+59            android:theme="@style/Theme.AIChat" />
+59-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:44:13-48
+60        <activity
+60-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:45:9-49:51
+61            android:name="com.example.aichat.ProviderDetailActivity"
+61-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:46:13-51
+62            android:exported="false"
+62-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:47:13-37
+63            android:parentActivityName="com.example.aichat.SettingsActivity"
+63-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:48:13-59
+64            android:theme="@style/Theme.AIChat" />
+64-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:49:13-48
+65        <activity
+65-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:50:9-54:51
+66            android:name="com.example.aichat.ChatSessionActivity"
+66-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:51:13-48
+67            android:exported="false"
+67-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:52:13-37
+68            android:parentActivityName="com.example.aichat.MainActivity"
+68-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:53:13-55
+69            android:theme="@style/Theme.AIChat" />
+69-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:54:13-48
+70        <activity
+70-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:55:9-59:51
+71            android:name="com.example.aichat.AllConversationsActivity"
+71-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:56:13-53
+72            android:exported="false"
+72-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:57:13-37
+73            android:parentActivityName="com.example.aichat.MainActivity"
+73-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:58:13-55
+74            android:theme="@style/Theme.AIChat" />
+74-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:59:13-48
+75        <activity
+75-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:60:9-64:51
+76            android:name="com.example.aichat.SessionChatSettingsActivity"
+76-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:61:13-56
+77            android:exported="false"
+77-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:62:13-37
+78            android:parentActivityName="com.example.aichat.ChatSessionActivity"
+78-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:63:13-62
+79            android:theme="@style/Theme.AIChat" />
+79-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:64:13-48
+80        <activity
+80-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:65:9-69:51
+81            android:name="com.example.aichat.MyAssistantsActivity"
+81-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:66:13-49
+82            android:exported="false"
+82-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:67:13-37
+83            android:parentActivityName="com.example.aichat.MainActivity"
+83-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:68:13-55
+84            android:theme="@style/Theme.AIChat" />
+84-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:69:13-48
+85        <activity
+85-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:70:9-74:51
+86            android:name="com.example.aichat.EditMyAssistantActivity"
+86-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:71:13-52
+87            android:exported="false"
+87-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:72:13-37
+88            android:parentActivityName="com.example.aichat.MyAssistantsActivity"
+88-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:73:13-63
+89            android:theme="@style/Theme.AIChat" />
+89-->/Users/evannawu/private_space/chatbox-android/app/src/main/AndroidManifest.xml:74:13-48
+90
+91        <service
+91-->[androidx.room:room-runtime:2.6.1] /Users/evannawu/.gradle/caches/8.11.1/transforms/deac55388bbc61305254a66404db6405/transformed/room-runtime-2.6.1/AndroidManifest.xml:24:9-28:63
+92            android:name="androidx.room.MultiInstanceInvalidationService"
+92-->[androidx.room:room-runtime:2.6.1] /Users/evannawu/.gradle/caches/8.11.1/transforms/deac55388bbc61305254a66404db6405/transformed/room-runtime-2.6.1/AndroidManifest.xml:25:13-74
+93            android:directBootAware="true"
+93-->[androidx.room:room-runtime:2.6.1] /Users/evannawu/.gradle/caches/8.11.1/transforms/deac55388bbc61305254a66404db6405/transformed/room-runtime-2.6.1/AndroidManifest.xml:26:13-43
+94            android:exported="false" />
+94-->[androidx.room:room-runtime:2.6.1] /Users/evannawu/.gradle/caches/8.11.1/transforms/deac55388bbc61305254a66404db6405/transformed/room-runtime-2.6.1/AndroidManifest.xml:27:13-37
+95
+96        <provider
+96-->[androidx.emoji2:emoji2:1.2.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/42a329589242a6ab629327b0dbae77d7/transformed/emoji2-1.2.0/AndroidManifest.xml:24:9-32:20
+97            android:name="androidx.startup.InitializationProvider"
+97-->[androidx.emoji2:emoji2:1.2.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/42a329589242a6ab629327b0dbae77d7/transformed/emoji2-1.2.0/AndroidManifest.xml:25:13-67
+98            android:authorities="com.example.aichat.androidx-startup"
+98-->[androidx.emoji2:emoji2:1.2.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/42a329589242a6ab629327b0dbae77d7/transformed/emoji2-1.2.0/AndroidManifest.xml:26:13-68
+99            android:exported="false" >
+99-->[androidx.emoji2:emoji2:1.2.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/42a329589242a6ab629327b0dbae77d7/transformed/emoji2-1.2.0/AndroidManifest.xml:27:13-37
+100            <meta-data
+100-->[androidx.emoji2:emoji2:1.2.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/42a329589242a6ab629327b0dbae77d7/transformed/emoji2-1.2.0/AndroidManifest.xml:29:13-31:52
+101                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+101-->[androidx.emoji2:emoji2:1.2.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/42a329589242a6ab629327b0dbae77d7/transformed/emoji2-1.2.0/AndroidManifest.xml:30:17-75
+102                android:value="androidx.startup" />
+102-->[androidx.emoji2:emoji2:1.2.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/42a329589242a6ab629327b0dbae77d7/transformed/emoji2-1.2.0/AndroidManifest.xml:31:17-49
+103            <meta-data
+103-->[androidx.lifecycle:lifecycle-process:2.6.1] /Users/evannawu/.gradle/caches/8.11.1/transforms/c5281b65f98bc3c5df6eb2687e90d306/transformed/lifecycle-process-2.6.1/AndroidManifest.xml:29:13-31:52
+104                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+104-->[androidx.lifecycle:lifecycle-process:2.6.1] /Users/evannawu/.gradle/caches/8.11.1/transforms/c5281b65f98bc3c5df6eb2687e90d306/transformed/lifecycle-process-2.6.1/AndroidManifest.xml:30:17-78
+105                android:value="androidx.startup" />
+105-->[androidx.lifecycle:lifecycle-process:2.6.1] /Users/evannawu/.gradle/caches/8.11.1/transforms/c5281b65f98bc3c5df6eb2687e90d306/transformed/lifecycle-process-2.6.1/AndroidManifest.xml:31:17-49
+106            <meta-data
+106-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:29:13-31:52
+107                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+107-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:30:17-85
+108                android:value="androidx.startup" />
+108-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:31:17-49
+109        </provider>
+110
+111        <receiver
+111-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:34:9-52:20
+112            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+112-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:35:13-76
+113            android:directBootAware="false"
+113-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:36:13-44
+114            android:enabled="true"
+114-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:37:13-35
+115            android:exported="true"
+115-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:38:13-36
+116            android:permission="android.permission.DUMP" >
+116-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:39:13-57
+117            <intent-filter>
+117-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:40:13-42:29
+118                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+118-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:17-91
+118-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:41:25-88
+119            </intent-filter>
+120            <intent-filter>
+120-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:43:13-45:29
+121                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+121-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:17-85
+121-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:44:25-82
+122            </intent-filter>
+123            <intent-filter>
+123-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:46:13-48:29
+124                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+124-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:17-88
+124-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:47:25-85
+125            </intent-filter>
+126            <intent-filter>
+126-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:49:13-51:29
+127                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+127-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:17-95
+127-->[androidx.profileinstaller:profileinstaller:1.3.0] /Users/evannawu/.gradle/caches/8.11.1/transforms/57de5f9d3c57687d8283745f45cb8359/transformed/profileinstaller-1.3.0/AndroidManifest.xml:50:25-92
+128            </intent-filter>
+129        </receiver>
+130    </application>
+131
+132</manifest>

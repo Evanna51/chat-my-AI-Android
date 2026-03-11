@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        app:title="@string/settings"
+        app:navigationIcon="?attr/homeAsUpIndicator" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="14dp"
+            android:paddingBottom="20dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/model_management"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:layout_marginBottom="10dp" />
+
+            <include
+                android:id="@+id/includeModelManagement"
+                layout="@layout/layout_model_management"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_options"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="10dp" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardGeneral"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                app:cardElevation="2dp"
+                app:cardCornerRadius="12dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+                    <LinearLayout
+                        android:id="@+id/headerGeneral"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:paddingHorizontal="16dp"
+                        android:paddingVertical="14dp"
+                        android:minHeight="56dp">
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_weight="1"
+                            android:layout_height="wrap_content"
+                            android:text="@string/general_settings"
+                            android:textAppearance="?attr/textAppearanceTitleSmall" />
+                        <ImageView
+                            android:id="@+id/iconGeneralExpand"
+                            android:layout_width="24dp"
+                            android:layout_height="24dp"
+                            android:src="@drawable/ic_chevron_right"
+                            app:tint="?attr/colorOnSurfaceVariant" />
+                    </LinearLayout>
+                    <LinearLayout
+                        android:id="@+id/expandGeneral"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:paddingTop="4dp"
+                        android:paddingBottom="16dp"
+                        android:visibility="gone">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/theme"
+                            android:textAppearance="?attr/textAppearanceBodyMedium"
+                            android:layout_marginBottom="6dp" />
+                        <RadioGroup
+                            android:id="@+id/radioTheme"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:layout_marginBottom="14dp">
+                            <RadioButton
+                                android:id="@+id/themeLight"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:minHeight="40dp"
+                                android:textAppearance="?attr/textAppearanceBodyMedium"
+                                android:text="@string/theme_light" />
+                            <RadioButton
+                                android:id="@+id/themeDark"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:minHeight="40dp"
+                                android:textAppearance="?attr/textAppearanceBodyMedium"
+                                android:text="@string/theme_dark" />
+                            <RadioButton
+                                android:id="@+id/themeSystem"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:minHeight="40dp"
+                                android:textAppearance="?attr/textAppearanceBodyMedium"
+                                android:text="@string/theme_system" />
+                        </RadioGroup>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/theme_color"
+                            android:textAppearance="?attr/textAppearanceBodyMedium"
+                            android:layout_marginBottom="6dp" />
+                        <RadioGroup
+                            android:id="@+id/radioThemeColor"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:layout_marginBottom="14dp">
+                            <RadioButton
+                                android:id="@+id/colorBlue"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:minHeight="40dp"
+                                android:textAppearance="?attr/textAppearanceBodyMedium"
+                                android:text="蓝" />
+                            <RadioButton
+                                android:id="@+id/colorGreen"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:minHeight="40dp"
+                                android:textAppearance="?attr/textAppearanceBodyMedium"
+                                android:text="绿" />
+                            <RadioButton
+                                android:id="@+id/colorPurple"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:minHeight="40dp"
+                                android:textAppearance="?attr/textAppearanceBodyMedium"
+                                android:text="紫" />
+                            <RadioButton
+                                android:id="@+id/colorOrange"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:minHeight="40dp"
+                                android:textAppearance="?attr/textAppearanceBodyMedium"
+                                android:text="橙" />
+                        </RadioGroup>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/font_size"
+                            android:textAppearance="?attr/textAppearanceBodyMedium"
+                            android:layout_marginBottom="6dp" />
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+                            <SeekBar
+                                android:id="@+id/seekFontSize"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content"
+                                android:max="4"
+                                android:progress="1" />
+                            <TextView
+                                android:id="@+id/textFontSizeValue"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="12dp"
+                                android:minWidth="32dp"
+                                android:text="14" />
+                        </LinearLayout>
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="10dp">
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnNewChat"
+                                style="@style/Widget.Material3.Button.TextButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/new_chat" />
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnExport"
+                                style="@style/Widget.Material3.Button.TextButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:text="@string/export" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardModelConfig"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                app:cardElevation="2dp"
+                app:cardCornerRadius="12dp">
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="14dp"
+                    android:minHeight="56dp">
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_weight="1"
+                        android:layout_height="wrap_content"
+                        android:text="@string/model_config"
+                        android:textAppearance="?attr/textAppearanceTitleSmall" />
+                    <ImageView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="?attr/colorOnSurfaceVariant" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
