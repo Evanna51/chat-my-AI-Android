@@ -135,29 +135,30 @@ public class MainActivity extends ThemedActivity {
                     if (s == null || s.sessionId == null) continue;
                     SessionChatOptions opts = optionsStore.get(s.sessionId);
                     SessionMeta meta = metaStore.get(s.sessionId);
+                    String firstUserMessage = s.title != null ? s.title : "";
                     if (meta != null) {
                         s.favorite = meta.favorite;
                         s.pinned = meta.pinned;
                         s.hidden = meta.hidden;
                         s.category = (meta.category != null && !meta.category.trim().isEmpty())
                                 ? meta.category.trim() : "默认";
-                        if (meta.title != null && !meta.title.trim().isEmpty()) {
-                            s.title = meta.title.trim();
-                        }
                         if (meta.avatar != null && !meta.avatar.trim().isEmpty()) {
                             s.avatar = meta.avatar.trim();
                         }
                     }
                     if (s.hidden) continue;
                     if (opts != null) {
-                        if ((s.title == null || s.title.trim().isEmpty())
-                                && opts.sessionTitle != null && !opts.sessionTitle.trim().isEmpty()) {
+                        if (opts.sessionTitle != null && !opts.sessionTitle.trim().isEmpty()) {
                             s.title = opts.sessionTitle.trim();
+                        } else {
+                            s.title = shortenTitle(firstUserMessage);
                         }
                         if ((s.avatar == null || s.avatar.trim().isEmpty())
                                 && opts.sessionAvatar != null && !opts.sessionAvatar.trim().isEmpty()) {
                             s.avatar = opts.sessionAvatar.trim();
                         }
+                    } else {
+                        s.title = shortenTitle(firstUserMessage);
                     }
                     merged.add(s);
                 }
@@ -176,6 +177,12 @@ public class MainActivity extends ThemedActivity {
                 if (homeAssistantAdapter != null) homeAssistantAdapter.setItems(list);
             });
         });
+    }
+
+    private String shortenTitle(String text) {
+        String source = text != null ? text.trim() : "";
+        if (source.isEmpty()) return "新对话";
+        return source.length() > 15 ? source.substring(0, 15) : source;
     }
 
     @Override

@@ -12,11 +12,23 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:paddingEnd="52dp"
+            android:paddingEnd="100dp"
             app:title="@string/current_conversation"
             app:titleTextAppearance="@style/TextAppearance.AIChat.Toolbar.Title.Small"
             app:subtitleTextAppearance="@style/TextAppearance.AIChat.Toolbar.Subtitle"
             app:navigationIcon="?attr/homeAsUpIndicator" />
+
+        <ImageButton
+            android:id="@+id/btnWriterOutline"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="52dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="作家大纲"
+            android:src="@drawable/ic_action_outline"
+            android:visibility="gone"
+            app:tint="?attr/colorOnSurface" />
 
         <ImageButton
             android:id="@+id/btnSessionSettings"

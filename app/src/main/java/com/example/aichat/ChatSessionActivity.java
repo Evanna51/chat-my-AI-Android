@@ -38,6 +38,7 @@ public class ChatSessionActivity extends ThemedActivity {
     private static final long STREAM_TYPEWRITER_FRAME_MS = 16L;
     private static final int STREAM_TYPEWRITER_CHARS_PER_FRAME = 2;
     private static final int AUTO_SCROLL_BOTTOM_GAP_DP = 64;
+    private static final int WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS = 500;
 
     private String sessionId;
     private MessageAdapter historyAdapter;
@@ -70,6 +71,8 @@ public class ChatSessionActivity extends ThemedActivity {
     private boolean autoScrollToBottomEnabled = true;
     private String pendingInitialMessage;
     private String assistantId;
+    private boolean writerAssistant;
+    private SessionOutlineStore outlineStore;
     private SessionChatOptions sessionOptions = new SessionChatOptions();
     private volatile boolean autoNamingInFlight = false;
     private boolean assistantResponseInProgress;
@@ -138,6 +141,8 @@ public class ChatSessionActivity extends ThemedActivity {
         } else {
             assistantId = new SessionAssistantBindingStore(this).getAssistantId(sessionId);
         }
+        writerAssistant = resolveWriterAssistant();
+        outlineStore = new SessionOutlineStore(this);
 
         chatService = new ChatService(this);
         db = AppDatabase.getInstance(this);
@@ -150,6 +155,15 @@ public class ChatSessionActivity extends ThemedActivity {
         if (btnSessionSettings != null) {
             btnSessionSettings.setOnClickListener(v -> startActivity(new Intent(this, SessionChatSettingsActivity.class)
                     .putExtra(SessionChatSettingsActivity.EXTRA_SESSION_ID, sessionId)));
+        }
+        View btnWriterOutline = findViewById(R.id.btnWriterOutline);
+        if (btnWriterOutline != null) {
+            btnWriterOutline.setVisibility(writerAssistant ? View.VISIBLE : View.GONE);
+            btnWriterOutline.setOnClickListener(v -> {
+                if (!writerAssistant) return;
+                startActivity(new Intent(this, SessionOutlineActivity.class)
+                        .putExtra(SessionOutlineActivity.EXTRA_SESSION_ID, sessionId));
+            });
         }
 
         RecyclerView recyclerHistory = findViewById(R.id.recyclerHistory);
@@ -173,6 +187,8 @@ public class ChatSessionActivity extends ThemedActivity {
 
         historyAdapter = new MessageAdapter(assistantMarkdownStateStore);
         currentAdapter = new MessageAdapter(assistantMarkdownStateStore);
+        historyAdapter.setWriterMode(writerAssistant);
+        currentAdapter.setWriterMode(writerAssistant);
         MessageAdapter.OnAssistantStateChangedListener assistantStateListener = () -> {
             historyAdapter.notifyDataSetChanged();
             currentAdapter.notifyDataSetChanged();
@@ -351,6 +367,7 @@ public class ChatSessionActivity extends ThemedActivity {
 
         List<Message> historyForApi = new ArrayList<>(allMessages);
         if (!historyForApi.isEmpty()) historyForApi.remove(historyForApi.size() - 1);
+        historyForApi = buildHistoryForApi(historyForApi);
         SessionChatOptions options = resolveChatOptions();
         boolean streamOutput = options != null && options.streamOutput;
         Message streamingAssistant = null;
@@ -368,17 +385,25 @@ public class ChatSessionActivity extends ThemedActivity {
         streamingTargetMessage = finalStreamingAssistant;
         stopStreamTypewriter(true);
 
+        String apiUserMessage = buildUserMessageForApi(text);
         try {
-            ChatService.ChatHandle chatHandle = chatService.chat(historyForApi, text, options, new ChatService.ChatCallback() {
+            ChatService.ChatHandle chatHandle = chatService.chat(historyForApi, apiUserMessage, options, new ChatService.ChatCallback() {
                 private boolean isStale() {
                     return responseToken != activeResponseToken;
+                }
+
+                private boolean isUiAlive() {
+                    return !isFinishing() && !isDestroyed();
                 }
 
                 @Override
                 public void onSuccess(String content) {
                     mainHandler.post(() -> {
                         if (isStale()) return;
-                        if (isFinishing() || isDestroyed()) return;
+                        if (!isUiAlive()) {
+                            persistAssistantMessageDetached(content);
+                            return;
+                        }
                         boolean shouldStickBottomAfterDone = autoScrollToBottomEnabled;
                         setAssistantResponseInProgress(false);
                         activeChatHandle = null;
@@ -406,6 +431,9 @@ public class ChatSessionActivity extends ThemedActivity {
                 public void onError(String message) {
                     mainHandler.post(() -> {
                         if (isStale()) return;
+                        if (!isUiAlive()) {
+                            return;
+                        }
                         setAssistantResponseInProgress(false);
                         activeChatHandle = null;
                         activeStreamingMessage = null;
@@ -427,6 +455,7 @@ public class ChatSessionActivity extends ThemedActivity {
                 public void onCancelled() {
                     mainHandler.post(() -> {
                         if (isStale()) return;
+                        if (!isUiAlive()) return;
                         handleResponseStopped(finalStreamingAssistant);
                     });
                 }
@@ -436,7 +465,7 @@ public class ChatSessionActivity extends ThemedActivity {
                     if (!streamOutput || finalStreamingAssistant == null) return;
                     mainHandler.post(() -> {
                         if (isStale()) return;
-                        if (isFinishing() || isDestroyed()) return;
+                        if (!isUiAlive()) return;
                         finishThinking(finalStreamingAssistant);
                         enqueueStreamDelta(finalStreamingAssistant, delta);
                     });
@@ -447,7 +476,7 @@ public class ChatSessionActivity extends ThemedActivity {
                     if (!streamOutput || finalStreamingAssistant == null) return;
                     mainHandler.post(() -> {
                         if (isStale()) return;
-                        if (isFinishing() || isDestroyed()) return;
+                        if (!isUiAlive()) return;
                         beginThinking(finalStreamingAssistant);
                         finalStreamingAssistant.reasoning = reasoning != null ? reasoning : "";
                         scheduleStreamRender();
@@ -459,6 +488,7 @@ public class ChatSessionActivity extends ThemedActivity {
                     if (finalStreamingAssistant == null) return;
                     mainHandler.post(() -> {
                         if (isStale()) return;
+                        if (!isUiAlive()) return;
                         finalStreamingAssistant.promptTokens = promptTokens;
                         finalStreamingAssistant.completionTokens = completionTokens;
                         finalStreamingAssistant.totalTokens = totalTokens;
@@ -603,12 +633,9 @@ public class ChatSessionActivity extends ThemedActivity {
 
     @Override
     protected void onDestroy() {
-        if (activeChatHandle != null) {
-            try {
-                activeChatHandle.cancel();
-            } catch (Exception ignored) {}
-            activeChatHandle = null;
-        }
+        // Keep in-flight response alive when leaving page/app.
+        // It can still finish in background and be persisted to DB.
+        activeChatHandle = null;
         activeStreamingMessage = null;
         stopStreamTypewriter(true);
         streamingTargetMessage = null;
@@ -616,13 +643,39 @@ public class ChatSessionActivity extends ThemedActivity {
         streamRenderPending = false;
         mainHandler.removeCallbacks(thinkingTicker);
         activeThinkingMessage = null;
-        executor.shutdown();
+        if (!assistantResponseInProgress) {
+            executor.shutdown();
+        }
         super.onDestroy();
+    }
+
+    private void persistAssistantMessageDetached(String content) {
+        String safe = content != null ? content : "";
+        assistantResponseInProgress = false;
+        Runnable writeTask = () -> {
+            try {
+                Message assistantMsg = new Message(sessionId, Message.ROLE_ASSISTANT, safe);
+                AppDatabase.getInstance(getApplicationContext()).messageDao().insert(assistantMsg);
+            } catch (Exception ignored) {}
+        };
+        try {
+            executor.execute(writeTask);
+            executor.shutdown();
+        } catch (Exception ignored) {
+            new Thread(writeTask).start();
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        writerAssistant = resolveWriterAssistant();
+        if (historyAdapter != null) historyAdapter.setWriterMode(writerAssistant);
+        if (currentAdapter != null) currentAdapter.setWriterMode(writerAssistant);
+        View btnWriterOutline = findViewById(R.id.btnWriterOutline);
+        if (btnWriterOutline != null) {
+            btnWriterOutline.setVisibility(writerAssistant ? View.VISIBLE : View.GONE);
+        }
         sessionOptions = resolveChatOptions();
         applyMessagesAndTitle();
     }
@@ -672,6 +725,12 @@ public class ChatSessionActivity extends ThemedActivity {
             }
 
             @Override
+            public void onOutline(Message message) {
+                if (!writerAssistant || message == null) return;
+                summarizeMessageToOutline(message);
+            }
+
+            @Override
             public void onDelete(Message message) {
                 if (message == null) return;
                 int idx = indexOf(message);
@@ -681,6 +740,112 @@ public class ChatSessionActivity extends ThemedActivity {
                 persistSessionMessagesAsync();
             }
         });
+    }
+
+    private void summarizeMessageToOutline(Message message) {
+        String source = message.content != null ? message.content.trim() : "";
+        if (source.isEmpty()) {
+            Toast.makeText(this, "消息为空，无法提取", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Toast.makeText(this, "正在提取到大纲…", Toast.LENGTH_SHORT).show();
+        chatService.summarizeMessageForOutline(source, new ChatService.ChatCallback() {
+            @Override
+            public void onSuccess(String content) {
+                mainHandler.post(() -> {
+                    String summary = content != null ? content.trim() : "";
+                    if (summary.isEmpty()) {
+                        onError("提取结果为空");
+                        return;
+                    }
+                    int next = outlineStore.nextChapterIndex(sessionId);
+                    String title = "章节" + next;
+                    outlineStore.add(sessionId, "chapter", title, summary);
+                    Toast.makeText(ChatSessionActivity.this, "已添加到大纲：" + title, Toast.LENGTH_SHORT).show();
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                mainHandler.post(() -> Toast.makeText(ChatSessionActivity.this,
+                        message != null && !message.trim().isEmpty() ? message : "提取失败",
+                        Toast.LENGTH_LONG).show());
+            }
+        });
+    }
+
+    private String buildUserMessageForApi(String text) {
+        String source = text != null ? text.trim() : "";
+        if (!writerAssistant || source.isEmpty()) return source;
+        List<SessionOutlineItem> outlines = outlineStore.getAll(sessionId);
+        if (outlines == null || outlines.isEmpty()) return source;
+        StringBuilder sb = new StringBuilder();
+        StringBuilder knowledgeSb = new StringBuilder();
+        sb.append(source).append("\n\n");
+        sb.append("【写作大纲与资料】\n");
+        for (SessionOutlineItem one : outlines) {
+            if (one == null) continue;
+            String type = "章节";
+            if ("material".equals(one.type)) type = "资料";
+            else if ("task".equals(one.type)) type = "任务资料";
+            else if ("world".equals(one.type)) type = "世界背景";
+            else if ("knowledge".equals(one.type)) type = "知情约束";
+            String title = one.title != null ? one.title.trim() : "";
+            String content = one.content != null ? one.content.trim() : "";
+            if (title.isEmpty() && content.isEmpty()) continue;
+            sb.append("- [").append(type).append("] ");
+            if (!title.isEmpty()) sb.append(title);
+            if (!content.isEmpty()) {
+                if (!title.isEmpty()) sb.append("：");
+                sb.append(content);
+            }
+            sb.append("\n");
+            if ("knowledge".equals(one.type)) {
+                knowledgeSb.append("- ");
+                if (!title.isEmpty()) knowledgeSb.append(title);
+                if (!content.isEmpty()) {
+                    if (!title.isEmpty()) knowledgeSb.append("：");
+                    knowledgeSb.append(content);
+                }
+                knowledgeSb.append("\n");
+            }
+        }
+        if (knowledgeSb.length() > 0) {
+            sb.append("\n【知情约束（必须遵守）】\n");
+            sb.append(knowledgeSb);
+            sb.append("1) 角色只能使用其已知信息行动、发言与推理。\n");
+            sb.append("2) 未知信息不得被角色直接提及或据此决策。\n");
+            sb.append("3) 若需要让角色得知信息，必须先写出获取路径（目击/对话/文件/推理）。\n");
+            sb.append("4) 优先保证知情边界，不要把读者已知当成角色已知。\n");
+        }
+        sb.append("请严格参考以上内容，保持情节、设定、任务线索的一致性与准确性。");
+        return sb.toString().trim();
+    }
+
+    private List<Message> buildHistoryForApi(List<Message> sourceHistory) {
+        List<Message> source = sourceHistory != null ? sourceHistory : new ArrayList<>();
+        if (!writerAssistant || source.isEmpty()) return source;
+        List<Message> out = new ArrayList<>(source.size());
+        for (Message m : source) {
+            if (m == null) continue;
+            String content = m.content != null ? m.content : "";
+            if (m.role == Message.ROLE_ASSISTANT && content.length() > WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS) {
+                String excerpt = content.substring(0, WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS);
+                content = "【节选说明】以下内容为上一轮助手回复的前"
+                        + WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS
+                        + "字节选，仅用于延续文风，不代表完整情节；情节发展请以写作大纲与资料为准。\n"
+                        + excerpt;
+            }
+            Message copy = new Message(sessionId, m.role, content);
+            out.add(copy);
+        }
+        return out;
+    }
+
+    private boolean resolveWriterAssistant() {
+        if (assistantId == null || assistantId.trim().isEmpty()) return false;
+        MyAssistant assistant = new MyAssistantStore(this).getById(assistantId);
+        return assistant != null && "writer".equals(assistant.type);
     }
 
     private int indexOf(Message target) {

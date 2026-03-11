@@ -455,6 +455,197 @@ public class ChatService {
                 });
     }
 
+    public void summarizeMessageForOutline(String content, ChatCallback callback) {
+        if (callback == null) return;
+        String source = content != null ? content.trim() : "";
+        if (source.isEmpty()) {
+            callback.onError("消息为空");
+            return;
+        }
+        if (source.length() > 2500) {
+            source = source.substring(0, 2500);
+        }
+        AiModelConfig.ResolvedConfig config;
+        try {
+            config = new AiModelConfig(context).getConfigForSummary();
+        } catch (Exception e) {
+            callback.onError("配置解析失败");
+            return;
+        }
+        if (config == null || !config.isValid()) {
+            callback.onError("请先在「模型配置」中选用总结模型");
+            return;
+        }
+
+        String baseUrl = config.toRetrofitBaseUrl();
+        if (!baseUrl.endsWith("/")) baseUrl += "/";
+
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(20, TimeUnit.SECONDS)
+                .readTimeout(20, TimeUnit.SECONDS)
+                .writeTimeout(20, TimeUnit.SECONDS)
+                .build();
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(baseUrl)
+                .client(client)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        ChatApi api = retrofit.create(ChatApi.class);
+
+        List<ChatApi.ChatMessage> requestMessages = new ArrayList<>();
+        requestMessages.add(new ChatApi.ChatMessage("system",
+                "你是小说写作助手。请把输入内容提炼为一个可放入大纲的条目正文，要求：40到180字，聚焦关键事件、人物动机、世界设定或任务线索。只输出正文，不要标题，不要列表。"));
+        requestMessages.add(new ChatApi.ChatMessage("user", source));
+
+        ChatApi.ChatRequest request = new ChatApi.ChatRequest();
+        request.model = config.modelId;
+        request.messages = requestMessages;
+        request.stream = false;
+        request.n = null;
+        request.maxTokens = null;
+        request.temperature = null;
+        request.topP = null;
+        request.stop = null;
+        request.thinking = null;
+        request.reasoning = null;
+        request.providerOptions = null;
+
+        String auth = (config.apiKey != null && !config.apiKey.trim().isEmpty())
+                ? ("Bearer " + config.apiKey.trim()) : null;
+        String chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath);
+        api.chatWithUrl(chatUrl, auth, "application/json", request)
+                .enqueue(new retrofit2.Callback<ChatApi.ChatResponse>() {
+                    @Override
+                    public void onResponse(retrofit2.Call<ChatApi.ChatResponse> call, retrofit2.Response<ChatApi.ChatResponse> response) {
+                        if (!response.isSuccessful() || response.body() == null || response.body().choices == null
+                                || response.body().choices.isEmpty() || response.body().choices.get(0) == null
+                                || response.body().choices.get(0).message == null) {
+                            String detail = "";
+                            try {
+                                if (response != null && response.errorBody() != null) {
+                                    detail = response.errorBody().string();
+                                }
+                            } catch (Exception ignored) {}
+                            callback.onError("总结失败: " + (response != null ? response.code() : "无响应")
+                                    + (detail.isEmpty() ? "" : ("\n" + detail)));
+                            return;
+                        }
+                        String summary = response.body().choices.get(0).message.content;
+                        summary = summary != null ? summary.replace("\n", " ").trim() : "";
+                        if (summary.isEmpty()) {
+                            callback.onError("总结失败");
+                            return;
+                        }
+                        callback.onSuccess(summary);
+                    }
+
+                    @Override
+                    public void onFailure(retrofit2.Call<ChatApi.ChatResponse> call, Throwable t) {
+                        callback.onError(t != null ? t.getMessage() : "总结失败");
+                    }
+                });
+    }
+
+    public void auditNovelLeakage(String knowledgeConstraints, String assistantContent, ChatCallback callback) {
+        if (callback == null) return;
+        String constraints = knowledgeConstraints != null ? knowledgeConstraints.trim() : "";
+        String aiText = assistantContent != null ? assistantContent.trim() : "";
+        if (constraints.isEmpty()) {
+            callback.onError("知情约束为空");
+            return;
+        }
+        if (aiText.isEmpty()) {
+            callback.onError("待审计内容为空");
+            return;
+        }
+        if (aiText.length() > 4000) {
+            aiText = aiText.substring(0, 4000);
+        }
+        AiModelConfig.ResolvedConfig config;
+        try {
+            config = new AiModelConfig(context).getConfigForSummary();
+        } catch (Exception e) {
+            callback.onError("配置解析失败");
+            return;
+        }
+        if (config == null || !config.isValid()) {
+            callback.onError("请先在「模型配置」中选用总结模型");
+            return;
+        }
+
+        String baseUrl = config.toRetrofitBaseUrl();
+        if (!baseUrl.endsWith("/")) baseUrl += "/";
+
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(20, TimeUnit.SECONDS)
+                .readTimeout(20, TimeUnit.SECONDS)
+                .writeTimeout(20, TimeUnit.SECONDS)
+                .build();
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(baseUrl)
+                .client(client)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        ChatApi api = retrofit.create(ChatApi.class);
+
+        List<ChatApi.ChatMessage> requestMessages = new ArrayList<>();
+        requestMessages.add(new ChatApi.ChatMessage("system",
+                "你是小说写作审计员。请依据“知情约束”检查文本是否存在角色越权知情（泄密）问题。输出格式严格如下：\n"
+                        + "结论：通过/不通过\n"
+                        + "风险点：逐条列出（若无写“无”）\n"
+                        + "修复建议：给出可执行改写建议（若通过可写“保持当前写法”）"));
+        requestMessages.add(new ChatApi.ChatMessage("user",
+                "【知情约束】\n" + constraints + "\n\n【待审计文本】\n" + aiText));
+
+        ChatApi.ChatRequest request = new ChatApi.ChatRequest();
+        request.model = config.modelId;
+        request.messages = requestMessages;
+        request.stream = false;
+        request.n = null;
+        request.maxTokens = null;
+        request.temperature = null;
+        request.topP = null;
+        request.stop = null;
+        request.thinking = null;
+        request.reasoning = null;
+        request.providerOptions = null;
+
+        String auth = (config.apiKey != null && !config.apiKey.trim().isEmpty())
+                ? ("Bearer " + config.apiKey.trim()) : null;
+        String chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath);
+        api.chatWithUrl(chatUrl, auth, "application/json", request)
+                .enqueue(new retrofit2.Callback<ChatApi.ChatResponse>() {
+                    @Override
+                    public void onResponse(retrofit2.Call<ChatApi.ChatResponse> call, retrofit2.Response<ChatApi.ChatResponse> response) {
+                        if (!response.isSuccessful() || response.body() == null || response.body().choices == null
+                                || response.body().choices.isEmpty() || response.body().choices.get(0) == null
+                                || response.body().choices.get(0).message == null) {
+                            String detail = "";
+                            try {
+                                if (response != null && response.errorBody() != null) {
+                                    detail = response.errorBody().string();
+                                }
+                            } catch (Exception ignored) {}
+                            callback.onError("审计失败: " + (response != null ? response.code() : "无响应")
+                                    + (detail.isEmpty() ? "" : ("\n" + detail)));
+                            return;
+                        }
+                        String report = response.body().choices.get(0).message.content;
+                        report = report != null ? report.trim() : "";
+                        if (report.isEmpty()) {
+                            callback.onError("审计失败");
+                            return;
+                        }
+                        callback.onSuccess(report);
+                    }
+
+                    @Override
+                    public void onFailure(retrofit2.Call<ChatApi.ChatResponse> call, Throwable t) {
+                        callback.onError(t != null ? t.getMessage() : "审计失败");
+                    }
+                });
+    }
+
     private List<ChatApi.ChatMessage> buildMessages(List<Message> history, String userMessage, SessionChatOptions using) {
         List<ChatApi.ChatMessage> messages = new ArrayList<>();
         if (using.systemPrompt != null && !using.systemPrompt.trim().isEmpty()) {

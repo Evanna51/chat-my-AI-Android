@@ -63,6 +63,11 @@
             android:parentActivityName=".ChatSessionActivity"
             android:theme="@style/Theme.AIChat" />
         <activity
+            android:name=".SessionOutlineActivity"
+            android:exported="false"
+            android:parentActivityName=".ChatSessionActivity"
+            android:theme="@style/Theme.AIChat" />
+        <activity
             android:name=".MyAssistantsActivity"
             android:exported="false"
             android:parentActivityName=".MainActivity"

@@ -44,6 +44,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private Markwon markwon;
     private final Map<Message, String> markdownRenderedSource = new IdentityHashMap<>();
     private final Map<Message, Long> markdownLastRenderAt = new IdentityHashMap<>();
+    private boolean writerMode;
 
     public MessageAdapter() {
         this(new AssistantMarkdownStateStore());
@@ -59,6 +60,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         void onRegenerate(Message message);
         void onEdit(Message message);
         void onCopy(Message message);
+        void onOutline(Message message);
         void onDelete(Message message);
     }
 
@@ -160,6 +162,11 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         this.assistantStateChangedListener = listener;
     }
 
+    public void setWriterMode(boolean enabled) {
+        writerMode = enabled;
+        notifyDataSetChanged();
+    }
+
     public void setMessages(List<Message> list) {
         messages.clear();
         if (list != null) {
@@ -242,10 +249,12 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             h.textTimestamp.setText(formatTimestamp(m != null ? m.createdAt : 0));
             h.textContent.setText(content);
             h.layoutActions.setVisibility(showActions ? View.VISIBLE : View.GONE);
+            h.actionOutline.setVisibility(writerMode ? View.VISIBLE : View.GONE);
             h.itemView.setOnClickListener(v -> focus(position));
             h.actionRegenerate.setOnClickListener(v -> { if (actionListener != null) actionListener.onRegenerate(m); });
             h.actionEdit.setOnClickListener(v -> { if (actionListener != null) actionListener.onEdit(m); });
             h.actionCopy.setOnClickListener(v -> { if (actionListener != null) actionListener.onCopy(m); });
+            h.actionOutline.setOnClickListener(v -> { if (actionListener != null) actionListener.onOutline(m); });
             h.actionDelete.setOnClickListener(v -> { if (actionListener != null) actionListener.onDelete(m); });
         } else if (holder instanceof AssistantHolder) {
             AssistantHolder h = (AssistantHolder) holder;
@@ -257,6 +266,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             h.textContent.setVisibility(hasVisibleContent ? View.VISIBLE : View.GONE);
             if (hasVisibleContent) bindAssistantContent(h, m, content, expanded);
             h.layoutActions.setVisibility((showActions || hasVisibleContent) ? View.VISIBLE : View.GONE);
+            h.actionOutline.setVisibility(writerMode ? View.VISIBLE : View.GONE);
             h.actionEdit.setVisibility(showActions ? View.VISIBLE : View.GONE);
             h.actionCopy.setVisibility(showActions ? View.VISIBLE : View.GONE);
             h.actionDelete.setVisibility(showActions ? View.VISIBLE : View.GONE);
@@ -264,6 +274,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             h.itemView.setOnClickListener(v -> focus(position));
             h.actionEdit.setOnClickListener(v -> { if (actionListener != null) actionListener.onEdit(m); });
             h.actionCopy.setOnClickListener(v -> { if (actionListener != null) actionListener.onCopy(m); });
+            h.actionOutline.setOnClickListener(v -> { if (actionListener != null) actionListener.onOutline(m); });
             h.actionDelete.setOnClickListener(v -> { if (actionListener != null) actionListener.onDelete(m); });
             h.textCollapseToggle.setOnClickListener(v -> toggleAssistantExpanded(h, m));
         }
@@ -281,6 +292,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         View actionRegenerate;
         View actionEdit;
         View actionCopy;
+        View actionOutline;
         View actionDelete;
 
         UserHolder(View itemView) {
@@ -291,6 +303,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             actionRegenerate = itemView.findViewById(R.id.actionRegenerate);
             actionEdit = itemView.findViewById(R.id.actionEdit);
             actionCopy = itemView.findViewById(R.id.actionCopy);
+            actionOutline = itemView.findViewById(R.id.actionOutline);
             actionDelete = itemView.findViewById(R.id.actionDelete);
         }
     }
@@ -306,6 +319,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         TextView textUsage;
         View actionEdit;
         View actionCopy;
+        View actionOutline;
         View actionDelete;
 
         AssistantHolder(View itemView) {
@@ -320,6 +334,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             textUsage = itemView.findViewById(R.id.textUsage);
             actionEdit = itemView.findViewById(R.id.actionEdit);
             actionCopy = itemView.findViewById(R.id.actionCopy);
+            actionOutline = itemView.findViewById(R.id.actionOutline);
             actionDelete = itemView.findViewById(R.id.actionDelete);
         }
     }
