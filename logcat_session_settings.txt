@@ -1,0 +1,213 @@
+--------- beginning of main
+03-11 16:43:02.522 11468 11468 V GraphicsEnvironment: Neither updatable production driver nor prerelease driver is supported.
+03-11 16:43:02.523  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd18318) locale list changing from [] to [en-US]
+03-11 16:43:02.524  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1abb8) locale list changing from [] to [en-US]
+03-11 16:43:02.526  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1b518) locale list changing from [] to [en-US]
+03-11 16:43:02.526  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd17698) locale list changing from [] to [en-US]
+03-11 16:43:02.527  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd098b8) locale list changing from [] to [en-US]
+03-11 16:43:02.532  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd14ad8) locale list changing from [] to [en-US]
+03-11 16:43:02.533  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0f678) locale list changing from [] to [en-US]
+03-11 16:43:02.534  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0d418) locale list changing from [] to [en-US]
+03-11 16:43:02.536  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd08918) locale list changing from [] to [en-US]
+03-11 16:43:02.536  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0cab8) locale list changing from [] to [en-US]
+--------- beginning of system
+03-11 16:43:02.537   897   958 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#115) android.os.BinderProxy@43b838c@0
+03-11 16:43:02.538   578   597 V WindowManager: Finish Transition (#115): created at 03-11 16:43:01.968 collect-started=0.018ms request-sent=22.885ms started=29.653ms ready=117.904ms sent=134.91ms commit=113.74ms finished=569.521ms
+03-11 16:43:02.539  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd085f8) locale list changing from [] to [en-US]
+03-11 16:43:02.539   897   958 V WindowManagerShell: Track 0 became idle
+03-11 16:43:02.539   897   958 V WindowManagerShell: All active transition animations finished
+03-11 16:43:02.540  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd066b8) locale list changing from [] to [en-US]
+03-11 16:43:02.548  1134  1134 D VRI[NexusLauncherActivity]: visibilityChanged oldVisibility=true newVisibility=false
+03-11 16:43:02.548  1134  1134 D NexusLauncherModelDelegate: notifySmartspaceEvent: SmartspaceTargetEvent{mSmartspaceTarget=null, mSmartspaceActionId='null', mEventType=7}
+03-11 16:43:02.553  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd06078) locale list changing from [] to [en-US]
+03-11 16:43:02.555  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0b4d8) locale list changing from [] to [en-US]
+03-11 16:43:02.556  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd07018) locale list changing from [] to [en-US]
+03-11 16:43:02.558  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0c158) locale list changing from [] to [en-US]
+03-11 16:43:02.559  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0a858) locale list changing from [] to [en-US]
+03-11 16:43:02.560   897   944 I ndroid.systemui: Waiting for a blocking GC ProfileSaver
+03-11 16:43:02.560   578   594 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ENABLE_FAKE_FOCUS
+03-11 16:43:02.562  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd05a38) locale list changing from [] to [en-US]
+03-11 16:43:02.569  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd06cf8) locale list changing from [] to [en-US]
+03-11 16:43:02.570  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd14498) locale list changing from [] to [en-US]
+03-11 16:43:02.571   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:43:02.571   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:43:02.575  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd08f58) locale list changing from [] to [en-US]
+03-11 16:43:02.577  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd11bf8) locale list changing from [] to [en-US]
+03-11 16:43:02.577 11468 11468 I .example.aichat: AssetManager2(0xb400007a1fcfbad8) locale list changing from [] to [en-US]
+03-11 16:43:02.581  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0be38) locale list changing from [] to [en-US]
+03-11 16:43:02.583  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd069d8) locale list changing from [] to [en-US]
+03-11 16:43:02.591  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0d0f8) locale list changing from [] to [en-US]
+03-11 16:43:02.591  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0ae98) locale list changing from [] to [en-US]
+03-11 16:43:02.591  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd07338) locale list changing from [] to [en-US]
+03-11 16:43:02.592  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd08c38) locale list changing from [] to [en-US]
+03-11 16:43:02.594  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd07c98) locale list changing from [] to [en-US]
+03-11 16:43:02.594  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0bb18) locale list changing from [] to [en-US]
+03-11 16:43:02.595  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd09598) locale list changing from [] to [en-US]
+03-11 16:43:02.598  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0a538) locale list changing from [] to [en-US]
+03-11 16:43:02.601  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0ab78) locale list changing from [] to [en-US]
+03-11 16:43:02.601  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd037d8) locale list changing from [] to [en-US]
+03-11 16:43:02.602  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd07658) locale list changing from [] to [en-US]
+03-11 16:43:02.602  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0c798) locale list changing from [] to [en-US]
+03-11 16:43:02.607 11468 11468 D AppCompatDelegate: Checking for metadata for AppLocalesMetadataHolderService : Service not found
+03-11 16:43:02.608 11468 11468 I .example.aichat: AssetManager2(0xb400007a1fd04a98) locale list changing from [] to [en-US]
+03-11 16:43:02.609   897   903 I ndroid.systemui: Background concurrent mark compact GC freed 9040KB AllocSpace bytes, 49(1092KB) LOS objects, 49% free, 24MB/48MB, paused 224us,418us total 1.299s
+03-11 16:43:02.611  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd01258) locale list changing from [] to [en-US]
+03-11 16:43:02.614  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd034b8) locale list changing from [] to [en-US]
+03-11 16:43:02.616  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcfe9b8) locale list changing from [] to [en-US]
+03-11 16:43:02.617  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcff958) locale list changing from [] to [en-US]
+03-11 16:43:02.620  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd04a98) locale list changing from [] to [en-US]
+03-11 16:43:02.621  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd053f8) locale list changing from [] to [en-US]
+03-11 16:43:02.623  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcfa818) locale list changing from [] to [en-US]
+03-11 16:43:02.624  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcff638) locale list changing from [] to [en-US]
+03-11 16:43:02.625  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd050d8) locale list changing from [] to [en-US]
+03-11 16:43:02.625  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcfdd38) locale list changing from [] to [en-US]
+03-11 16:43:02.627  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcfe378) locale list changing from [] to [en-US]
+03-11 16:43:02.627  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd01bb8) locale list changing from [] to [en-US]
+03-11 16:43:02.627  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd002b8) locale list changing from [] to [en-US]
+03-11 16:43:02.628  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd04778) locale list changing from [] to [en-US]
+03-11 16:43:02.629  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcffc78) locale list changing from [] to [en-US]
+03-11 16:43:02.631  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd01ed8) locale list changing from [] to [en-US]
+03-11 16:43:02.632  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd12878) locale list changing from [] to [en-US]
+03-11 16:43:02.632  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0f358) locale list changing from [] to [en-US]
+03-11 16:43:02.635  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd11298) locale list changing from [] to [en-US]
+03-11 16:43:02.636  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0e9f8) locale list changing from [] to [en-US]
+03-11 16:43:02.636 11468 11468 D DesktopModeFlags: Toggle override initialized to: OVERRIDE_UNSET
+03-11 16:43:02.640  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd008f8) locale list changing from [] to [en-US]
+03-11 16:43:02.640  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd13818) locale list changing from [] to [en-US]
+03-11 16:43:02.644  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0f998) locale list changing from [] to [en-US]
+03-11 16:43:02.648 11468 11468 I .example.aichat: hiddenapi: Accessing hidden method Landroid/view/View;->computeFitSystemWindows(Landroid/graphics/Rect;Landroid/graphics/Rect;)Z (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/appcompat/widget/ViewUtils; (domain=app) using reflection: allowed
+03-11 16:43:02.649  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd147b8) locale list changing from [] to [en-US]
+03-11 16:43:02.649  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd11f18) locale list changing from [] to [en-US]
+03-11 16:43:02.650  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd10f78) locale list changing from [] to [en-US]
+03-11 16:43:02.650  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd12b98) locale list changing from [] to [en-US]
+03-11 16:43:02.651 11468 11468 I .example.aichat: hiddenapi: Accessing hidden method Landroid/view/ViewGroup;->makeOptionalFitsSystemWindows()V (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/appcompat/widget/ViewUtils; (domain=app) using reflection: allowed
+03-11 16:43:02.652  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0ffd8) locale list changing from [] to [en-US]
+03-11 16:43:02.654  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd14df8) locale list changing from [] to [en-US]
+03-11 16:43:02.654  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0dd78) locale list changing from [] to [en-US]
+03-11 16:43:02.654  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd14178) locale list changing from [] to [en-US]
+03-11 16:43:02.658  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0da58) locale list changing from [] to [en-US]
+03-11 16:43:02.660  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0fcb8) locale list changing from [] to [en-US]
+03-11 16:43:02.661  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd13b38) locale list changing from [] to [en-US]
+03-11 16:43:02.662  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd134f8) locale list changing from [] to [en-US]
+03-11 16:43:02.662  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0e6d8) locale list changing from [] to [en-US]
+03-11 16:43:02.664  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd09bd8) locale list changing from [] to [en-US]
+03-11 16:43:02.665  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd102f8) locale list changing from [] to [en-US]
+03-11 16:43:02.666  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcfe058) locale list changing from [] to [en-US]
+03-11 16:43:02.666  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd02e78) locale list changing from [] to [en-US]
+03-11 16:43:02.667  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0d738) locale list changing from [] to [en-US]
+03-11 16:43:02.668  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd118d8) locale list changing from [] to [en-US]
+03-11 16:43:02.683   897   944 I ndroid.systemui: WaitForGcToComplete blocked ProfileSaver on Background for 122.943ms
+03-11 16:43:02.692 11468 11468 W HWUI    : Image decoding logging dropped!
+03-11 16:43:02.708 11468 11468 W HWUI    : Unknown dataspace 0
+03-11 16:43:02.711   897   905 W System  : A resource failed to call release. 
+03-11 16:43:02.711   897   905 W System  : A resource failed to call release. 
+03-11 16:43:02.711   897   905 W System  : A resource failed to call release. 
+03-11 16:43:02.711   897   905 W System  : A resource failed to call release. 
+03-11 16:43:02.711   897   905 W System  : A resource failed to call release. 
+03-11 16:43:02.711   897   905 W System  : A resource failed to call release. 
+03-11 16:43:02.711   897   905 W System  : A resource failed to call release. 
+03-11 16:43:02.711   897   905 W System  : A resource failed to call release. 
+03-11 16:43:02.711   897   905 W System  : A resource failed to call release. 
+03-11 16:43:02.711   897   905 W System  : A resource failed to call release. 
+03-11 16:43:02.711   897   905 W System  : A resource failed to call release. 
+03-11 16:43:02.716 11468 11468 D AutofillManager: view not autofillable - not passing ime action check
+03-11 16:43:02.716 11468 11468 D AutofillManager: view not autofillable - not passing ime action check
+03-11 16:43:02.718   578   656 D CoreBackPreview: Window{414f74d u0 com.example.aichat/com.example.aichat.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@5f3d713, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+03-11 16:43:02.728 11468 11485 I EGL_emulation: Opening libGLESv1_CM_emulation.so
+03-11 16:43:02.728 11468 11485 I EGL_emulation: Opening libGLESv2_emulation.so
+03-11 16:43:02.732 11468 11485 W HWUI    : Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+03-11 16:43:02.734 11468 11485 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+03-11 16:43:02.782   578   597 I ActivityTaskManager: Displayed com.example.aichat/.MainActivity for user 0: +821ms
+03-11 16:43:02.809   578   686 I ImeTracker: com.example.aichat:a5cf8dc9: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+03-11 16:43:02.811  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():2589 
+03-11 16:43:02.811  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 0, locked = false
+03-11 16:43:02.811  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1568 onStartInput(EditorInfo{EditorInfo{packageName=com.example.aichat, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+03-11 16:43:02.812  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+03-11 16:43:02.812   578   656 W PackageConfigPersister: App-specific configuration not found for packageName: com.example.aichat and userId: 0
+03-11 16:43:02.812  1400  1400 I AndroidIME: InputBundleManager.loadActiveInputBundleId():407 loadActiveInputBundleId: und-Latn-x-password, password
+03-11 16:43:02.812 11468 11468 D InsetsController: hide(ime(), fromIme=false)
+03-11 16:43:02.817 11468 11468 I ImeTracker: com.example.aichat:a5cf8dc9: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+03-11 16:43:02.836  1134  1134 D BaseDepthController: setSurface:
+03-11 16:43:02.836  1134  1134 D BaseDepthController: 	mWaitingOnSurfaceValidity: false
+03-11 16:43:02.836  1134  1134 D BaseDepthController: 	mSurface: null
+03-11 16:43:02.836  1134  1134 D BaseDepthController: mSurface is null and mCurrentBlur is: 0
+03-11 16:43:02.837  1134  1134 D StateManager: goToState - fromState: Normal, toState: Normal, partial trace:
+03-11 16:43:02.837  1134  1134 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:5)
+03-11 16:43:02.837  1134  1134 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:2)
+03-11 16:43:02.837  1134  1134 D StateManager: 	at com.android.launcher3.statemanager.StatefulActivity.onStop(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:34)
+03-11 16:43:02.837  1134  1134 D StatsLog: LAUNCHER_ONSTOP
+03-11 16:43:02.837  1134  1134 D StatsLog: LAUNCHER_GOOGLE_SEARCH_RESTORE_LIST_SIZE_AFTER_ACTIVITY_RESTART
+03-11 16:43:02.837  1134  2378 D GmsPlayProvider: Shut down the binder channel
+03-11 16:43:02.853   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:43:03.151   897   997 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda13@6514542
+03-11 16:43:03.151   578   656 D CoreBackPreview: Window{333fccf u0 Splash Screen com.example.aichat EXITING}: Setting back callback null
+03-11 16:43:03.204 11468 11474 I .example.aichat: Compiler allocated 5175KB to compile void android.view.ViewRootImpl.performTraversals()
+03-11 16:43:03.209  1241  1952 I FontLog : (REDACTED) Received query %s, URI %s
+03-11 16:43:03.211  1241  1952 I FontLog : (REDACTED) Query [%s] resolved to %s
+03-11 16:43:03.215  1241  1952 I FontLog : (REDACTED) Fetch %s end status %s
+03-11 16:43:03.220  1241  1952 I FontLog : (REDACTED) Pulling font file for id = %d, cache size = %d
+03-11 16:43:03.221  1241  1952 I FontLog : (REDACTED) Pulling font file for id = %d, cache size = %d
+03-11 16:43:04.054   578   594 V GrammaticalInflectionUtils: AttributionSource: android.content.AttributionSource@96be9006 does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+03-11 16:43:04.054   578   594 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_OVERRIDE
+03-11 16:43:04.054   578   594 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_FULLSCREEN_OVERRIDE
+03-11 16:43:04.055   578   594 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_RESIZEABLE_ACTIVITY_OVERRIDES
+03-11 16:43:04.055   578   594 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_MIN_ASPECT_RATIO_OVERRIDE
+03-11 16:43:04.107   578   594 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_ORIENTATION_OVERRIDE
+03-11 16:43:04.109   578   594 I ActivityTaskManager: START u0 {xflg=0x4 cmp=com.example.aichat/.ChatSessionActivity (has extras)} with LAUNCH_MULTIPLE from uid 10210 (sr=177941967) (BAL_ALLOW_VISIBLE_WINDOW) result code=0
+03-11 16:43:04.118   578  1778 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ENABLE_FAKE_FOCUS
+03-11 16:43:04.122   578   656 W AS.PlaybackActivityMon: No piid assigned for invalid/internal port id 16
+03-11 16:43:04.123   897   958 V WindowManagerShell: Transition requested (#116): android.os.BinderProxy@3023516 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=32 effectiveUid=10210 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.example.aichat/.MainActivity } baseActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} topActivity=ComponentInfo{com.example.aichat/com.example.aichat.ChatSessionActivity} origActivity=null realActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} numActivities=2 lastActiveTime=19778650 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@9217e97} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{79f1884 com.example.aichat.ChatSessionActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(284, 660 - 796, 1740) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityAppBounds=Rect(0, 0 - 1080, 2337) isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 116 }
+03-11 16:43:04.123   897   958 D ShellSplitScreen: logExit: no-op, mLoggerSessionId is null
+03-11 16:43:04.127   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:43:04.127   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:43:04.127   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:43:04.129   444   444 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+03-11 16:43:04.131   435   534 D AudioFlinger: mixer(0xb400007a2d343770) throttle end: throttle time(34)
+03-11 16:43:04.131   444   544 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+03-11 16:43:04.157   578  1778 D CoreBackPreview: Window{7425af3 u0 com.example.aichat/com.example.aichat.ChatSessionActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@c8f9229, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+03-11 16:43:04.175   897  7648 V WindowManagerShell: onTransitionReady(transaction=2482491102106)
+03-11 16:43:04.175   897   958 V WindowManagerShell: onTransitionReady (#116) android.os.BinderProxy@3023516: {id=116 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+03-11 16:43:04.175   897   958 V WindowManagerShell:         {m=OPEN f=FILLS_TASK leash=Surface(name=ActivityRecord{122097751 u0 com.example.aichat/.ChatSessionActivity)/@0x24dd86d sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=-1->0 r=-1->0:-1 bc=fffffbfe component=com.example.aichat/.ChatSessionActivity opt={t=FROM_STYLE mUserId=0}},
+03-11 16:43:04.175   897   958 V WindowManagerShell:         {m=TO_BACK f=FILLS_TASK leash=Surface(name=ActivityRecord{177941967 u0 com.example.aichat/.MainActivity)/@0x4648ca2 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 bc=fffffbfe component=com.example.aichat/.MainActivity opt={t=FROM_STYLE mUserId=0}}
+03-11 16:43:04.175   897   958 V WindowManagerShell:     ]}
+03-11 16:43:04.175   897   958 V WindowManagerShell: Playing animation for (#116) android.os.BinderProxy@3023516@0
+03-11 16:43:04.175   897   958 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+03-11 16:43:04.175   897   958 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=116 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{m=OPEN f=FILLS_TASK leash=Surface(name=ActivityRecord{122097751 u0 com.example.aichat/.ChatSessionActivity)/@0x24dd86d sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=-1->0 r=-1->0:-1 bc=fffffbfe component=com.example.aichat/.ChatSessionActivity opt={t=FROM_STYLE mUserId=0}},{m=TO_BACK f=FILLS_TASK leash=Surface(name=ActivityRecord{177941967 u0 com.example.aichat/.MainActivity)/@0x4648ca2 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 bc=fffffbfe component=com.example.aichat/.MainActivity opt={t=FROM_STYLE mUserId=0}}]}
+03-11 16:43:04.175   897   958 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=undefined independent=true modes=[CLOSE,TO_BACK] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=null launchCookie=null taskFragmentToken=android.os.BinderProxy@cde1710 windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@bf6e209, appThread = android.app.IApplicationThread$Stub$Proxy@cf32c0e, debugName = overlayBackTransition }}
+03-11 16:43:04.175   897   958 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@bca362f, appThread = android.app.IApplicationThread$Stub$Proxy@8f5943c, debugName = LauncherToDream }}
+03-11 16:43:04.175   897   958 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null windowingMode=undefined},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{NOT atype=undefined independent=true modes=[] flags=NONE mustBeTask=true order=ANY topActivity=null launchCookie=null customAnim=true windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@62295c5, appThread = android.app.IApplicationThread$Stub$Proxy@1b9fb1a, debugName = QuickstepLaunchHome }}
+03-11 16:43:04.175   897   958 V WindowManagerShell:  Delegate animation for (#116) to null
+03-11 16:43:04.175   897   958 V WindowManagerShell: start default transition animation, info = {id=116 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{m=OPEN f=FILLS_TASK leash=Surface(name=ActivityRecord{122097751 u0 com.example.aichat/.ChatSessionActivity)/@0x24dd86d sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=-1->0 r=-1->0:-1 bc=fffffbfe component=com.example.aichat/.ChatSessionActivity opt={t=FROM_STYLE mUserId=0}},{m=TO_BACK f=FILLS_TASK leash=Surface(name=ActivityRecord{177941967 u0 com.example.aichat/.MainActivity)/@0x4648ca2 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 bc=fffffbfe component=com.example.aichat/.MainActivity opt={t=FROM_STYLE mUserId=0}}]}
+03-11 16:43:04.175   897   958 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@90fa98f animAttr=0x5 type=OPEN isEntrance=false
+03-11 16:43:04.175   897   958 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@a6f0dfa animAttr=0x4 type=OPEN isEntrance=true
+03-11 16:43:04.176   897   958 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@b084060
+03-11 16:43:04.176   578   597 I ActivityTaskManager: Displayed com.example.aichat/.ChatSessionActivity for user 0: +122ms
+03-11 16:43:04.176   578   597 V WindowManager: Sent Transition (#116) createdAt=03-11 16:43:04.107 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=32 effectiveUid=10210 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.example.aichat/.MainActivity } baseActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} topActivity=ComponentInfo{com.example.aichat/com.example.aichat.ChatSessionActivity} origActivity=null realActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} numActivities=2 lastActiveTime=19778650 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{c5055eb Task{921c35c #32 type=standard A=10210:com.example.aichat}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{565d61 com.example.aichat.ChatSessionActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(284, 660 - 796, 1740) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityAppBounds=Rect(0, 0 - 1080, 2337) isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 116 }
+03-11 16:43:04.176   578   597 V WindowManager:     startWCT=WindowContainerTransaction { changes= {} hops= [] errorCallbackToken=null taskFragmentOrganizer=null }
+03-11 16:43:04.176   578   597 V WindowManager:     info={id=116 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+03-11 16:43:04.176   578   597 V WindowManager:         {m=OPEN f=FILLS_TASK leash=Surface(name=ActivityRecord{122097751 u0 com.example.aichat/.ChatSessionActivity)/@0xaac356b sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=-1->0 r=-1->0:-1 bc=fffffbfe component=com.example.aichat/.ChatSessionActivity opt={t=FROM_STYLE mUserId=0}},
+03-11 16:43:04.176   578   597 V WindowManager:         {m=TO_BACK f=FILLS_TASK leash=Surface(name=ActivityRecord{177941967 u0 com.example.aichat/.MainActivity)/@0xbc4f2ba sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 bc=fffffbfe component=com.example.aichat/.MainActivity opt={t=FROM_STYLE mUserId=0}}
+03-11 16:43:04.176   578   597 V WindowManager:     ]}
+03-11 16:43:04.176   435   534 D AudioFlinger: mixer(0xb400007a2d343770) throttle end: throttle time(33)
+03-11 16:43:04.258   578   671 D ActivityManager: freezing 2290 com.google.android.gms.unstable
+03-11 16:43:04.259   578   671 D ActivityManager: freezing 1995 com.google.android.gms.ui
+03-11 16:43:04.268   578   686 I ImeTracker: com.example.aichat:61d88c8a: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+03-11 16:43:04.269  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():2589 
+03-11 16:43:04.269  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 0, locked = false
+03-11 16:43:04.270  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1568 onStartInput(EditorInfo{EditorInfo{packageName=com.example.aichat, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+03-11 16:43:04.270  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+03-11 16:43:04.270   578  1778 W PackageConfigPersister: App-specific configuration not found for packageName: com.example.aichat and userId: 0
+03-11 16:43:04.270 11468 11468 D InsetsController: hide(ime(), fromIme=false)
+03-11 16:43:04.270 11468 11468 I ImeTracker: com.example.aichat:61d88c8a: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+03-11 16:43:04.270  1400  1400 I AndroidIME: InputBundleManager.loadActiveInputBundleId():407 loadActiveInputBundleId: und-Latn-x-password, password
+03-11 16:43:04.648   897   958 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#116) android.os.BinderProxy@3023516@0
+03-11 16:43:04.648   578   597 V WindowManager: Finish Transition (#116): created at 03-11 16:43:04.107 collect-started=0.027ms request-sent=1.464ms started=17.141ms ready=17.129ms sent=67.569ms commit=6.461ms finished=541.394ms
+03-11 16:43:04.649 11468 11468 D VRI[MainActivity]: visibilityChanged oldVisibility=true newVisibility=false
+03-11 16:43:04.650   897   958 V WindowManagerShell: Track 0 became idle
+03-11 16:43:04.650   897   958 V WindowManagerShell: All active transition animations finished
+03-11 16:43:04.651   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:43:04.651   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:43:04.665 11468 11468 D AutofillManager: view not autofillable - not passing ime action check
+03-11 16:43:04.668 11468 11485 D HWUI    : endAllActiveAnimators on 0xb4000079ffd15660 (MaterialCardView) with handle 0xb400007a7fd2e520
+03-11 16:43:04.686   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:43:05.999   578  2910 E TaskPersister: File error accessing recents directory (directory doesn't exist?).

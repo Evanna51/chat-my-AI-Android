@@ -1,0 +1,11 @@
+--------- beginning of main
+03-11 18:52:00.354 14476 14476 D ChatService: chat request providerId=, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 18:52:12.068 14476 14476 D ChatService: chat request providerId=, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 18:52:35.234 14476 14476 D ChatService: stream request providerId=llama, model=Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-BF16.gguf, thinking=false, reasoning=null, providerOptions=null
+03-11 19:04:12.022 14720 14720 D ChatService: stream request providerId=deepseek, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 19:05:30.791 14720 14720 D ChatService: stream request providerId=deepseek, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 19:20:47.786 15210 15210 D ChatService: stream request providerId=llama, model=Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-BF16.gguf, thinking=false, reasoning={"budget":0,"format":"hide"}, providerOptions=null
+03-11 19:23:21.023 16019 16019 D ChatSessionActivity: start auto title generation, sessionId=5189dcf4-46c7-4544-8ab6-0879ed41d9fd
+03-11 19:23:21.024 16019 16019 D ChatService: generateThreadTitle model=Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-BF16.gguf, host=http://10.0.2.2:8090/v1
+03-11 19:23:21.070 16019 16019 D ChatService: generateThreadTitle url=http://10.0.2.2:8090/v1/chat/completions, promptLen=30
+03-11 19:23:21.075 16019 16019 D ChatService: stream request providerId=deepseek, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null

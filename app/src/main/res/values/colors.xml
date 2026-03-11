@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#1976D2</color>
+    <color name="primary_blue">#1976D2</color>
+    <color name="primary_green">#2E7D32</color>
+    <color name="primary_purple">#6A1B9A</color>
+    <color name="primary_orange">#EF6C00</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="user_bubble">#E3F2FD</color>
+    <color name="assistant_bubble">#F5F5F5</color>
+    <color name="list_title_color">#DE000000</color>
+    <color name="list_subtitle_color">#99000000</color>
+    <color name="list_icon_color">#99000000</color>
+    <color name="chat_user_text_color">#DE000000</color>
+    <color name="chat_assistant_text_color">#DE000000</color>
+    <color name="chat_reasoning_text_color">#CC000000</color>
+    <color name="chat_meta_text_color">#99000000</color>
+    <color name="reasoning_bubble">#EEF1F4</color>
+</resources>

@@ -1,0 +1,213 @@
+--------- beginning of main
+03-11 16:35:01.906  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0d738) locale list changing from [] to [en-US]
+03-11 16:35:01.916  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd118d8) locale list changing from [] to [en-US]
+03-11 16:35:01.918  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd01578) locale list changing from [] to [en-US]
+03-11 16:35:01.922  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd09bd8) locale list changing from [] to [en-US]
+03-11 16:35:01.924  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcfe058) locale list changing from [] to [en-US]
+03-11 16:35:01.927  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd13e58) locale list changing from [] to [en-US]
+03-11 16:35:01.928  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0e6d8) locale list changing from [] to [en-US]
+03-11 16:35:01.941  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd04138) locale list changing from [] to [en-US]
+03-11 16:35:01.942  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0fcb8) locale list changing from [] to [en-US]
+03-11 16:35:01.942  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd13b38) locale list changing from [] to [en-US]
+03-11 16:35:01.943  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd10938) locale list changing from [] to [en-US]
+03-11 16:35:01.944  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd14178) locale list changing from [] to [en-US]
+03-11 16:35:01.949  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0da58) locale list changing from [] to [en-US]
+03-11 16:35:01.950  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd10c58) locale list changing from [] to [en-US]
+03-11 16:35:01.955   578   686 I ImeTracker: com.example.aichat:4b5c85e3: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+03-11 16:35:01.958  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():2589 
+03-11 16:35:01.959  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 0, locked = false
+03-11 16:35:01.959  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1568 onStartInput(EditorInfo{EditorInfo{packageName=com.example.aichat, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+03-11 16:35:01.959  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+--------- beginning of system
+03-11 16:35:01.960   578  1717 W PackageConfigPersister: App-specific configuration not found for packageName: com.example.aichat and userId: 0
+03-11 16:35:01.967  1400  1400 I AndroidIME: InputBundleManager.loadActiveInputBundleId():407 loadActiveInputBundleId: und-Latn-x-password, password
+03-11 16:35:01.977  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd14df8) locale list changing from [] to [en-US]
+03-11 16:35:01.984 11218 11218 D InsetsController: hide(ime(), fromIme=false)
+03-11 16:35:01.984  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0ffd8) locale list changing from [] to [en-US]
+03-11 16:35:01.984 11218 11218 I ImeTracker: com.example.aichat:4b5c85e3: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+03-11 16:35:01.993  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0ed18) locale list changing from [] to [en-US]
+03-11 16:35:02.008  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0e098) locale list changing from [] to [en-US]
+03-11 16:35:02.009  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd10618) locale list changing from [] to [en-US]
+03-11 16:35:02.009  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0f998) locale list changing from [] to [en-US]
+03-11 16:35:02.012  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd008f8) locale list changing from [] to [en-US]
+03-11 16:35:02.015  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0e9f8) locale list changing from [] to [en-US]
+03-11 16:35:02.016  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd147b8) locale list changing from [] to [en-US]
+03-11 16:35:02.067  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd11298) locale list changing from [] to [en-US]
+03-11 16:35:02.067  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0f358) locale list changing from [] to [en-US]
+03-11 16:35:02.069  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd12878) locale list changing from [] to [en-US]
+03-11 16:35:02.069  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd12238) locale list changing from [] to [en-US]
+03-11 16:35:02.072  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0e3b8) locale list changing from [] to [en-US]
+03-11 16:35:02.073  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd03af8) locale list changing from [] to [en-US]
+03-11 16:35:02.075  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcfe698) locale list changing from [] to [en-US]
+03-11 16:35:02.078  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd002b8) locale list changing from [] to [en-US]
+03-11 16:35:02.079  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd03e18) locale list changing from [] to [en-US]
+03-11 16:35:02.081  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcfeff8) locale list changing from [] to [en-US]
+03-11 16:35:02.086  1134  1134 D BaseDepthController: setSurface:
+03-11 16:35:02.086  1134  1134 D BaseDepthController: 	mWaitingOnSurfaceValidity: false
+03-11 16:35:02.086  1134  1134 D BaseDepthController: 	mSurface: null
+03-11 16:35:02.086  1134  1134 D BaseDepthController: mSurface is null and mCurrentBlur is: 0
+03-11 16:35:02.086  1134  1134 D StateManager: goToState - fromState: Normal, toState: Normal, partial trace:
+03-11 16:35:02.086  1134  1134 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:5)
+03-11 16:35:02.086  1134  1134 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:2)
+03-11 16:35:02.086  1134  1134 D StateManager: 	at com.android.launcher3.statemanager.StatefulActivity.onStop(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:34)
+03-11 16:35:02.086  1134  1134 D StatsLog: LAUNCHER_ONSTOP
+03-11 16:35:02.087  1134  1134 D StatsLog: LAUNCHER_GOOGLE_SEARCH_RESTORE_LIST_SIZE_AFTER_ACTIVITY_RESTART
+03-11 16:35:02.087  1134  2378 D GmsPlayProvider: Shut down the binder channel
+03-11 16:35:02.091  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd04458) locale list changing from [] to [en-US]
+03-11 16:35:02.091  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcfdd38) locale list changing from [] to [en-US]
+03-11 16:35:02.094  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd02518) locale list changing from [] to [en-US]
+03-11 16:35:02.094  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcff638) locale list changing from [] to [en-US]
+03-11 16:35:02.099  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcff958) locale list changing from [] to [en-US]
+03-11 16:35:02.100  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd021f8) locale list changing from [] to [en-US]
+03-11 16:35:02.101   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:35:02.102  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcfe9b8) locale list changing from [] to [en-US]
+03-11 16:35:02.102  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd034b8) locale list changing from [] to [en-US]
+03-11 16:35:02.103  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd005d8) locale list changing from [] to [en-US]
+03-11 16:35:02.105  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd01258) locale list changing from [] to [en-US]
+03-11 16:35:02.106  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fcff318) locale list changing from [] to [en-US]
+03-11 16:35:02.107  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0c798) locale list changing from [] to [en-US]
+03-11 16:35:02.110  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd09278) locale list changing from [] to [en-US]
+03-11 16:35:02.110  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0ab78) locale list changing from [] to [en-US]
+03-11 16:35:02.111  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0a538) locale list changing from [] to [en-US]
+03-11 16:35:02.111  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd09598) locale list changing from [] to [en-US]
+03-11 16:35:02.112  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd07c98) locale list changing from [] to [en-US]
+03-11 16:35:02.115  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0d0f8) locale list changing from [] to [en-US]
+03-11 16:35:02.116  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd069d8) locale list changing from [] to [en-US]
+03-11 16:35:02.117  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0bb18) locale list changing from [] to [en-US]
+03-11 16:35:02.119  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0c478) locale list changing from [] to [en-US]
+03-11 16:35:02.121  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd08f58) locale list changing from [] to [en-US]
+03-11 16:35:02.122  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd11bf8) locale list changing from [] to [en-US]
+03-11 16:35:02.125  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd05d58) locale list changing from [] to [en-US]
+03-11 16:35:02.126  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd05a38) locale list changing from [] to [en-US]
+03-11 16:35:02.127  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0a858) locale list changing from [] to [en-US]
+03-11 16:35:02.131  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd06398) locale list changing from [] to [en-US]
+03-11 16:35:02.133  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0a218) locale list changing from [] to [en-US]
+03-11 16:35:02.136  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0b4d8) locale list changing from [] to [en-US]
+03-11 16:35:02.137  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd07018) locale list changing from [] to [en-US]
+03-11 16:35:02.138  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd06078) locale list changing from [] to [en-US]
+03-11 16:35:02.142  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd085f8) locale list changing from [] to [en-US]
+03-11 16:35:02.143  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0cab8) locale list changing from [] to [en-US]
+03-11 16:35:02.143  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0b7f8) locale list changing from [] to [en-US]
+03-11 16:35:02.144  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0d418) locale list changing from [] to [en-US]
+03-11 16:35:02.144  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd115b8) locale list changing from [] to [en-US]
+03-11 16:35:02.144  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd15118) locale list changing from [] to [en-US]
+03-11 16:35:02.145  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0f678) locale list changing from [] to [en-US]
+03-11 16:35:02.148  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd0f038) locale list changing from [] to [en-US]
+03-11 16:35:02.150  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd14ad8) locale list changing from [] to [en-US]
+03-11 16:35:02.151  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd07fb8) locale list changing from [] to [en-US]
+03-11 16:35:02.153  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd098b8) locale list changing from [] to [en-US]
+03-11 16:35:02.153  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd17698) locale list changing from [] to [en-US]
+03-11 16:35:02.153  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1b518) locale list changing from [] to [en-US]
+03-11 16:35:02.153  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd18318) locale list changing from [] to [en-US]
+03-11 16:35:02.154  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd16d38) locale list changing from [] to [en-US]
+03-11 16:35:02.154  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1ce18) locale list changing from [] to [en-US]
+03-11 16:35:02.155  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1a898) locale list changing from [] to [en-US]
+03-11 16:35:02.155  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd19c18) locale list changing from [] to [en-US]
+03-11 16:35:02.158  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd160b8) locale list changing from [] to [en-US]
+03-11 16:35:02.159  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd17ff8) locale list changing from [] to [en-US]
+03-11 16:35:02.159  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1bb58) locale list changing from [] to [en-US]
+03-11 16:35:02.160  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd163d8) locale list changing from [] to [en-US]
+03-11 16:35:02.161  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd18c78) locale list changing from [] to [en-US]
+03-11 16:35:02.162  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd192b8) locale list changing from [] to [en-US]
+03-11 16:35:02.165  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd15d98) locale list changing from [] to [en-US]
+03-11 16:35:02.166  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd17058) locale list changing from [] to [en-US]
+03-11 16:35:02.167  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd17cd8) locale list changing from [] to [en-US]
+03-11 16:35:02.170  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd18638) locale list changing from [] to [en-US]
+03-11 16:35:02.171  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd16a18) locale list changing from [] to [en-US]
+03-11 16:35:02.171  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd17378) locale list changing from [] to [en-US]
+03-11 16:35:02.171  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1c198) locale list changing from [] to [en-US]
+03-11 16:35:02.172  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd19f38) locale list changing from [] to [en-US]
+03-11 16:35:02.172  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1a258) locale list changing from [] to [en-US]
+03-11 16:35:02.177  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd21918) locale list changing from [] to [en-US]
+03-11 16:35:02.178  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd212d8) locale list changing from [] to [en-US]
+03-11 16:35:02.181  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1ddb8) locale list changing from [] to [en-US]
+03-11 16:35:02.183  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd20018) locale list changing from [] to [en-US]
+03-11 16:35:02.191  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd247f8) locale list changing from [] to [en-US]
+03-11 16:35:02.195  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd20658) locale list changing from [] to [en-US]
+03-11 16:35:02.195  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd23218) locale list changing from [] to [en-US]
+03-11 16:35:02.199  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd21f58) locale list changing from [] to [en-US]
+03-11 16:35:02.200  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1ea38) locale list changing from [] to [en-US]
+03-11 16:35:02.203  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1ed58) locale list changing from [] to [en-US]
+03-11 16:35:02.203  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd22278) locale list changing from [] to [en-US]
+03-11 16:35:02.204  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd23858) locale list changing from [] to [en-US]
+03-11 16:35:02.204  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1d778) locale list changing from [] to [en-US]
+03-11 16:35:02.204  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd244d8) locale list changing from [] to [en-US]
+03-11 16:35:02.204  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1e718) locale list changing from [] to [en-US]
+03-11 16:35:02.206  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1f398) locale list changing from [] to [en-US]
+03-11 16:35:02.209  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1d458) locale list changing from [] to [en-US]
+03-11 16:35:02.211  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd20978) locale list changing from [] to [en-US]
+03-11 16:35:02.212  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd228b8) locale list changing from [] to [en-US]
+03-11 16:35:02.216  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd21c38) locale list changing from [] to [en-US]
+03-11 16:35:02.234  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd241b8) locale list changing from [] to [en-US]
+03-11 16:35:02.235  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd24b18) locale list changing from [] to [en-US]
+03-11 16:35:02.238  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd22bd8) locale list changing from [] to [en-US]
+03-11 16:35:02.240  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd23b78) locale list changing from [] to [en-US]
+03-11 16:35:02.243  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd23538) locale list changing from [] to [en-US]
+03-11 16:35:02.244  1397  1480 I .apps.wellbeing: AssetManager2(0xb400007a1fd1e3f8) locale list changing from [] to [en-US]
+03-11 16:35:02.254  1241  1257 I FontLog : (REDACTED) Received query %s, URI %s
+03-11 16:35:02.256  1241  1257 I FontLog : (REDACTED) Query [%s] resolved to %s
+03-11 16:35:02.257  1241  1257 I FontLog : (REDACTED) Fetch %s end status %s
+03-11 16:35:02.260  1241  1257 I FontLog : (REDACTED) Pulling font file for id = %d, cache size = %d
+03-11 16:35:02.264  1241  1257 I FontLog : (REDACTED) Pulling font file for id = %d, cache size = %d
+03-11 16:35:02.267   897   997 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda13@8bd3ad3
+03-11 16:35:02.268   578  1717 D CoreBackPreview: Window{4bdd94c u0 Splash Screen com.example.aichat EXITING}: Setting back callback null
+03-11 16:35:02.604 11218 11223 I .example.aichat: Compiler allocated 5175KB to compile void android.view.ViewRootImpl.performTraversals()
+03-11 16:35:03.089   578  1668 V GrammaticalInflectionUtils: AttributionSource: android.content.AttributionSource@96be9006 does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+03-11 16:35:03.089   578  1668 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_OVERRIDE
+03-11 16:35:03.089   578  1668 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_FULLSCREEN_OVERRIDE
+03-11 16:35:03.089   578  1668 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_RESIZEABLE_ACTIVITY_OVERRIDES
+03-11 16:35:03.089   578  1668 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_MIN_ASPECT_RATIO_OVERRIDE
+03-11 16:35:03.089   578  1668 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_ORIENTATION_OVERRIDE
+03-11 16:35:03.102   578  1668 I ActivityTaskManager: START u0 {xflg=0x4 cmp=com.example.aichat/.ChatSessionActivity (has extras)} with LAUNCH_MULTIPLE from uid 10210 (sr=256117283) (BAL_ALLOW_VISIBLE_WINDOW) result code=0
+03-11 16:35:03.102   897   958 V WindowManagerShell: Transition requested (#110): android.os.BinderProxy@dc9817 TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=31 effectiveUid=10210 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.example.aichat/.MainActivity } baseActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} topActivity=ComponentInfo{com.example.aichat/com.example.aichat.ChatSessionActivity} origActivity=null realActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} numActivities=2 lastActiveTime=19297637 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@d0df404} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{e624ded com.example.aichat.ChatSessionActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(284, 660 - 796, 1740) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityAppBounds=Rect(0, 0 - 1080, 2337) isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 110 }
+03-11 16:35:03.103   897   958 D ShellSplitScreen: logExit: no-op, mLoggerSessionId is null
+03-11 16:35:03.104   578  2141 W AS.PlaybackActivityMon: No piid assigned for invalid/internal port id 16
+03-11 16:35:03.106   444   544 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+03-11 16:35:03.108   578  1668 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ENABLE_FAKE_FOCUS
+03-11 16:35:03.110   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:35:03.111   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:35:03.111   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:35:03.112   444   444 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+03-11 16:35:03.138   578  1668 D CoreBackPreview: Window{2dd9c66 u0 com.example.aichat/com.example.aichat.ChatSessionActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@5629854, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+03-11 16:35:03.140   435   534 D AudioFlinger: mixer(0xb400007a2d343770) throttle end: throttle time(33)
+03-11 16:35:03.160   897  7648 V WindowManagerShell: onTransitionReady(transaction=2482491101897)
+03-11 16:35:03.161   897   958 V WindowManagerShell: onTransitionReady (#110) android.os.BinderProxy@dc9817: {id=110 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+03-11 16:35:03.161   897   958 V WindowManagerShell:         {m=OPEN f=FILLS_TASK leash=Surface(name=ActivityRecord{145690778 u0 com.example.aichat/.ChatSessionActivity)/@0x5e79422 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=-1->0 r=-1->0:-1 bc=fffffbfe component=com.example.aichat/.ChatSessionActivity opt={t=FROM_STYLE mUserId=0}},
+03-11 16:35:03.161   897   958 V WindowManagerShell:         {m=TO_BACK f=FILLS_TASK leash=Surface(name=ActivityRecord{256117283 u0 com.example.aichat/.MainActivity)/@0x7089eb3 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 bc=fffffbfe component=com.example.aichat/.MainActivity opt={t=FROM_STYLE mUserId=0}}
+03-11 16:35:03.161   897   958 V WindowManagerShell:     ]}
+03-11 16:35:03.161   897   958 V WindowManagerShell: Playing animation for (#110) android.os.BinderProxy@dc9817@0
+03-11 16:35:03.161   897   958 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+03-11 16:35:03.161   897   958 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=110 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{m=OPEN f=FILLS_TASK leash=Surface(name=ActivityRecord{145690778 u0 com.example.aichat/.ChatSessionActivity)/@0x5e79422 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=-1->0 r=-1->0:-1 bc=fffffbfe component=com.example.aichat/.ChatSessionActivity opt={t=FROM_STYLE mUserId=0}},{m=TO_BACK f=FILLS_TASK leash=Surface(name=ActivityRecord{256117283 u0 com.example.aichat/.MainActivity)/@0x7089eb3 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 bc=fffffbfe component=com.example.aichat/.MainActivity opt={t=FROM_STYLE mUserId=0}}]}
+03-11 16:35:03.161   897   958 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=undefined independent=true modes=[CLOSE,TO_BACK] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=null launchCookie=null taskFragmentToken=android.os.BinderProxy@cde1710 windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@bf6e209, appThread = android.app.IApplicationThread$Stub$Proxy@cf32c0e, debugName = overlayBackTransition }}
+03-11 16:35:03.161   897   958 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@bca362f, appThread = android.app.IApplicationThread$Stub$Proxy@8f5943c, debugName = LauncherToDream }}
+03-11 16:35:03.161   897   958 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null windowingMode=undefined},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{NOT atype=undefined independent=true modes=[] flags=NONE mustBeTask=true order=ANY topActivity=null launchCookie=null customAnim=true windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@62295c5, appThread = android.app.IApplicationThread$Stub$Proxy@1b9fb1a, debugName = QuickstepLaunchHome }}
+03-11 16:35:03.161   897   958 V WindowManagerShell:  Delegate animation for (#110) to null
+03-11 16:35:03.161   897   958 V WindowManagerShell: start default transition animation, info = {id=110 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{m=OPEN f=FILLS_TASK leash=Surface(name=ActivityRecord{145690778 u0 com.example.aichat/.ChatSessionActivity)/@0x5e79422 sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=-1->0 r=-1->0:-1 bc=fffffbfe component=com.example.aichat/.ChatSessionActivity opt={t=FROM_STYLE mUserId=0}},{m=TO_BACK f=FILLS_TASK leash=Surface(name=ActivityRecord{256117283 u0 com.example.aichat/.MainActivity)/@0x7089eb3 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 bc=fffffbfe component=com.example.aichat/.MainActivity opt={t=FROM_STYLE mUserId=0}}]}
+03-11 16:35:03.161   897   958 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@6edbf9c animAttr=0x5 type=OPEN isEntrance=false
+03-11 16:35:03.161   578   597 I ActivityTaskManager: Displayed com.example.aichat/.ChatSessionActivity for user 0: +72ms
+03-11 16:35:03.162   578   597 V WindowManager: Sent Transition (#110) createdAt=03-11 16:35:03.089 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=31 effectiveUid=10210 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.example.aichat/.MainActivity } baseActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} topActivity=ComponentInfo{com.example.aichat/com.example.aichat.ChatSessionActivity} origActivity=null realActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} numActivities=2 lastActiveTime=19297637 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{1441e49 Task{5212b20 #31 type=standard A=10210:com.example.aichat}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{e089dec com.example.aichat.ChatSessionActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(284, 660 - 796, 1740) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityAppBounds=Rect(0, 0 - 1080, 2337) isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 110 }
+03-11 16:35:03.162   897   958 V WindowManagerShell: loadAnimation: anim=android.view.animation.AnimationSet@4ff312b animAttr=0x4 type=OPEN isEntrance=true
+03-11 16:35:03.170   578   597 V WindowManager:     startWCT=WindowContainerTransaction { changes= {} hops= [] errorCallbackToken=null taskFragmentOrganizer=null }
+03-11 16:35:03.170   578   597 V WindowManager:     info={id=110 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+03-11 16:35:03.170   578   597 V WindowManager:         {m=OPEN f=FILLS_TASK leash=Surface(name=ActivityRecord{145690778 u0 com.example.aichat/.ChatSessionActivity)/@0x4f9d23e sb=Rect(0, 0 - 0, 0) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=-1->0 r=-1->0:-1 bc=fffffbfe component=com.example.aichat/.ChatSessionActivity opt={t=FROM_STYLE mUserId=0}},
+03-11 16:35:03.170   578   597 V WindowManager:         {m=TO_BACK f=FILLS_TASK leash=Surface(name=ActivityRecord{256117283 u0 com.example.aichat/.MainActivity)/@0x9d482f9 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 bc=fffffbfe component=com.example.aichat/.MainActivity opt={t=FROM_STYLE mUserId=0}}
+03-11 16:35:03.170   578   597 V WindowManager:     ]}
+03-11 16:35:03.171   897   958 V WindowManagerShell:  animated by com.android.wm.shell.transition.DefaultTransitionHandler@b084060
+03-11 16:35:03.265   578   686 I ImeTracker: com.example.aichat:5dd3914: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+03-11 16:35:03.267  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():2589 
+03-11 16:35:03.267  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 0, locked = false
+03-11 16:35:03.267  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1568 onStartInput(EditorInfo{EditorInfo{packageName=com.example.aichat, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+03-11 16:35:03.268  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+03-11 16:35:03.268   578  1668 W PackageConfigPersister: App-specific configuration not found for packageName: com.example.aichat and userId: 0
+03-11 16:35:03.268 11218 11218 D InsetsController: hide(ime(), fromIme=false)
+03-11 16:35:03.268 11218 11218 I ImeTracker: com.example.aichat:5dd3914: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+03-11 16:35:03.268  1400  1400 I AndroidIME: InputBundleManager.loadActiveInputBundleId():407 loadActiveInputBundleId: und-Latn-x-password, password
+03-11 16:35:03.648   897   958 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#110) android.os.BinderProxy@dc9817@0
+03-11 16:35:03.649   897   958 V WindowManagerShell: Track 0 became idle
+03-11 16:35:03.649   897   958 V WindowManagerShell: All active transition animations finished
+03-11 16:35:03.650   578   597 V WindowManager: Finish Transition (#110): created at 03-11 16:35:03.089 collect-started=0.012ms request-sent=6.677ms started=14.746ms ready=21.161ms sent=71.466ms commit=21.147ms finished=559.255ms
+03-11 16:35:03.651 11218 11218 D VRI[MainActivity]: visibilityChanged oldVisibility=true newVisibility=false
+03-11 16:35:03.665 11218 11218 D AutofillManager: view not autofillable - not passing ime action check
+03-11 16:35:03.666 11218 11258 D HWUI    : endAllActiveAnimators on 0xb4000079ffd14310 (MaterialCardView) with handle 0xb400007a7fd2de00
+03-11 16:35:03.686   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:35:04.538   578  2910 E TaskPersister: File error accessing recents directory (directory doesn't exist?).

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="8dp"
+        android:background="?attr/colorSurface"
+        android:elevation="4dp">
+        <EditText
+            android:id="@+id/searchEdit"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="40dp"
+            android:hint="@string/search_hint"
+            android:inputType="text"
+            android:imeOptions="actionSearch"
+            android:background="@drawable/input_background"
+            android:paddingHorizontal="12dp"
+            android:layout_marginEnd="8dp" />
+        <ImageButton
+            android:id="@+id/btnSettings"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:contentDescription="@string/settings"
+            android:src="@drawable/ic_settings"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            app:tint="?attr/colorOnSurface" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="4dp">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="对话"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+        <TextView
+            android:id="@+id/btnAllConversations"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="全部"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/sessionList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingHorizontal="8dp"
+        android:paddingBottom="8dp"
+        android:clipToPadding="false" />
+
+    <LinearLayout
+        android:id="@+id/headerMyAssistants"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="12dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="2dp"
+        android:background="?attr/colorSurface"
+        android:clickable="true"
+        android:focusable="true">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/my_assistants"
+            android:textAppearance="?attr/textAppearanceTitleMedium" />
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:src="@drawable/ic_chevron_right"
+            app:tint="?attr/colorOnSurface" />
+    </LinearLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerHomeAssistants"
+        android:layout_width="match_parent"
+        android:layout_height="92dp"
+        android:paddingHorizontal="8dp"
+        android:paddingBottom="6dp"
+        android:background="?attr/colorSurface" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:background="?attr/colorSurface"
+        android:elevation="4dp">
+        <EditText
+            android:id="@+id/inputEdit"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:hint="@string/chat_hint"
+            android:inputType="textMultiLine|textCapSentences"
+            android:maxLines="4"
+            android:minHeight="48dp"
+            android:background="@drawable/input_background"
+            android:padding="12dp"
+            android:layout_marginEnd="8dp" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/sendButton"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="@string/send"
+            app:icon="@android:drawable/ic_menu_send"
+            app:iconGravity="textEnd"
+            app:iconPadding="4dp" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,237 @@
+--------- beginning of main
+03-11 16:31:26.910   578  2388 V GrammaticalInflectionUtils: AttributionSource: android.content.AttributionSource@96be9006 does not have READ_SYSTEM_GRAMMATICAL_GENDER permission.
+--------- beginning of system
+03-11 16:31:26.911   578  2388 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_OVERRIDE
+03-11 16:31:26.911   578  2388 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_USER_ASPECT_RATIO_FULLSCREEN_OVERRIDE
+03-11 16:31:26.911   578  2388 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_RESIZEABLE_ACTIVITY_OVERRIDES
+03-11 16:31:26.911   578  2388 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_MIN_ASPECT_RATIO_OVERRIDE
+03-11 16:31:26.911   578  2388 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ALLOW_ORIENTATION_OVERRIDE
+03-11 16:31:26.919   578  2388 I ActivityTaskManager: START u0 {xflg=0x4 cmp=com.example.aichat/.ChatSessionActivity (has extras)} with LAUNCH_MULTIPLE from uid 10210 (sr=195888063) (BAL_ALLOW_VISIBLE_WINDOW) result code=0
+03-11 16:31:26.924   578  1668 W OptProp : Cannot read opt property android.window.PROPERTY_COMPAT_ENABLE_FAKE_FOCUS
+03-11 16:31:26.925   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.925   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.925   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.925   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.925   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.925   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.925   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.925   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.925   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.925   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   600 W IPCThreadState: Sending oneway calls to frozen process.
+03-11 16:31:26.926   578   941 W AS.PlaybackActivityMon: No piid assigned for invalid/internal port id 16
+03-11 16:31:26.927   897   958 V WindowManagerShell: Transition requested (#108): android.os.BinderProxy@9a2aeff TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=30 effectiveUid=10210 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.example.aichat/.MainActivity } baseActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} topActivity=ComponentInfo{com.example.aichat/com.example.aichat.ChatSessionActivity} origActivity=null realActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} numActivities=2 lastActiveTime=19081454 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{android.window.IWindowContainerToken$Stub$Proxy@3d064cc} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{394315 com.example.aichat.ChatSessionActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(284, 660 - 796, 1740) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityAppBounds=Rect(0, 0 - 1080, 2337) isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 108 }
+03-11 16:31:26.928   897   958 D ShellSplitScreen: logExit: no-op, mLoggerSessionId is null
+03-11 16:31:26.929   444   444 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+03-11 16:31:26.932   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:31:26.932   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:31:26.932   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:31:26.933   444   500 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+03-11 16:31:26.933   435   534 D AudioFlinger: mixer(0xb400007a2d343770) throttle end: throttle time(35)
+03-11 16:31:26.945 11032 11032 E TransactionExecutor: Failed to execute the transaction: tId:-1804807795 ClientTransaction{
+03-11 16:31:26.945 11032 11032 E TransactionExecutor: tId:-1804807795   transactionItems=[
+03-11 16:31:26.945 11032 11032 E TransactionExecutor: tId:-1804807795     LaunchActivityItem{activityToken=android.os.BinderProxy@dac828e,intent=Intent { xflg=0x4 cmp=com.example.aichat/.ChatSessionActivity (has extras) },ident=122267143,info=ActivityInfo{ca49b1c com.example.aichat.ChatSessionActivity},curConfig={1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h866dp 420dpi nrml long port finger qwerty/v/v dpad/v winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2337) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.31 fontWeightAdjustment=0},overrideConfig={1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h866dp 420dpi nrml long port finger qwerty/v/v dpad/v winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2337) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=standard mAlwaysOnTop=undefined mRotation=ROTATION_0} as.2 s.2 fontWeightAdjustment=0},deviceId=0,referrer=com.example.aichat,procState=2,state=null,persistentState=null,pendingResults=null,pendingNewIntents=null,sceneTransitionInfo=null,profilerInfo=null,assistToken=android.os.BinderProxy@2baf969,shareableActivityToken=android.os.BinderProxy@1d05fee,activityWindowInfo=ActivityWindowInfo{isEmbedded=false, taskBounds=Rect(0, 0 - 1080, 2400), taskFragmentBounds=Rect(0, 0 - 1080, 2400)}}
+03-11 16:31:26.945 11032 11032 E TransactionExecutor: tId:-1804807795     ResumeActivityItem{mActivityToken=android.os.BinderProxy@dac828e,procState=-1,isForward=true,shouldSendCompatFakeFocus=false}
+03-11 16:31:26.945 11032 11032 E TransactionExecutor: tId:-1804807795     Target activity: com.example.aichat.ChatSessionActivity
+03-11 16:31:26.945 11032 11032 E TransactionExecutor: tId:-1804807795   ]
+03-11 16:31:26.945 11032 11032 E TransactionExecutor: tId:-1804807795 }
+03-11 16:31:26.945 11032 11032 D AndroidRuntime: Shutting down VM
+--------- beginning of crash
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: FATAL EXCEPTION: main
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: Process: com.example.aichat, PID: 11032
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: java.lang.RuntimeException: Unable to start activity ComponentInfo{com.example.aichat/com.example.aichat.ChatSessionActivity}: android.view.InflateException: Binary XML file line #72 in com.example.aichat:layout/activity_chat_session: android.view.View cannot be cast to android.view.ViewGroup
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4235)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4422)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2782)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:110)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.os.Looper.loopOnce(Looper.java:248)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:338)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:8982)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: Caused by: android.view.InflateException: Binary XML file line #72 in com.example.aichat:layout/activity_chat_session: android.view.View cannot be cast to android.view.ViewGroup
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: Caused by: java.lang.ClassCastException: android.view.View cannot be cast to android.view.ViewGroup
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflate(LayoutInflater.java:1012)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflateChildren(LayoutInflater.java:972)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflate(LayoutInflater.java:1014)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflateChildren(LayoutInflater.java:972)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflate(LayoutInflater.java:1014)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflateChildren(LayoutInflater.java:972)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflate(LayoutInflater.java:1014)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflateChildren(LayoutInflater.java:972)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflate(LayoutInflater.java:1014)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflateChildren(LayoutInflater.java:972)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflate(LayoutInflater.java:1014)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.rInflateChildren(LayoutInflater.java:972)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.inflate(LayoutInflater.java:570)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.inflate(LayoutInflater.java:462)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.view.LayoutInflater.inflate(LayoutInflater.java:413)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at androidx.appcompat.app.AppCompatDelegateImpl.setContentView(AppCompatDelegateImpl.java:775)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at androidx.appcompat.app.AppCompatActivity.setContentView(AppCompatActivity.java:197)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at com.example.aichat.ChatSessionActivity.onCreate(ChatSessionActivity.java:46)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.Activity.performCreate(Activity.java:9140)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.Activity.performCreate(Activity.java:9118)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.Instrumentation.callActivityOnCreate(Instrumentation.java:1505)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.ActivityThread.performLaunchActivity(ActivityThread.java:4217)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.ActivityThread.handleLaunchActivity(ActivityThread.java:4422)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.servertransaction.LaunchActivityItem.execute(LaunchActivityItem.java:222)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.executeNonLifecycleItem(TransactionExecutor.java:133)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.executeTransactionItems(TransactionExecutor.java:103)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.servertransaction.TransactionExecutor.execute(TransactionExecutor.java:80)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.ActivityThread$H.handleMessage(ActivityThread.java:2782)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.os.Handler.dispatchMessage(Handler.java:110)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.os.Looper.loopOnce(Looper.java:248)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.os.Looper.loop(Looper.java:338)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at android.app.ActivityThread.main(ActivityThread.java:8982)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at java.lang.reflect.Method.invoke(Native Method)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at com.android.internal.os.RuntimeInit$MethodAndArgsCaller.run(RuntimeInit.java:593)
+03-11 16:31:26.946 11032 11032 E AndroidRuntime: 	at com.android.internal.os.ZygoteInit.main(ZygoteInit.java:932)
+03-11 16:31:26.954   578   941 W ActivityTaskManager:   Force finishing activity com.example.aichat/.ChatSessionActivity
+03-11 16:31:26.954   578 11126 I DropBoxManagerService: add tag=data_app_crash isTagEnabled=true flags=0x2
+03-11 16:31:26.954   578   941 W ActivityTaskManager:   Force finishing activity com.example.aichat/.MainActivity
+03-11 16:31:26.959 11032 11032 I Process : Sending signal. PID: 11032 SIG: 9
+03-11 16:31:26.964   444   528 E IPCThreadState: Binder transaction failure. id: 1972513, BR_*: 29189, error: -3 (No such process)
+03-11 16:31:26.964   444   528 E BpTransactionCompletedListener: Failed to transact (-32)
+03-11 16:31:26.964   578  1666 I ActivityManager: Process com.example.aichat (pid 11032) has died: fg  TOP 
+03-11 16:31:26.966   578  2388 I ImeTracker: com.example.aichat:706135cf: onRequestHide at ORIGIN_SERVER reason HIDE_REMOVE_CLIENT fromUser false
+03-11 16:31:26.966   578  2388 I ImeTracker: com.example.aichat:706135cf: onCancelled at PHASE_SERVER_SHOULD_HIDE
+03-11 16:31:26.967  1134  1134 D ViewRootImpl: Skipping stats log for color mode
+03-11 16:31:26.967  1134  1134 D StatsLog: LAUNCHER_ONRESUME
+03-11 16:31:26.968   897   958 D WindowManagerShell: setLauncherKeepClearAreaHeight: visible=true, height=527
+03-11 16:31:26.968   578  2388 I WindowManager: WIN DEATH: Window{7df5197 u0 com.example.aichat/com.example.aichat.MainActivity}
+03-11 16:31:26.970  1176  1176 I adbd    : Remote process closed the socket (on MSG_PEEK)
+03-11 16:31:26.970  1134  1164 D QuickstepModelDelegate: notifyAppTargetEvent action=1 launchLocation=workspace/0/[-1,-1]/[1,1]
+03-11 16:31:26.970   578   600 W ActivityManager: setHasOverlayUi called on unknown pid: 11032
+03-11 16:31:26.971   370   370 I Zygote  : Process 11032 exited due to signal 9 (Killed)
+03-11 16:31:26.972   578   816 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+03-11 16:31:26.972   578   816 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+03-11 16:31:26.972   578   816 D InetDiagMessage: Destroyed live tcp sockets for uids={10210} in 0ms
+03-11 16:31:26.972   578   816 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET, states=14
+03-11 16:31:26.972   578   816 D InetDiagMessage: Destroyed 0 sockets, proto=IPPROTO_TCP, family=AF_INET6, states=14
+03-11 16:31:26.972   578   816 D InetDiagMessage: Destroyed live tcp sockets for uids={20210} in 0ms
+03-11 16:31:26.973   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:31:26.973   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:31:26.973   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:31:26.973   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:31:26.974  1497  1665 I AiAiEcho: Predicting[0]:  [CONTEXT sampling_count=5 ]
+03-11 16:31:26.974  1497  1665 I AiAiEcho: EchoTargets: 
+03-11 16:31:26.974  1497  1665 I AiAiEcho: Filtered by AiAi flag check: 
+03-11 16:31:26.974  1497  1665 I AiAiEcho: [CONTEXT ratelimit_period="10 SECONDS" ]
+03-11 16:31:26.974  1497  1665 I AiAiEcho: #remoteViewsTwiddler: feature disabled.
+03-11 16:31:26.974  1497  1665 I AiAiEcho: #postPredictionTargets: Sending updates to UISurface home with targets# 0 (types=[])
+03-11 16:31:26.974   578   610 I libprocessgroup: Removed cgroup /sys/fs/cgroup/apps/uid_10210/pid_11032
+03-11 16:31:26.979   435   534 D AudioFlinger: mixer(0xb400007a2d343770) throttle end: throttle time(33)
+03-11 16:31:26.979  1134  1134 D NexusLauncherModelDelegate: notifySmartspaceEvent: SmartspaceTargetEvent{mSmartspaceTarget=null, mSmartspaceActionId='null', mEventType=6}
+03-11 16:31:26.982  1134  1134 D BaseDepthController: setSurface:
+03-11 16:31:26.982  1134  1134 D BaseDepthController: 	mWaitingOnSurfaceValidity: false
+03-11 16:31:26.982  1134  1134 D BaseDepthController: 	mSurface: Surface(name=com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity)/@0xe79644
+03-11 16:31:26.986  1134  1134 D SsBaseTemplateCard: No text view can be set up
+03-11 16:31:26.986  1134  1134 D SsBaseTemplateCard: Passed-in item info is null
+03-11 16:31:26.986  1134  1134 D SsBaseTemplateCard: Passed-in item info is null
+03-11 16:31:26.986  1134  1134 D SsBaseTemplateCard: Passed-in item info is null
+03-11 16:31:26.986  1134  1134 I SsBaseTemplateCard: Secondary card pane is null
+03-11 16:31:26.988   897  3198 V WindowManagerShell: onTransitionReady(transaction=2482491101818)
+03-11 16:31:26.988   897   958 V WindowManagerShell: onTransitionReady (#108) android.os.BinderProxy@9a2aeff: {id=108 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+03-11 16:31:26.988   897   958 V WindowManagerShell:         {m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x210262a sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+03-11 16:31:26.988   897   958 V WindowManagerShell:         {m=TO_BACK f=NONE leash=Surface(name=Task=30)/@0xafd3c1b sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+03-11 16:31:26.988   897   958 V WindowManagerShell:         {m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{6494a04 showWhenLocked=false})/@0xe0501b8 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0}
+03-11 16:31:26.988   897   958 V WindowManagerShell:     ]}
+03-11 16:31:26.988   897   958 V WindowManagerShell: Playing animation for (#108) android.os.BinderProxy@9a2aeff@0
+03-11 16:31:26.988   897   958 V ShellRecents: RecentsTransitionHandler.startAnimation: no controller found
+03-11 16:31:26.988   897   958 V WindowManagerShell: Transition doesn't have explicit remote, search filters for match for {id=108 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[{m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x210262a sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},{m=TO_BACK f=NONE leash=Surface(name=Task=30)/@0xafd3c1b sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},{m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{6494a04 showWhenLocked=false})/@0xe0501b8 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0}]}
+03-11 16:31:26.988   897   958 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=undefined independent=true modes=[CLOSE,TO_BACK] flags=IN_TASK_WITH_EMBEDDED_ACTIVITY mustBeTask=false order=ANY topActivity=null launchCookie=null taskFragmentToken=android.os.BinderProxy@cde1710 windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@bf6e209, appThread = android.app.IApplicationThread$Stub$Proxy@cf32c0e, debugName = overlayBackTransition }}
+03-11 16:31:26.988   897   958 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x0 checks=[{atype=dream independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{atype=home independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@bca362f, appThread = android.app.IApplicationThread$Stub$Proxy@8f5943c, debugName = LauncherToDream }}
+03-11 16:31:26.988   897   958 V WindowManagerShell:  Checking filter Pair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null windowingMode=undefined},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{NOT atype=undefined independent=true modes=[] flags=NONE mustBeTask=true order=ANY topActivity=null launchCookie=null customAnim=true windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@62295c5, appThread = android.app.IApplicationThread$Stub$Proxy@1b9fb1a, debugName = QuickstepLaunchHome }}
+03-11 16:31:26.988   897   958 D RemoteTransitionHandler: Found filterPair{{types=[] flags=0x0] notFlags=0x100 checks=[{atype=home independent=true modes=[OPEN,TO_FRONT] flags=NONE mustBeTask=false order=TOP topActivity=ComponentInfo{com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity} launchCookie=null windowingMode=undefined},{atype=standard independent=true modes=[CLOSE,TO_BACK] flags=NONE mustBeTask=false order=ANY topActivity=null launchCookie=null windowingMode=undefined},{NOT atype=undefined independent=true modes=[] flags=NONE mustBeTask=true order=ANY topActivity=null launchCookie=null customAnim=true windowingMode=undefined}]} RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@62295c5, appThread = android.app.IApplicationThread$Stub$Proxy@1b9fb1a, debugName = QuickstepLaunchHome }}
+03-11 16:31:26.988   897   958 V WindowManagerShell:  Delegate animation for (#108) to RemoteTransition { remoteTransition = android.window.IRemoteTransition$Stub$Proxy@62295c5, appThread = android.app.IApplicationThread$Stub$Proxy@1b9fb1a, debugName = QuickstepLaunchHome }
+03-11 16:31:26.991  1134  1134 D StateManager: createAtomicAnimation - fromState: Background, toState: Normal, partial trace:
+03-11 16:31:26.991  1134  1134 D StateManager: 	at com.android.quickstep.util.ScalingWorkspaceRevealAnim.<init>(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:8)
+03-11 16:31:26.991  1134  1134 D StateManager: 	at com.android.launcher3.QuickstepTransitionManager.createWallpaperOpenAnimations(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:575)
+03-11 16:31:26.991  1134  1134 D StateManager: 	at com.android.launcher3.QuickstepTransitionManager$WallpaperOpenLauncherAnimationRunner.onAnimationStart(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:100)
+03-11 16:31:26.993   578   597 V WindowManager: Sent Transition (#108) createdAt=03-11 16:31:26.911 via request=TransitionRequestInfo { type = OPEN, triggerTask = TaskInfo{userId=0 taskId=30 effectiveUid=10210 displayId=0 isRunning=true baseIntent=Intent { flg=0x10000000 cmp=com.example.aichat/.MainActivity } baseActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} topActivity=ComponentInfo{com.example.aichat/com.example.aichat.ChatSessionActivity} origActivity=null realActivity=ComponentInfo{com.example.aichat/com.example.aichat.MainActivity} numActivities=2 lastActiveTime=19081454 supportsMultiWindow=true resizeMode=1 isResizeable=true minWidth=-1 minHeight=-1 defaultMinSize=220 token=WCT{RemoteToken{5e08e45 Task{488fa8c #30 type=standard A=10210:com.example.aichat}}} topActivityType=1 pictureInPictureParams=null shouldDockBigOverlays=false launchIntoPipHostTaskId=-1 lastParentTaskIdBeforePip=-1 displayCutoutSafeInsets=Rect(0, 0 - 0, 0) topActivityInfo=ActivityInfo{a0a164 com.example.aichat.ChatSessionActivity} launchCookies=[] positionInParent=Point(0, 0) parentTaskId=-1 isFocused=true isVisible=true isVisibleRequested=true isTopActivityNoDisplay=false isSleeping=false locusId=null displayAreaFeatureId=1 isTopActivityTransparent=false isActivityStackTransparent=false lastNonFullscreenBounds=Rect(284, 660 - 796, 1740) capturedLink=null capturedLinkTimestamp=0 requestedVisibleTypes=-9 topActivityRequestOpenInBrowserEducationTimestamp=0 appCompatTaskInfo=AppCompatTaskInfo { topActivityInSizeCompat=false eligibleForLetterboxEducation= false isLetterboxEducationEnabled= true isLetterboxDoubleTapEnabled= false eligibleForUserAspectRatioButton= false topActivityBoundsLetterboxed= false isFromLetterboxDoubleTap= false topActivityLetterboxVerticalPosition= -1 topActivityLetterboxHorizontalPosition= -1 topActivityLetterboxWidth=-1 topActivityLetterboxHeight=-1 topActivityAppBounds=Rect(0, 0 - 1080, 2337) isUserFullscreenOverrideEnabled=false isSystemFullscreenOverrideEnabled=false hasMinAspectRatioOverride=false topActivityLetterboxBounds=null cameraCompatTaskInfo=CameraCompatTaskInfo { freeformCameraCompatMode=inactive}} topActivityMainWindowFrame=null}, pipChange = null, remoteTransition = null, displayChange = null, flags = 0, debugId = 108 }
+03-11 16:31:26.993   578   597 V WindowManager:     startWCT=WindowContainerTransaction { changes= {} hops= [] errorCallbackToken=null taskFragmentOrganizer=null }
+03-11 16:31:26.993   578   597 V WindowManager:     info={id=108 t=OPEN f=0x0 trk=0 r=[0@Point(0, 0)] c=[
+03-11 16:31:26.993   578   597 V WindowManager:         {WCT{RemoteToken{4e20cc Task{741a401 #1 type=home}}} m=TO_FRONT f=SHOW_WALLPAPER|MOVE_TO_TOP leash=Surface(name=Task=1)/@0x49aaa5d sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+03-11 16:31:26.993   578   597 V WindowManager:         {WCT{RemoteToken{5e08e45 Task{488fa8c #30 type=standard A=10210:com.example.aichat}}} m=TO_BACK f=NONE leash=Surface(name=Task=30)/@0xb745aaf sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0 taskParent=-1},
+03-11 16:31:26.993   578   597 V WindowManager:         {m=TO_FRONT f=IS_WALLPAPER leash=Surface(name=WallpaperWindowToken{6494a04 showWhenLocked=false})/@0x407a211 sb=Rect(0, 0 - 1080, 2400) eb=Rect(0, 0 - 1080, 2400) epz=Point(1080, 2400) d=0}
+03-11 16:31:26.993   578   597 V WindowManager:     ]}
+03-11 16:31:26.993  1134  1134 D b/311077782: LauncherAnimationRunner.setAnimation
+03-11 16:31:26.994   897   958 V WindowManagerShell:  animated by com.android.wm.shell.transition.RemoteTransitionHandler@6ce064b
+03-11 16:31:27.013   444   444 I BpBinder: onLastStrongRef automatically unlinking death recipients: 
+03-11 16:31:27.016   578   686 I ImeTracker: com.google.android.apps.nexuslauncher:24719a2e: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+03-11 16:31:27.017  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():2589 
+03-11 16:31:27.017  1134  1134 D InsetsController: hide(ime(), fromIme=false)
+03-11 16:31:27.017  1134  1134 I ImeTracker: com.google.android.apps.nexuslauncher:24719a2e: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+03-11 16:31:27.020  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 0, locked = false
+03-11 16:31:27.022  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1568 onStartInput(EditorInfo{EditorInfo{packageName=com.google.android.apps.nexuslauncher, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+03-11 16:31:27.022  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+03-11 16:31:27.023   578   593 W PackageConfigPersister: App-specific configuration not found for packageName: com.google.android.apps.nexuslauncher and userId: 0
+03-11 16:31:27.023  1400  1400 I AndroidIME: InputBundleManager.loadActiveInputBundleId():407 loadActiveInputBundleId: und-Latn-x-password, password
+03-11 16:31:27.024  1134  1143 W System  : A resource failed to call release. 
+03-11 16:31:27.024  1134  1143 W System  : A resource failed to call release. 
+03-11 16:31:27.024  1134  1143 W System  : A resource failed to call release. 
+03-11 16:31:27.025  1134  1143 W System  : A resource failed to call release. 
+03-11 16:31:27.026  1134  1143 W System  : A resource failed to call release. 
+03-11 16:31:27.026  1134  1143 W System  : A resource failed to call release. 
+03-11 16:31:27.026  1134  1143 W System  : A resource failed to call release. 
+03-11 16:31:27.026  1134  1143 W System  : A resource failed to call release. 
+03-11 16:31:27.026  1134  1143 W System  : A resource failed to call release. 
+03-11 16:31:27.454   578   600 W ActivityTaskManager: Activity top resumed state loss timeout for ActivityRecord{122267143 u0 com.example.aichat/.ChatSessionActivity t-1 f}}
+03-11 16:31:27.981  1134  1134 D ScalingWorkspaceRevealAnim: alpha of workspace at the end of animation: 1.0
+03-11 16:31:27.982   897   958 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#108) android.os.BinderProxy@9a2aeff@0
+03-11 16:31:27.983   578  1668 E IPCThreadState: Binder transaction failure. id: 1973609, BR_*: 29189, error: -22 (Invalid argument)
+03-11 16:31:27.983   578  1668 W ActivityManager: pid 578 system sent binder code 7 with flags 1 to frozen apps and got error -32
+03-11 16:31:27.986   578  1668 W WindowManager: Exception thrown during dispatchAppVisibility Window{7df5197 u0 com.example.aichat/com.example.aichat.MainActivity EXITING}
+03-11 16:31:27.986   578  1668 W WindowManager: android.os.DeadObjectException
+03-11 16:31:27.986   578  1668 W WindowManager: 	at android.os.BinderProxy.transactNative(Native Method)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at android.os.BinderProxy.transact(BinderProxy.java:592)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at android.view.IWindow$Stub$Proxy.dispatchAppVisibility(IWindow.java:557)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at com.android.server.wm.WindowState.sendAppVisibilityToClients(WindowState.java:3226)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at com.android.server.wm.WindowContainer.sendAppVisibilityToClients(WindowContainer.java:1295)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at com.android.server.wm.WindowToken.setClientVisible(WindowToken.java:437)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at com.android.server.wm.ActivityRecord.setClientVisible(ActivityRecord.java:6727)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at com.android.server.wm.ActivityRecord.commitVisibility(ActivityRecord.java:5583)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at com.android.server.wm.Transition.finishTransition(Transition.java:1372)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at com.android.server.wm.TransitionController.finishTransition(TransitionController.java:1003)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.finishTransition(WindowOrganizerController.java:533)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at android.window.IWindowOrganizerController$Stub.onTransact(IWindowOrganizerController.java:293)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at com.android.server.wm.WindowOrganizerController.onTransact(WindowOrganizerController.java:222)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at android.os.Binder.execTransactInternal(Binder.java:1409)
+03-11 16:31:27.986   578  1668 W WindowManager: 	at android.os.Binder.execTransact(Binder.java:1353)
+03-11 16:31:27.987   578  1668 W Process : Unable to open /proc/11032/status
+03-11 16:31:27.988   578   597 V WindowManager: Finish Transition (#108): created at 03-11 16:31:26.911 collect-started=0.035ms request-sent=1.306ms started=16.827ms ready=54.784ms sent=76.81ms commit=10.986ms finished=1071.869ms
+03-11 16:31:27.989  1134  1134 D RecentsView: onTaskRemoved: 30, not handling task stack changes
+03-11 16:31:27.989  1134  1134 D RecentsView: onTaskRemoved: 30, not handling task stack changes
+03-11 16:31:27.989   897   958 V WindowManagerShell: Track 0 became idle
+03-11 16:31:27.989   897   958 V WindowManagerShell: All active transition animations finished
+03-11 16:31:28.029   444   444 E BpTransactionCompletedListener: Failed to transact (-32)
+03-11 16:31:29.971   381  7301 D android.hardware.audio@7.1-impl.ranchu: threadLoop: entering standby, frames: 12776384
+03-11 16:31:29.972   381  7301 D android.hardware.audio@7.1-impl.ranchu: ~TinyalsaSink: stopping PCM stream
+03-11 16:31:29.972   381  7301 D android.hardware.audio@7.1-impl.ranchu: ~TinyalsaSink: joining consumeThread
+03-11 16:31:29.972   381 11124 D android.hardware.audio@7.1-impl.ranchu: consumeThread: exiting
+03-11 16:31:30.417   578  2910 E TaskPersister: File error accessing recents directory (directory doesn't exist?).
+03-11 16:31:33.971  1000  1221 D ApfFilter: (wlan0): Adding RA fe80::2 -> ff02::1 1800s fec0::/64 86400s/14400s 

@@ -1,0 +1,19 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.example.aichat.app-mergeDebugResources-35:/values-w320dp-land-v13/values-w320dp-land-v13.xml",
+            "map": [
+                {
+                    "source": "/Users/evannawu/.gradle/caches/8.11.1/transforms/f0405cd00ccd9240d4f8033d8fd53a9d/transformed/material-1.10.0/res/values-w320dp-land-v13/values-w320dp-land-v13.xml",
+                    "from": {
+                        "startLines": "2,3",
+                        "startColumns": "4,4",
+                        "startOffsets": "55,110",
+                        "endColumns": "54,61",
+                        "endOffsets": "105,167"
+                    }
+                }
+            ]
+        }
+    ]
+}

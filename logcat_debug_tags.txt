@@ -1,0 +1,7 @@
+--------- beginning of main
+03-11 18:52:00.354 14476 14476 D ChatService: chat request providerId=, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 18:52:12.068 14476 14476 D ChatService: chat request providerId=, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 18:52:35.234 14476 14476 D ChatService: stream request providerId=llama, model=Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-BF16.gguf, thinking=false, reasoning=null, providerOptions=null
+03-11 19:04:12.022 14720 14720 D ChatService: stream request providerId=deepseek, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 19:05:30.791 14720 14720 D ChatService: stream request providerId=deepseek, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 19:20:47.786 15210 15210 D ChatService: stream request providerId=llama, model=Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-BF16.gguf, thinking=false, reasoning={"budget":0,"format":"hide"}, providerOptions=null
