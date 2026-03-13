@@ -122,6 +122,12 @@
                     android:layout_height="wrap_content"
                     android:layout_marginStart="12dp"
                     android:text="@string/assistant_type_writer" />
+                <RadioButton
+                    android:id="@+id/typeCharacter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:text="@string/assistant_type_character" />
             </RadioGroup>
 
             <include layout="@layout/view_chat_settings_form" />

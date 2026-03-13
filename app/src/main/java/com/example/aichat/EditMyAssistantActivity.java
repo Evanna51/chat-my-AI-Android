@@ -62,8 +62,13 @@ public class EditMyAssistantActivity extends ThemedActivity {
         editName.setText(assistant.name);
         editPrompt.setText(assistant.prompt);
         editAvatar.setText(assistant.avatar);
-        if ("writer".equals(assistant.type)) radioType.check(R.id.typeWriter);
-        else radioType.check(R.id.typeDefault);
+        if ("writer".equals(assistant.type)) {
+            radioType.check(R.id.typeWriter);
+        } else if ("character".equals(assistant.type)) {
+            radioType.check(R.id.typeCharacter);
+        } else {
+            radioType.check(R.id.typeDefault);
+        }
         refreshAvatarPreview();
 
         formModule = new ChatSettingsFormModule(this, findViewById(R.id.chatSettingsRoot));
@@ -84,7 +89,14 @@ public class EditMyAssistantActivity extends ThemedActivity {
             assistant.name = name;
             assistant.prompt = editPrompt.getText() != null ? editPrompt.getText().toString().trim() : "";
             assistant.avatar = editAvatar.getText() != null ? editAvatar.getText().toString().trim() : "";
-            assistant.type = radioType.getCheckedRadioButtonId() == R.id.typeWriter ? "writer" : "default";
+            int checkedType = radioType.getCheckedRadioButtonId();
+            if (checkedType == R.id.typeWriter) {
+                assistant.type = "writer";
+            } else if (checkedType == R.id.typeCharacter) {
+                assistant.type = "character";
+            } else {
+                assistant.type = "default";
+            }
             assistant.options = formModule.collect();
             if (assistant.options != null && (assistant.options.systemPrompt == null || assistant.options.systemPrompt.isEmpty())) {
                 assistant.options.systemPrompt = assistant.prompt;

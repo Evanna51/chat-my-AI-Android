@@ -43,7 +43,10 @@ public class MyAssistantListAdapter extends RecyclerView.Adapter<MyAssistantList
         String name = a.name != null && !a.name.isEmpty() ? a.name : "未命名助手";
         holder.name.setText(name);
         AssistantAvatarHelper.bindAvatar(holder.avatarImage, holder.avatarText, a, name);
-        holder.type.setText("writer".equals(a.type) ? "作家" : "默认");
+        String typeLabel = "默认";
+        if ("writer".equals(a.type)) typeLabel = "作家";
+        else if ("character".equals(a.type)) typeLabel = "人物";
+        holder.type.setText(typeLabel);
         holder.promptPreview.setText(a.prompt != null && !a.prompt.isEmpty() ? a.prompt : "无设定");
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) listener.onClick(a);
