@@ -68,6 +68,7 @@
     <string name="clear_avatar_image">清除图片</string>
     <string name="assistant_type_default">默认</string>
     <string name="assistant_type_writer">作家</string>
+    <string name="assistant_type_character">人物</string>
     <string name="delete_assistant">删除</string>
     <string name="hide_conversation">隐藏对话</string>
     <string name="delete_conversation">删除对话</string>

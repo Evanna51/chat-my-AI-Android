@@ -14,6 +14,7 @@ import android.widget.Toast;
 
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.SimpleItemAnimator;
 import androidx.core.widget.NestedScrollView;
 
 import com.google.android.material.appbar.MaterialToolbar;
@@ -35,9 +36,12 @@ public class ChatSessionActivity extends ThemedActivity {
     public static final String EXTRA_ASSISTANT_ID = "assistant_id";
     private static final int CURRENT_THRESHOLD = 10;
     private static final long STREAM_RENDER_THROTTLE_MS = 24L;
+    private static final long STREAM_RENDER_THROTTLE_BUSY_MS = 48L;
+    private static final int STREAM_RENDER_BUSY_PENDING_CHARS = 80;
     private static final long STREAM_TYPEWRITER_FRAME_MS = 16L;
-    private static final int STREAM_TYPEWRITER_CHARS_PER_FRAME = 2;
-    private static final int AUTO_SCROLL_BOTTOM_GAP_DP = 64;
+    private static final int STREAM_TYPEWRITER_CHARS_PER_FRAME = 4;
+    private static final long STREAM_AUTO_SCROLL_THROTTLE_MS = 300L;
+    private static final int AUTO_SCROLL_BOTTOM_GAP_DP = 32;
     private static final int WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS = 500;
 
     private String sessionId;
@@ -81,6 +85,7 @@ public class ChatSessionActivity extends ThemedActivity {
     private ChatService.ChatHandle activeChatHandle;
     private Message activeStreamingMessage;
     private long activeResponseToken;
+    private long lastStreamAutoScrollAt;
     private Message streamingTargetMessage;
     private final StringBuilder pendingStreamChars = new StringBuilder();
     private boolean streamTypewriterRunning;
@@ -113,7 +118,13 @@ public class ChatSessionActivity extends ThemedActivity {
             pendingStreamChars.delete(0, take);
             String old = streamingTargetMessage.content != null ? streamingTargetMessage.content : "";
             streamingTargetMessage.content = old + delta;
-            renderStreamingMessageTick(streamingTargetMessage);
+            boolean rendered = historyAdapter != null && historyAdapter.renderStreamingMessageIfVisible(streamingTargetMessage);
+            rendered |= currentAdapter != null && currentAdapter.renderStreamingMessageIfVisible(streamingTargetMessage);
+            if (!rendered) {
+                scheduleStreamRender();
+            } else {
+                maybeAutoScrollOnStreamTick();
+            }
             if (pendingStreamChars.length() > 0) {
                 mainHandler.postDelayed(this, STREAM_TYPEWRITER_FRAME_MS);
             } else {
@@ -199,11 +210,13 @@ public class ChatSessionActivity extends ThemedActivity {
             recyclerHistory.setLayoutManager(new LinearLayoutManager(this));
             recyclerHistory.setNestedScrollingEnabled(false);
             recyclerHistory.setAdapter(historyAdapter);
+            disableChangeAnimations(recyclerHistory);
         }
         if (recyclerCurrent != null) {
             recyclerCurrent.setLayoutManager(new LinearLayoutManager(this));
             recyclerCurrent.setNestedScrollingEnabled(false);
             recyclerCurrent.setAdapter(currentAdapter);
+            disableChangeAnimations(recyclerCurrent);
         }
         bindMessageActions(historyAdapter);
         bindMessageActions(currentAdapter);
@@ -282,6 +295,7 @@ public class ChatSessionActivity extends ThemedActivity {
                     return;
                 }
                 applyMessagesAndTitle();
+                maybeAutoScrollToBottom(true);
             });
         });
     }
@@ -928,6 +942,14 @@ public class ChatSessionActivity extends ThemedActivity {
         }
     }
 
+    private void disableChangeAnimations(RecyclerView recyclerView) {
+        if (recyclerView == null) return;
+        RecyclerView.ItemAnimator animator = recyclerView.getItemAnimator();
+        if (animator instanceof SimpleItemAnimator) {
+            ((SimpleItemAnimator) animator).setSupportsChangeAnimations(false);
+        }
+    }
+
     private void collapseMessageActions() {
         historyAdapter.clearFocus();
         currentAdapter.clearFocus();
@@ -984,8 +1006,11 @@ public class ChatSessionActivity extends ThemedActivity {
     }
 
     private void scheduleStreamRender() {
+        long throttle = pendingStreamChars.length() >= STREAM_RENDER_BUSY_PENDING_CHARS
+                ? STREAM_RENDER_THROTTLE_BUSY_MS
+                : STREAM_RENDER_THROTTLE_MS;
         long now = System.currentTimeMillis();
-        long wait = Math.max(0L, STREAM_RENDER_THROTTLE_MS - (now - lastStreamRenderAt));
+        long wait = Math.max(0L, throttle - (now - lastStreamRenderAt));
         if (streamRenderPending) return;
         streamRenderPending = true;
         mainHandler.postDelayed(streamRenderRunnable, wait);
@@ -1041,6 +1066,13 @@ public class ChatSessionActivity extends ThemedActivity {
             applyMessagesAndTitle();
             return;
         }
+        maybeAutoScrollOnStreamTick();
+    }
+
+    private void maybeAutoScrollOnStreamTick() {
+        long now = System.currentTimeMillis();
+        if (now - lastStreamAutoScrollAt < STREAM_AUTO_SCROLL_THROTTLE_MS) return;
+        lastStreamAutoScrollAt = now;
         maybeAutoScrollToBottom(false);
     }
 
@@ -1055,7 +1087,11 @@ public class ChatSessionActivity extends ThemedActivity {
             View child = scrollMessagesView.getChildAt(0);
             if (child == null) return;
             int y = Math.max(0, child.getMeasuredHeight() - scrollMessagesView.getHeight());
-            scrollMessagesView.scrollTo(0, y);
+            if (force) {
+                scrollMessagesView.scrollTo(0, y);
+            } else {
+                scrollMessagesView.smoothScrollTo(0, y);
+            }
             updateAutoScrollStateFromPosition();
         });
     }

@@ -29,6 +29,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private static final int DEFAULT_EXPANDED_RECENT_AI = 3;
     private static final int MAX_MARKDOWN_EXPANDED = 4;
     private static final long MARKDOWN_RENDER_THROTTLE_MS = 80L;
+    private static final Object PAYLOAD_STREAM_TICK = new Object();
 
     private final List<Message> messages = new ArrayList<>();
     private int focusedPosition = -1;
@@ -44,6 +45,8 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private Markwon markwon;
     private final Map<Message, String> markdownRenderedSource = new IdentityHashMap<>();
     private final Map<Message, Long> markdownLastRenderAt = new IdentityHashMap<>();
+    private final Set<AssistantHolder> attachedAssistantHolders =
+            Collections.newSetFromMap(new IdentityHashMap<>());
     private boolean writerMode;
 
     public MessageAdapter() {
@@ -188,11 +191,33 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         if (target == null) return false;
         for (int i = 0; i < messages.size(); i++) {
             if (messages.get(i) == target) {
-                notifyItemChanged(i);
+                notifyItemChanged(i, PAYLOAD_STREAM_TICK);
                 return true;
             }
         }
         return false;
+    }
+
+    public boolean renderStreamingMessageIfVisible(Message target) {
+        if (target == null) return false;
+        boolean rendered = false;
+        List<AssistantHolder> snapshot = new ArrayList<>(attachedAssistantHolders);
+        for (AssistantHolder h : snapshot) {
+            if (h == null || h.boundMessage != target) continue;
+            String content = target.content != null ? target.content : "";
+            boolean hasVisibleContent = !content.trim().isEmpty();
+            h.textContent.setVisibility(hasVisibleContent ? View.VISIBLE : View.GONE);
+            if (hasVisibleContent) {
+                bindAssistantContentStreaming(h, target, content);
+            }
+            if (h.lastHasVisibleContent != hasVisibleContent) {
+                h.textCollapseToggle.setVisibility(hasVisibleContent ? View.VISIBLE : View.INVISIBLE);
+                h.lastHasVisibleContent = hasVisibleContent;
+            }
+            bindReasoning(h, target, h.getBindingAdapterPosition());
+            rendered = true;
+        }
+        return rendered;
     }
 
     public void setPinnedActionMessages(Message userMessage, Message assistantMessage, boolean hideAssistantActions) {
@@ -237,6 +262,23 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
     @Override
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        bindViewHolder(holder, position, true);
+    }
+
+    @Override
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position, @NonNull List<Object> payloads) {
+        if (payloads.isEmpty()) {
+            bindViewHolder(holder, position, true);
+            return;
+        }
+        if (hasStreamTickPayload(payloads) && holder instanceof AssistantHolder) {
+            bindViewHolder(holder, position, false);
+            return;
+        }
+        bindViewHolder(holder, position, true);
+    }
+
+    private void bindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position, boolean fullBind) {
         if (position < 0 || position >= messages.size()) return;
         Message m = messages.get(position);
         String content = (m != null && m.content != null) ? m.content : "";
@@ -258,31 +300,64 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             h.actionDelete.setOnClickListener(v -> { if (actionListener != null) actionListener.onDelete(m); });
         } else if (holder instanceof AssistantHolder) {
             AssistantHolder h = (AssistantHolder) holder;
+            h.boundMessage = m;
             h.textTimestamp.setText(formatTimestamp(m != null ? m.createdAt : 0));
             boolean expanded = m != null && assistantStateStore.isExpanded(m);
             boolean hasVisibleContent = !content.trim().isEmpty();
-            h.textCollapseToggle.setVisibility(hasVisibleContent ? View.VISIBLE : View.GONE);
-            h.textCollapseToggle.setText(expanded ? "▲ 收起" : "▼ 展开");
+            if (fullBind || h.lastHasVisibleContent != hasVisibleContent) {
+                h.textCollapseToggle.setVisibility(hasVisibleContent ? View.VISIBLE : View.INVISIBLE);
+                h.layoutActions.setVisibility(View.VISIBLE);
+                h.lastHasVisibleContent = hasVisibleContent;
+            }
+            if (fullBind) {
+                h.textCollapseToggle.setText(expanded ? "▲ 收起" : "▼ 展开");
+            }
             h.textContent.setVisibility(hasVisibleContent ? View.VISIBLE : View.GONE);
             if (hasVisibleContent) bindAssistantContent(h, m, content, expanded);
-            h.layoutActions.setVisibility((showActions || hasVisibleContent) ? View.VISIBLE : View.GONE);
-            h.actionOutline.setVisibility(writerMode ? View.VISIBLE : View.GONE);
-            h.actionEdit.setVisibility(showActions ? View.VISIBLE : View.GONE);
-            h.actionCopy.setVisibility(showActions ? View.VISIBLE : View.GONE);
-            h.actionDelete.setVisibility(showActions ? View.VISIBLE : View.GONE);
+            if (fullBind) {
+                h.actionOutline.setVisibility(writerMode && showActions ? View.VISIBLE : View.INVISIBLE);
+                h.actionEdit.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
+                h.actionCopy.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
+                h.actionDelete.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
+            }
             bindReasoning(h, m, position);
-            h.itemView.setOnClickListener(v -> focus(position));
-            h.actionEdit.setOnClickListener(v -> { if (actionListener != null) actionListener.onEdit(m); });
-            h.actionCopy.setOnClickListener(v -> { if (actionListener != null) actionListener.onCopy(m); });
-            h.actionOutline.setOnClickListener(v -> { if (actionListener != null) actionListener.onOutline(m); });
-            h.actionDelete.setOnClickListener(v -> { if (actionListener != null) actionListener.onDelete(m); });
-            h.textCollapseToggle.setOnClickListener(v -> toggleAssistantExpanded(h, m));
+            if (fullBind) {
+                h.itemView.setOnClickListener(v -> focus(position));
+                h.actionEdit.setOnClickListener(v -> { if (actionListener != null) actionListener.onEdit(m); });
+                h.actionCopy.setOnClickListener(v -> { if (actionListener != null) actionListener.onCopy(m); });
+                h.actionOutline.setOnClickListener(v -> { if (actionListener != null) actionListener.onOutline(m); });
+                h.actionDelete.setOnClickListener(v -> { if (actionListener != null) actionListener.onDelete(m); });
+                h.textCollapseToggle.setOnClickListener(v -> toggleAssistantExpanded(h, m));
+            }
         }
+    }
+
+    private boolean hasStreamTickPayload(@NonNull List<Object> payloads) {
+        for (Object payload : payloads) {
+            if (payload == PAYLOAD_STREAM_TICK) return true;
+        }
+        return false;
     }
 
     @Override
     public int getItemCount() {
         return messages.size();
+    }
+
+    @Override
+    public void onViewAttachedToWindow(@NonNull RecyclerView.ViewHolder holder) {
+        super.onViewAttachedToWindow(holder);
+        if (holder instanceof AssistantHolder) {
+            attachedAssistantHolders.add((AssistantHolder) holder);
+        }
+    }
+
+    @Override
+    public void onViewDetachedFromWindow(@NonNull RecyclerView.ViewHolder holder) {
+        if (holder instanceof AssistantHolder) {
+            attachedAssistantHolders.remove((AssistantHolder) holder);
+        }
+        super.onViewDetachedFromWindow(holder);
     }
 
     static class UserHolder extends RecyclerView.ViewHolder {
@@ -321,6 +396,8 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         View actionCopy;
         View actionOutline;
         View actionDelete;
+        boolean lastHasVisibleContent;
+        Message boundMessage;
 
         AssistantHolder(View itemView) {
             super(itemView);
@@ -336,6 +413,8 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             actionCopy = itemView.findViewById(R.id.actionCopy);
             actionOutline = itemView.findViewById(R.id.actionOutline);
             actionDelete = itemView.findViewById(R.id.actionDelete);
+            lastHasVisibleContent = false;
+            boundMessage = null;
         }
     }
 
@@ -427,12 +506,28 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         boolean contentChanged = lastSource == null || !content.equals(lastSource);
         boolean canRenderMarkdownNow = !contentChanged || (now - lastAt >= MARKDOWN_RENDER_THROTTLE_MS);
         if (!canRenderMarkdownNow) {
-            h.textContent.setText(content);
+            // Keep last rendered markdown to avoid flashing between plain text and markdown spans.
+            if (lastSource == null) {
+                h.textContent.setText(content);
+            }
             return;
         }
         markwon.setMarkdown(h.textContent, content);
         markdownRenderedSource.put(m, content);
         markdownLastRenderAt.put(m, now);
+    }
+
+    private void bindAssistantContentStreaming(AssistantHolder h, Message m, String content) {
+        boolean expanded = m != null && assistantStateStore.isExpanded(m);
+        if (!expanded) {
+            h.textContent.setText(content);
+            h.textContent.setMaxLines(3);
+            h.textContent.setEllipsize(TextUtils.TruncateAt.END);
+            return;
+        }
+        h.textContent.setMaxLines(Integer.MAX_VALUE);
+        h.textContent.setEllipsize(null);
+        h.textContent.setText(content);
     }
 
     private String formatSeconds(long ms) {
