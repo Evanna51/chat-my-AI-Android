@@ -43,6 +43,7 @@ public class ChatSessionActivity extends ThemedActivity {
     private static final long STREAM_AUTO_SCROLL_THROTTLE_MS = 300L;
     private static final int AUTO_SCROLL_BOTTOM_GAP_DP = 32;
     private static final int WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS = 500;
+    private static final String CHARACTER_MEMORY_LOADING_TEXT = "[...正在输入中]";
 
     private String sessionId;
     private MessageAdapter historyAdapter;
@@ -76,6 +77,8 @@ public class ChatSessionActivity extends ThemedActivity {
     private String pendingInitialMessage;
     private String assistantId;
     private boolean writerAssistant;
+    private boolean characterAssistant;
+    private CharacterMemoryService characterMemoryService;
     private SessionOutlineStore outlineStore;
     private SessionChatOptions sessionOptions = new SessionChatOptions();
     private volatile boolean autoNamingInFlight = false;
@@ -89,6 +92,7 @@ public class ChatSessionActivity extends ThemedActivity {
     private Message streamingTargetMessage;
     private final StringBuilder pendingStreamChars = new StringBuilder();
     private boolean streamTypewriterRunning;
+    private Message characterMemoryLoadingMessage;
     private final Runnable streamRenderRunnable = new Runnable() {
         @Override
         public void run() {
@@ -153,7 +157,9 @@ public class ChatSessionActivity extends ThemedActivity {
             assistantId = new SessionAssistantBindingStore(this).getAssistantId(sessionId);
         }
         writerAssistant = resolveWriterAssistant();
+        characterAssistant = resolveCharacterAssistant();
         outlineStore = new SessionOutlineStore(this);
+        characterMemoryService = new CharacterMemoryService(this);
 
         chatService = new ChatService(this);
         db = AppDatabase.getInstance(this);
@@ -383,6 +389,42 @@ public class ChatSessionActivity extends ThemedActivity {
         if (!historyForApi.isEmpty()) historyForApi.remove(historyForApi.size() - 1);
         historyForApi = buildHistoryForApi(historyForApi);
         SessionChatOptions options = resolveChatOptions();
+        final boolean shouldUseCharacterMemory = shouldUseCharacterMemory();
+        if (shouldUseCharacterMemory) {
+            showCharacterMemoryLoadingPlaceholder(responseToken);
+            reportCharacterInteractionAsync(CharacterMemoryApi.ROLE_USER, text);
+        }
+        final String plainApiUserMessage = buildUserMessageForApi(text);
+        final List<Message> finalHistoryForApi = historyForApi;
+        final SessionChatOptions finalOptions = options;
+        if (!shouldUseCharacterMemory) {
+            dispatchChatRequest(finalHistoryForApi, plainApiUserMessage, finalOptions, responseToken, false);
+            return;
+        }
+        executor.execute(() -> {
+            String enrichedUserMessage = plainApiUserMessage;
+            try {
+                CharacterMemoryApi.MemoryContextResponse memory = characterMemoryService.getMemoryContext(
+                        assistantId, sessionId, plainApiUserMessage);
+                enrichedUserMessage = buildUserMessageForApiWithMemory(plainApiUserMessage, memory);
+            } catch (Exception e) {
+                Log.w(TAG, "memory-context failed: " + (e != null ? e.getMessage() : ""));
+            }
+            final String finalUserMessage = enrichedUserMessage;
+            mainHandler.post(() -> {
+                removeCharacterMemoryLoadingPlaceholder();
+                if (responseToken != activeResponseToken) return;
+                if (isFinishing() || isDestroyed()) return;
+                dispatchChatRequest(finalHistoryForApi, finalUserMessage, finalOptions, responseToken, true);
+            });
+        });
+    }
+
+    private void dispatchChatRequest(List<Message> historyForApi,
+                                     String apiUserMessage,
+                                     SessionChatOptions options,
+                                     long responseToken,
+                                     boolean reportAssistantToMemory) {
         boolean streamOutput = options != null && options.streamOutput;
         Message streamingAssistant = null;
         if (streamOutput) {
@@ -398,8 +440,6 @@ public class ChatSessionActivity extends ThemedActivity {
         activeStreamingMessage = finalStreamingAssistant;
         streamingTargetMessage = finalStreamingAssistant;
         stopStreamTypewriter(true);
-
-        String apiUserMessage = buildUserMessageForApi(text);
         try {
             ChatService.ChatHandle chatHandle = chatService.chat(historyForApi, apiUserMessage, options, new ChatService.ChatCallback() {
                 private boolean isStale() {
@@ -415,26 +455,30 @@ public class ChatSessionActivity extends ThemedActivity {
                     mainHandler.post(() -> {
                         if (isStale()) return;
                         if (!isUiAlive()) {
-                            persistAssistantMessageDetached(content);
+                            persistAssistantMessageDetached(content, reportAssistantToMemory);
                             return;
                         }
                         boolean shouldStickBottomAfterDone = autoScrollToBottomEnabled;
                         setAssistantResponseInProgress(false);
                         activeChatHandle = null;
                         activeStreamingMessage = null;
+                        String safeContent = content != null ? content : "";
                         if (streamOutput && finalStreamingAssistant != null) {
                             finishThinking(finalStreamingAssistant);
                             stopStreamTypewriter(true);
-                            finalStreamingAssistant.content = content != null ? content : "";
+                            finalStreamingAssistant.content = safeContent;
                             persistSessionMessagesAsync();
                         } else {
-                            Message assistantMsg = new Message(sessionId, Message.ROLE_ASSISTANT, content != null ? content : "");
+                            Message assistantMsg = new Message(sessionId, Message.ROLE_ASSISTANT, safeContent);
                             executor.execute(() -> {
                                 try {
                                     db.messageDao().insert(assistantMsg);
                                 } catch (Exception ignored) {}
                             });
                             allMessages.add(assistantMsg);
+                        }
+                        if (reportAssistantToMemory) {
+                            reportCharacterInteractionAsync(CharacterMemoryApi.ROLE_ASSISTANT, safeContent);
                         }
                         flushStreamRenderNow();
                         maybeAutoScrollToBottom(shouldStickBottomAfterDone);
@@ -470,7 +514,7 @@ public class ChatSessionActivity extends ThemedActivity {
                     mainHandler.post(() -> {
                         if (isStale()) return;
                         if (!isUiAlive()) return;
-                        handleResponseStopped(finalStreamingAssistant);
+                        handleResponseStopped(finalStreamingAssistant, reportAssistantToMemory);
                     });
                 }
 
@@ -663,7 +707,7 @@ public class ChatSessionActivity extends ThemedActivity {
         super.onDestroy();
     }
 
-    private void persistAssistantMessageDetached(String content) {
+    private void persistAssistantMessageDetached(String content, boolean reportAssistantToMemory) {
         String safe = content != null ? content : "";
         assistantResponseInProgress = false;
         Runnable writeTask = () -> {
@@ -671,6 +715,9 @@ public class ChatSessionActivity extends ThemedActivity {
                 Message assistantMsg = new Message(sessionId, Message.ROLE_ASSISTANT, safe);
                 AppDatabase.getInstance(getApplicationContext()).messageDao().insert(assistantMsg);
             } catch (Exception ignored) {}
+            if (reportAssistantToMemory) {
+                reportCharacterInteractionSafely(CharacterMemoryApi.ROLE_ASSISTANT, safe);
+            }
         };
         try {
             executor.execute(writeTask);
@@ -684,6 +731,7 @@ public class ChatSessionActivity extends ThemedActivity {
     protected void onResume() {
         super.onResume();
         writerAssistant = resolveWriterAssistant();
+        characterAssistant = resolveCharacterAssistant();
         if (historyAdapter != null) historyAdapter.setWriterMode(writerAssistant);
         if (currentAdapter != null) currentAdapter.setWriterMode(writerAssistant);
         View btnWriterOutline = findViewById(R.id.btnWriterOutline);
@@ -836,6 +884,20 @@ public class ChatSessionActivity extends ThemedActivity {
         return sb.toString().trim();
     }
 
+    private String buildUserMessageForApiWithMemory(String baseUserMessage,
+                                                    CharacterMemoryApi.MemoryContextResponse memory) {
+        String source = baseUserMessage != null ? baseUserMessage.trim() : "";
+        if (source.isEmpty()) return source;
+        if (memory == null || !memory.shouldUseMemory) return source;
+        String guidance = memory.memoryGuidance != null ? memory.memoryGuidance.trim() : "";
+        if (guidance.isEmpty()) return source;
+        final int maxChars = 1200;
+        if (guidance.length() > maxChars) {
+            guidance = guidance.substring(0, maxChars);
+        }
+        return source + "\n\n【角色长期记忆参考】\n" + guidance;
+    }
+
     private List<Message> buildHistoryForApi(List<Message> sourceHistory) {
         List<Message> source = sourceHistory != null ? sourceHistory : new ArrayList<>();
         if (!writerAssistant || source.isEmpty()) return source;
@@ -860,6 +922,55 @@ public class ChatSessionActivity extends ThemedActivity {
         if (assistantId == null || assistantId.trim().isEmpty()) return false;
         MyAssistant assistant = new MyAssistantStore(this).getById(assistantId);
         return assistant != null && "writer".equals(assistant.type);
+    }
+
+    private boolean resolveCharacterAssistant() {
+        if (assistantId == null || assistantId.trim().isEmpty()) return false;
+        MyAssistant assistant = new MyAssistantStore(this).getById(assistantId);
+        return assistant != null && "character".equals(assistant.type);
+    }
+
+    private boolean shouldUseCharacterMemory() {
+        return characterAssistant
+                && assistantId != null
+                && !assistantId.trim().isEmpty()
+                && characterMemoryService != null
+                && characterMemoryService.isEnabled();
+    }
+
+    private void showCharacterMemoryLoadingPlaceholder(long responseToken) {
+        if (responseToken != activeResponseToken) return;
+        if (!shouldUseCharacterMemory()) return;
+        removeCharacterMemoryLoadingPlaceholder();
+        Message loading = new Message(sessionId, Message.ROLE_ASSISTANT, CHARACTER_MEMORY_LOADING_TEXT);
+        loading.createdAt = System.currentTimeMillis();
+        characterMemoryLoadingMessage = loading;
+        allMessages.add(loading);
+        applyMessagesAndTitle();
+        maybeAutoScrollToBottom(true);
+    }
+
+    private void removeCharacterMemoryLoadingPlaceholder() {
+        if (characterMemoryLoadingMessage == null) return;
+        allMessages.remove(characterMemoryLoadingMessage);
+        characterMemoryLoadingMessage = null;
+        applyMessagesAndTitle();
+    }
+
+    private void reportCharacterInteractionAsync(String role, String content) {
+        executor.execute(() -> reportCharacterInteractionSafely(role, content));
+    }
+
+    private void reportCharacterInteractionSafely(String role, String content) {
+        if (!shouldUseCharacterMemory()) return;
+        String safeRole = role != null ? role.trim() : "";
+        String safeContent = content != null ? content.trim() : "";
+        if (safeRole.isEmpty() || safeContent.isEmpty()) return;
+        try {
+            characterMemoryService.reportInteraction(assistantId, sessionId, safeRole, safeContent);
+        } catch (Exception e) {
+            Log.w(TAG, "report-interaction failed: " + (e != null ? e.getMessage() : ""));
+        }
     }
 
     private int indexOf(Message target) {
@@ -977,15 +1088,16 @@ public class ChatSessionActivity extends ThemedActivity {
         activeResponseToken++;
         activeChatHandle = null;
         activeStreamingMessage = null;
+        removeCharacterMemoryLoadingPlaceholder();
         if (handle != null) {
             try {
                 handle.cancel();
             } catch (Exception ignored) {}
         }
-        handleResponseStopped(target);
+        handleResponseStopped(target, shouldUseCharacterMemory());
     }
 
-    private void handleResponseStopped(Message streamingMessage) {
+    private void handleResponseStopped(Message streamingMessage, boolean reportAssistantToMemory) {
         boolean shouldStickBottomAfterDone = autoScrollToBottomEnabled;
         setAssistantResponseInProgress(false);
         if (streamingMessage != null) {
@@ -997,6 +1109,9 @@ public class ChatSessionActivity extends ThemedActivity {
                 allMessages.remove(streamingMessage);
             } else {
                 persistSessionMessagesAsync();
+                if (reportAssistantToMemory && hasContent) {
+                    reportCharacterInteractionAsync(CharacterMemoryApi.ROLE_ASSISTANT, streamingMessage.content);
+                }
             }
         } else {
             stopStreamTypewriter(true);

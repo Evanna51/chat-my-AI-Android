@@ -76,4 +76,12 @@
     <string name="toggle_pin">置顶</string>
     <string name="toggle_favorite">收藏</string>
     <string name="generate_outline">生成大纲</string>
+    <string name="character_memory_settings">人物记忆服务</string>
+    <string name="character_memory_enabled">启用人物记忆服务</string>
+    <string name="character_memory_base_url">服务地址（http://IP:端口）</string>
+    <string name="character_memory_api_key">服务 API Key（x-api-key）</string>
+    <string name="character_memory_connect_timeout_ms">连接超时（毫秒）</string>
+    <string name="character_memory_read_timeout_ms">读取超时（毫秒）</string>
+    <string name="character_memory_debug_log">输出调试日志</string>
+    <string name="character_memory_saved">人物记忆配置已保存</string>
 </resources>

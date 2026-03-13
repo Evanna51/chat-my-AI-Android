@@ -8,6 +8,7 @@ import android.widget.LinearLayout;
 import android.widget.RadioGroup;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatDelegate;
@@ -18,6 +19,8 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.materialswitch.MaterialSwitch;
+import com.google.android.material.textfield.TextInputEditText;
 
 import java.util.HashSet;
 import java.util.List;
@@ -48,6 +51,10 @@ public class SettingsActivity extends ThemedActivity {
 
         findViewById(R.id.cardModelConfig).setOnClickListener(v ->
                 startActivity(new Intent(this, ModelConfigActivity.class)));
+        View cardCharacterMemory = findViewById(R.id.cardCharacterMemory);
+        if (cardCharacterMemory != null) {
+            cardCharacterMemory.setOnClickListener(v -> showCharacterMemorySettingsDialog());
+        }
 
         View includeModel = findViewById(R.id.includeModelManagement);
         if (includeModel != null) {
@@ -195,6 +202,58 @@ public class SettingsActivity extends ThemedActivity {
         if (providerAdapter != null) {
             List<ProviderInfo> list = providerManager != null ? providerManager.getAllProviders() : java.util.Collections.emptyList();
             providerAdapter.setProviders(list);
+        }
+    }
+
+    private void showCharacterMemorySettingsDialog() {
+        CharacterMemoryConfigStore store = new CharacterMemoryConfigStore(this);
+        View view = getLayoutInflater().inflate(R.layout.dialog_character_memory_settings, null);
+        MaterialSwitch switchEnabled = view.findViewById(R.id.switchCharacterMemoryEnabled);
+        TextInputEditText editBaseUrl = view.findViewById(R.id.editCharacterMemoryBaseUrl);
+        TextInputEditText editApiKey = view.findViewById(R.id.editCharacterMemoryApiKey);
+        TextInputEditText editConnectTimeout = view.findViewById(R.id.editCharacterMemoryConnectTimeout);
+        TextInputEditText editReadTimeout = view.findViewById(R.id.editCharacterMemoryReadTimeout);
+        MaterialSwitch switchDebug = view.findViewById(R.id.switchCharacterMemoryDebug);
+        if (switchEnabled != null) switchEnabled.setChecked(store.isEnabled());
+        if (editBaseUrl != null) editBaseUrl.setText(store.getBaseUrl());
+        if (editApiKey != null) editApiKey.setText(store.getApiKey());
+        if (editConnectTimeout != null) editConnectTimeout.setText(String.valueOf(store.getConnectTimeoutMs()));
+        if (editReadTimeout != null) editReadTimeout.setText(String.valueOf(store.getReadTimeoutMs()));
+        if (switchDebug != null) switchDebug.setChecked(store.isDebugLogEnabled());
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.character_memory_settings)
+                .setView(view)
+                .setNegativeButton(android.R.string.cancel, null)
+                .setPositiveButton(R.string.save, (d, w) -> {
+                    boolean enabled = switchEnabled != null && switchEnabled.isChecked();
+                    boolean debug = switchDebug != null && switchDebug.isChecked();
+                    String baseUrl = editBaseUrl != null && editBaseUrl.getText() != null
+                            ? editBaseUrl.getText().toString().trim() : "";
+                    String apiKey = editApiKey != null && editApiKey.getText() != null
+                            ? editApiKey.getText().toString().trim() : "";
+                    int connectTimeoutMs = parseIntOrDefault(
+                            editConnectTimeout != null && editConnectTimeout.getText() != null
+                                    ? editConnectTimeout.getText().toString().trim() : "",
+                            store.getConnectTimeoutMs()
+                    );
+                    int readTimeoutMs = parseIntOrDefault(
+                            editReadTimeout != null && editReadTimeout.getText() != null
+                                    ? editReadTimeout.getText().toString().trim() : "",
+                            store.getReadTimeoutMs()
+                    );
+                    store.saveAll(enabled, baseUrl, apiKey, connectTimeoutMs, readTimeoutMs, debug);
+                    Toast.makeText(this, R.string.character_memory_saved, Toast.LENGTH_SHORT).show();
+                })
+                .show();
+    }
+
+    private int parseIntOrDefault(String text, int fallback) {
+        if (text == null || text.trim().isEmpty()) return fallback;
+        try {
+            return Integer.parseInt(text.trim());
+        } catch (Exception ignored) {
+            return fallback;
         }
     }
 

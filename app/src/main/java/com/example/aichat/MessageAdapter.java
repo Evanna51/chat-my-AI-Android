@@ -30,6 +30,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private static final int MAX_MARKDOWN_EXPANDED = 4;
     private static final long MARKDOWN_RENDER_THROTTLE_MS = 80L;
     private static final Object PAYLOAD_STREAM_TICK = new Object();
+    private static final String CHARACTER_MEMORY_LOADING_TEXT = "[...正在输入中]";
 
     private final List<Message> messages = new ArrayList<>();
     private int focusedPosition = -1;
@@ -302,6 +303,23 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             AssistantHolder h = (AssistantHolder) holder;
             h.boundMessage = m;
             h.textTimestamp.setText(formatTimestamp(m != null ? m.createdAt : 0));
+            h.textContent.setAlpha(1f);
+            boolean isMemoryLoadingPlaceholder = m != null
+                    && m.role == Message.ROLE_ASSISTANT
+                    && CHARACTER_MEMORY_LOADING_TEXT.equals(content != null ? content.trim() : "");
+            if (isMemoryLoadingPlaceholder) {
+                h.textContent.setVisibility(View.VISIBLE);
+                h.textContent.setText(CHARACTER_MEMORY_LOADING_TEXT);
+                h.textContent.setMaxLines(1);
+                h.textContent.setEllipsize(TextUtils.TruncateAt.END);
+                h.textContent.setAlpha(0.72f);
+                h.layoutReasoning.setVisibility(View.GONE);
+                h.textUsage.setVisibility(View.GONE);
+                h.layoutActions.setVisibility(View.GONE);
+                h.textCollapseToggle.setVisibility(View.INVISIBLE);
+                if (fullBind) h.itemView.setOnClickListener(null);
+                return;
+            }
             boolean expanded = m != null && assistantStateStore.isExpanded(m);
             boolean hasVisibleContent = !content.trim().isEmpty();
             if (fullBind || h.lastHasVisibleContent != hasVisibleContent) {
