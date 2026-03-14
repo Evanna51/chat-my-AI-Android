@@ -130,6 +130,28 @@
                     android:text="@string/assistant_type_character" />
             </RadioGroup>
 
+            <LinearLayout
+                android:id="@+id/layoutCharacterOptions"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <com.google.android.material.checkbox.MaterialCheckBox
+                    android:id="@+id/checkCharacterAutoLife"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/character_allow_auto_life" />
+
+                <com.google.android.material.checkbox.MaterialCheckBox
+                    android:id="@+id/checkCharacterActiveMessage"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="4dp"
+                    android:text="@string/character_allow_proactive_message" />
+            </LinearLayout>
+
             <include layout="@layout/view_chat_settings_form" />
         </LinearLayout>
     </ScrollView>

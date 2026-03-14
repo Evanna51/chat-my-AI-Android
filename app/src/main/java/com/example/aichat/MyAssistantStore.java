@@ -55,6 +55,8 @@ public class MyAssistantStore {
         a.avatar = "";
         a.avatarImageBase64 = "";
         a.type = "default";
+        a.allowAutoLife = false;
+        a.allowProactiveMessage = false;
         a.options = new SessionChatOptions();
         a.updatedAt = System.currentTimeMillis();
         return a;

@@ -1,6 +1,9 @@
 package com.example.aichat;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -8,6 +11,9 @@ import android.widget.EditText;
 import android.widget.ImageButton;
 import android.widget.Toast;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -23,11 +29,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class MainActivity extends ThemedActivity {
+    private static final String PREFS_RUNTIME = "aichat_runtime";
+    private static final String KEY_NOTIF_PERMISSION_REQUESTED = "notif_permission_requested";
     private SessionListAdapter sessionAdapter;
     private HomeAssistantAdapter homeAssistantAdapter;
     private AppDatabase db;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private final ActivityResultLauncher<String> notificationPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+                // No-op: app can continue without notification permission.
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -194,6 +206,7 @@ public class MainActivity extends ThemedActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        ensureNotificationPermissionIfNeeded();
         loadSessions();
         loadAssistants();
         String action = getIntent() != null ? getIntent().getStringExtra("action") : null;
@@ -209,5 +222,20 @@ public class MainActivity extends ThemedActivity {
     protected void onDestroy() {
         executor.shutdown();
         super.onDestroy();
+    }
+
+    private void ensureNotificationPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < 33) return;
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        boolean asked = getSharedPreferences(PREFS_RUNTIME, MODE_PRIVATE)
+                .getBoolean(KEY_NOTIF_PERMISSION_REQUESTED, false);
+        if (asked) return;
+        getSharedPreferences(PREFS_RUNTIME, MODE_PRIVATE).edit()
+                .putBoolean(KEY_NOTIF_PERMISSION_REQUESTED, true)
+                .apply();
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
     }
 }

@@ -69,6 +69,8 @@
     <string name="assistant_type_default">默认</string>
     <string name="assistant_type_writer">作家</string>
     <string name="assistant_type_character">人物</string>
+    <string name="character_allow_auto_life">是否允许自动人生</string>
+    <string name="character_allow_proactive_message">是否允许主动消息</string>
     <string name="delete_assistant">删除</string>
     <string name="hide_conversation">隐藏对话</string>
     <string name="delete_conversation">删除对话</string>
@@ -84,4 +86,7 @@
     <string name="character_memory_read_timeout_ms">读取超时（毫秒）</string>
     <string name="character_memory_debug_log">输出调试日志</string>
     <string name="character_memory_saved">人物记忆配置已保存</string>
+    <string name="load_earlier_messages">查看更早消息</string>
+    <string name="load_earlier_messages_remaining">查看更早消息（剩余%1$d条）</string>
+    <string name="loading_earlier_messages">正在加载更早消息…</string>
 </resources>

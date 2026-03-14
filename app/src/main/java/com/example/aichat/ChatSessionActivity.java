@@ -10,6 +10,7 @@ import android.util.Log;
 import android.view.View;
 import android.view.MotionEvent;
 import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -44,6 +45,10 @@ public class ChatSessionActivity extends ThemedActivity {
     private static final int AUTO_SCROLL_BOTTOM_GAP_DP = 32;
     private static final int WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS = 500;
     private static final String CHARACTER_MEMORY_LOADING_TEXT = "[...正在输入中]";
+    private static final int INITIAL_RENDER_MESSAGE_LIMIT = 200; // 100轮消息窗口
+    private static final int LOAD_MORE_BATCH_SIZE = 50;
+    private static final int TOP_LOAD_TRIGGER_GAP_DP = 8;
+    private static final long PROACTIVE_POLL_INTERVAL_MS = 30_000L;
 
     private String sessionId;
     private MessageAdapter historyAdapter;
@@ -80,6 +85,7 @@ public class ChatSessionActivity extends ThemedActivity {
     private boolean characterAssistant;
     private CharacterMemoryService characterMemoryService;
     private SessionOutlineStore outlineStore;
+    private ProactiveMessageSyncManager proactiveSyncManager;
     private SessionChatOptions sessionOptions = new SessionChatOptions();
     private volatile boolean autoNamingInFlight = false;
     private boolean assistantResponseInProgress;
@@ -93,6 +99,32 @@ public class ChatSessionActivity extends ThemedActivity {
     private final StringBuilder pendingStreamChars = new StringBuilder();
     private boolean streamTypewriterRunning;
     private Message characterMemoryLoadingMessage;
+    private TextView loadEarlierMessagesView;
+    private boolean hasMoreOlderMessages;
+    private boolean loadingOlderMessages;
+    private int olderRemainingCount;
+    private long oldestLoadedCreatedAt = Long.MAX_VALUE;
+    private long oldestLoadedMessageId = Long.MAX_VALUE;
+    private boolean proactivePollingActive;
+    private final Runnable proactivePollRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!proactivePollingActive || isFinishing() || isDestroyed()) return;
+            if (proactiveSyncManager != null) {
+                proactiveSyncManager.syncOnce(new ProactiveMessageSyncManager.SyncCallback() {
+                    @Override
+                    public void onSessionUpdated(String updatedSessionId) {
+                        if (updatedSessionId == null || !updatedSessionId.equals(sessionId)) return;
+                        mainHandler.post(() -> {
+                            if (isFinishing() || isDestroyed()) return;
+                            loadMessages();
+                        });
+                    }
+                });
+            }
+            mainHandler.postDelayed(this, PROACTIVE_POLL_INTERVAL_MS);
+        }
+    };
     private final Runnable streamRenderRunnable = new Runnable() {
         @Override
         public void run() {
@@ -160,6 +192,7 @@ public class ChatSessionActivity extends ThemedActivity {
         characterAssistant = resolveCharacterAssistant();
         outlineStore = new SessionOutlineStore(this);
         characterMemoryService = new CharacterMemoryService(this);
+        proactiveSyncManager = new ProactiveMessageSyncManager(this);
 
         chatService = new ChatService(this);
         db = AppDatabase.getInstance(this);
@@ -197,6 +230,10 @@ public class ChatSessionActivity extends ThemedActivity {
         View btnAddLocation = findViewById(R.id.btnAddLocation);
         View btnAddTime = findViewById(R.id.btnAddTime);
         View btnAddMore = findViewById(R.id.btnAddMore);
+        loadEarlierMessagesView = findViewById(R.id.textLoadEarlierMessages);
+        if (loadEarlierMessagesView != null) {
+            loadEarlierMessagesView.setOnClickListener(v -> loadOlderMessages());
+        }
 
         View headerHistory = findViewById(R.id.headerHistory);
         View expandHistory = findViewById(R.id.expandHistory);
@@ -206,6 +243,8 @@ public class ChatSessionActivity extends ThemedActivity {
         currentAdapter = new MessageAdapter(assistantMarkdownStateStore);
         historyAdapter.setWriterMode(writerAssistant);
         currentAdapter.setWriterMode(writerAssistant);
+        historyAdapter.setDisableAssistantCollapseToggle(characterAssistant);
+        currentAdapter.setDisableAssistantCollapseToggle(characterAssistant);
         MessageAdapter.OnAssistantStateChangedListener assistantStateListener = () -> {
             historyAdapter.notifyDataSetChanged();
             currentAdapter.notifyDataSetChanged();
@@ -280,15 +319,33 @@ public class ChatSessionActivity extends ThemedActivity {
     private void loadMessages() {
         executor.execute(() -> {
             List<Message> list;
+            long oldestCreatedAt = Long.MAX_VALUE;
+            long oldestMessageId = Long.MAX_VALUE;
+            int olderCount = 0;
             try {
-                list = db.messageDao().getBySession(sessionId);
+                List<Message> desc = db.messageDao().getLatestBySession(sessionId, INITIAL_RENDER_MESSAGE_LIMIT);
+                list = toAscending(desc);
+                if (!list.isEmpty()) {
+                    Message oldest = list.get(0);
+                    oldestCreatedAt = oldest.createdAt;
+                    oldestMessageId = oldest.id;
+                    olderCount = db.messageDao().countOlderMessages(sessionId, oldestCreatedAt, oldestMessageId);
+                }
             } catch (Exception e) {
                 list = new ArrayList<>();
             }
             final List<Message> finalList = list != null ? list : new ArrayList<>();
+            final long finalOldestCreatedAt = oldestCreatedAt;
+            final long finalOldestMessageId = oldestMessageId;
+            final int finalOlderCount = olderCount;
             mainHandler.post(() -> {
                 if (isFinishing() || isDestroyed()) return;
                 allMessages = new ArrayList<>(finalList);
+                oldestLoadedCreatedAt = finalOldestCreatedAt;
+                oldestLoadedMessageId = finalOldestMessageId;
+                olderRemainingCount = Math.max(0, finalOlderCount);
+                hasMoreOlderMessages = olderRemainingCount > 0;
+                loadingOlderMessages = false;
                 if (pendingInitialMessage != null && !pendingInitialMessage.isEmpty()) {
                     String msg = pendingInitialMessage;
                     pendingInitialMessage = null;
@@ -302,6 +359,7 @@ public class ChatSessionActivity extends ThemedActivity {
                 }
                 applyMessagesAndTitle();
                 maybeAutoScrollToBottom(true);
+                updateLoadEarlierEntryVisibility();
             });
         });
     }
@@ -341,8 +399,13 @@ public class ChatSessionActivity extends ThemedActivity {
         if (cardHistory == null) return;
         Message latestUser = findLatestByRole(Message.ROLE_USER);
         Message latestAssistant = findLatestByRole(Message.ROLE_ASSISTANT);
-        historyAdapter.setPinnedActionMessages(latestUser, latestAssistant, assistantResponseInProgress);
-        currentAdapter.setPinnedActionMessages(latestUser, latestAssistant, assistantResponseInProgress);
+        if (characterAssistant) {
+            historyAdapter.setPinnedActionMessages(null, null, assistantResponseInProgress);
+            currentAdapter.setPinnedActionMessages(null, null, assistantResponseInProgress);
+        } else {
+            historyAdapter.setPinnedActionMessages(latestUser, latestAssistant, assistantResponseInProgress);
+            currentAdapter.setPinnedActionMessages(latestUser, latestAssistant, assistantResponseInProgress);
+        }
 
         int total = allMessages.size();
         if (total <= CURRENT_THRESHOLD) {
@@ -652,6 +715,9 @@ public class ChatSessionActivity extends ThemedActivity {
                 if (assistant.options != null) {
                     out = copyOptions(assistant.options);
                 }
+                if (out.sessionAvatar == null || out.sessionAvatar.trim().isEmpty()) {
+                    out.sessionAvatar = AssistantAvatarHelper.resolveTextAvatar(assistant, assistant.name);
+                }
                 // Keep assistant.prompt as prompt fallback for assistants without explicit options prompt.
                 if ((out.systemPrompt == null || out.systemPrompt.isEmpty())
                         && assistant.prompt != null && !assistant.prompt.isEmpty()) {
@@ -700,6 +766,7 @@ public class ChatSessionActivity extends ThemedActivity {
         mainHandler.removeCallbacks(streamRenderRunnable);
         streamRenderPending = false;
         mainHandler.removeCallbacks(thinkingTicker);
+        stopProactivePolling();
         activeThinkingMessage = null;
         if (!assistantResponseInProgress) {
             executor.shutdown();
@@ -734,12 +801,21 @@ public class ChatSessionActivity extends ThemedActivity {
         characterAssistant = resolveCharacterAssistant();
         if (historyAdapter != null) historyAdapter.setWriterMode(writerAssistant);
         if (currentAdapter != null) currentAdapter.setWriterMode(writerAssistant);
+        if (historyAdapter != null) historyAdapter.setDisableAssistantCollapseToggle(characterAssistant);
+        if (currentAdapter != null) currentAdapter.setDisableAssistantCollapseToggle(characterAssistant);
         View btnWriterOutline = findViewById(R.id.btnWriterOutline);
         if (btnWriterOutline != null) {
             btnWriterOutline.setVisibility(writerAssistant ? View.VISIBLE : View.GONE);
         }
         sessionOptions = resolveChatOptions();
         applyMessagesAndTitle();
+        startProactivePollingIfNeeded();
+    }
+
+    @Override
+    protected void onPause() {
+        stopProactivePolling();
+        super.onPause();
     }
 
     private void updateToolbarModelSubtitle() {
@@ -938,6 +1014,24 @@ public class ChatSessionActivity extends ThemedActivity {
                 && characterMemoryService.isEnabled();
     }
 
+    private boolean shouldEnableProactivePolling() {
+        if (!shouldUseCharacterMemory()) return false;
+        MyAssistant assistant = new MyAssistantStore(this).getById(assistantId);
+        return assistant != null && assistant.allowProactiveMessage;
+    }
+
+    private void startProactivePollingIfNeeded() {
+        stopProactivePolling();
+        if (!shouldEnableProactivePolling()) return;
+        proactivePollingActive = true;
+        mainHandler.post(proactivePollRunnable);
+    }
+
+    private void stopProactivePolling() {
+        proactivePollingActive = false;
+        mainHandler.removeCallbacks(proactivePollRunnable);
+    }
+
     private void showCharacterMemoryLoadingPlaceholder(long responseToken) {
         if (responseToken != activeResponseToken) return;
         if (!shouldUseCharacterMemory()) return;
@@ -1049,6 +1143,7 @@ public class ChatSessionActivity extends ThemedActivity {
             scrollMessages.setOnScrollChangeListener((NestedScrollView.OnScrollChangeListener) (v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
                 updateAutoScrollStateFromPosition();
                 if (scrollY != oldScrollY || scrollX != oldScrollX) collapseMessageActions();
+                updateLoadEarlierEntryVisibility();
             });
         }
     }
@@ -1208,6 +1303,7 @@ public class ChatSessionActivity extends ThemedActivity {
                 scrollMessagesView.smoothScrollTo(0, y);
             }
             updateAutoScrollStateFromPosition();
+            updateLoadEarlierEntryVisibility();
         });
     }
 
@@ -1251,5 +1347,80 @@ public class ChatSessionActivity extends ThemedActivity {
             if (m != null && m.role == role) return m;
         }
         return null;
+    }
+
+    private void loadOlderMessages() {
+        if (loadingOlderMessages || !hasMoreOlderMessages) return;
+        if (oldestLoadedCreatedAt == Long.MAX_VALUE || oldestLoadedMessageId == Long.MAX_VALUE) return;
+        loadingOlderMessages = true;
+        updateLoadEarlierEntryVisibility();
+        final long beforeCreatedAt = oldestLoadedCreatedAt;
+        final long beforeMessageId = oldestLoadedMessageId;
+        executor.execute(() -> {
+            List<Message> olderAsc = new ArrayList<>();
+            long newOldest = beforeCreatedAt;
+            long newOldestMessageId = beforeMessageId;
+            int remaining = 0;
+            try {
+                List<Message> olderDesc = db.messageDao().getOlderBySession(
+                        sessionId, beforeCreatedAt, beforeMessageId, LOAD_MORE_BATCH_SIZE);
+                olderAsc = toAscending(olderDesc);
+                if (!olderAsc.isEmpty()) {
+                    Message oldest = olderAsc.get(0);
+                    newOldest = oldest.createdAt;
+                    newOldestMessageId = oldest.id;
+                    remaining = db.messageDao().countOlderMessages(sessionId, newOldest, newOldestMessageId);
+                }
+            } catch (Exception ignored) {}
+            final List<Message> finalOlderAsc = olderAsc;
+            final long finalNewOldest = newOldest;
+            final long finalNewOldestMessageId = newOldestMessageId;
+            final int finalRemaining = remaining;
+            mainHandler.post(() -> {
+                if (isFinishing() || isDestroyed()) return;
+                if (!finalOlderAsc.isEmpty()) {
+                    allMessages.addAll(0, finalOlderAsc);
+                    oldestLoadedCreatedAt = finalNewOldest;
+                    oldestLoadedMessageId = finalNewOldestMessageId;
+                    olderRemainingCount = Math.max(0, finalRemaining);
+                    hasMoreOlderMessages = olderRemainingCount > 0;
+                    applyMessagesAndTitle();
+                } else {
+                    hasMoreOlderMessages = false;
+                    olderRemainingCount = 0;
+                }
+                loadingOlderMessages = false;
+                updateLoadEarlierEntryVisibility();
+            });
+        });
+    }
+
+    private void updateLoadEarlierEntryVisibility() {
+        if (loadEarlierMessagesView == null) return;
+        boolean atTop = isAtTopForLoadMore();
+        boolean visible = hasMoreOlderMessages && atTop;
+        loadEarlierMessagesView.setVisibility(visible ? View.VISIBLE : View.GONE);
+        loadEarlierMessagesView.setEnabled(!loadingOlderMessages);
+        if (loadingOlderMessages) {
+            loadEarlierMessagesView.setText(getString(R.string.loading_earlier_messages));
+        } else if (olderRemainingCount > 0) {
+            loadEarlierMessagesView.setText(getString(R.string.load_earlier_messages_remaining, olderRemainingCount));
+        } else {
+            loadEarlierMessagesView.setText(getString(R.string.load_earlier_messages));
+        }
+    }
+
+    private boolean isAtTopForLoadMore() {
+        if (scrollMessagesView == null) return true;
+        int gapPx = (int) (TOP_LOAD_TRIGGER_GAP_DP * getResources().getDisplayMetrics().density);
+        return scrollMessagesView.getScrollY() <= gapPx;
+    }
+
+    private List<Message> toAscending(List<Message> descList) {
+        List<Message> out = new ArrayList<>();
+        if (descList == null || descList.isEmpty()) return out;
+        out.addAll(descList);
+        java.util.Collections.reverse(out);
+        return out;
     }
 }
