@@ -49,6 +49,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private final Set<AssistantHolder> attachedAssistantHolders =
             Collections.newSetFromMap(new IdentityHashMap<>());
     private boolean writerMode;
+    private boolean disableAssistantCollapseToggle;
 
     public MessageAdapter() {
         this(new AssistantMarkdownStateStore());
@@ -168,6 +169,11 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
     public void setWriterMode(boolean enabled) {
         writerMode = enabled;
+        notifyDataSetChanged();
+    }
+
+    public void setDisableAssistantCollapseToggle(boolean disabled) {
+        disableAssistantCollapseToggle = disabled;
         notifyDataSetChanged();
     }
 
@@ -321,13 +327,18 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 return;
             }
             boolean expanded = m != null && assistantStateStore.isExpanded(m);
+            if (disableAssistantCollapseToggle) expanded = true;
             boolean hasVisibleContent = !content.trim().isEmpty();
             if (fullBind || h.lastHasVisibleContent != hasVisibleContent) {
-                h.textCollapseToggle.setVisibility(hasVisibleContent ? View.VISIBLE : View.INVISIBLE);
+                if (disableAssistantCollapseToggle) {
+                    h.textCollapseToggle.setVisibility(View.GONE);
+                } else {
+                    h.textCollapseToggle.setVisibility(hasVisibleContent ? View.VISIBLE : View.INVISIBLE);
+                }
                 h.layoutActions.setVisibility(View.VISIBLE);
                 h.lastHasVisibleContent = hasVisibleContent;
             }
-            if (fullBind) {
+            if (fullBind && !disableAssistantCollapseToggle) {
                 h.textCollapseToggle.setText(expanded ? "▲ 收起" : "▼ 展开");
             }
             h.textContent.setVisibility(hasVisibleContent ? View.VISIBLE : View.GONE);
@@ -345,7 +356,11 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 h.actionCopy.setOnClickListener(v -> { if (actionListener != null) actionListener.onCopy(m); });
                 h.actionOutline.setOnClickListener(v -> { if (actionListener != null) actionListener.onOutline(m); });
                 h.actionDelete.setOnClickListener(v -> { if (actionListener != null) actionListener.onDelete(m); });
-                h.textCollapseToggle.setOnClickListener(v -> toggleAssistantExpanded(h, m));
+                if (disableAssistantCollapseToggle) {
+                    h.textCollapseToggle.setOnClickListener(null);
+                } else {
+                    h.textCollapseToggle.setOnClickListener(v -> toggleAssistantExpanded(h, m));
+                }
             }
         }
     }
@@ -537,6 +552,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
     private void bindAssistantContentStreaming(AssistantHolder h, Message m, String content) {
         boolean expanded = m != null && assistantStateStore.isExpanded(m);
+        if (disableAssistantCollapseToggle) expanded = true;
         if (!expanded) {
             h.textContent.setText(content);
             h.textContent.setMaxLines(3);

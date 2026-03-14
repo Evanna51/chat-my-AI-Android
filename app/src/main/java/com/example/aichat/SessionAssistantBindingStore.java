@@ -8,7 +8,11 @@ import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
 import java.util.HashMap;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.Map;
+import java.util.List;
 
 public class SessionAssistantBindingStore {
     private static final String PREFS = "aichat_session_assistant_bindings";
@@ -48,5 +52,29 @@ public class SessionAssistantBindingStore {
     public void remove(String sessionId) {
         if (sessionId == null || sessionId.isEmpty()) return;
         bind(sessionId, null);
+    }
+
+    public boolean containsSession(String sessionId) {
+        if (sessionId == null || sessionId.trim().isEmpty()) return false;
+        return getMap().containsKey(sessionId.trim());
+    }
+
+    public List<String> getSessionIdsByAssistantId(String assistantId) {
+        String target = assistantId != null ? assistantId.trim() : "";
+        if (target.isEmpty()) return new ArrayList<>();
+        Map<String, String> map = getMap();
+        List<Map.Entry<String, String>> entries = new ArrayList<>(map.entrySet());
+        Collections.sort(entries, Comparator.comparing(Map.Entry::getKey));
+        List<String> out = new ArrayList<>();
+        for (Map.Entry<String, String> one : entries) {
+            if (one == null) continue;
+            String sid = one.getKey();
+            String aid = one.getValue();
+            if (sid == null || sid.trim().isEmpty()) continue;
+            if (target.equals(aid != null ? aid.trim() : "")) {
+                out.add(sid.trim());
+            }
+        }
+        return out;
     }
 }

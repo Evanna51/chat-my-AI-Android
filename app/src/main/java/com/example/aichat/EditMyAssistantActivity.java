@@ -5,6 +5,8 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
+import android.util.Log;
+import android.view.View;
 import android.widget.ImageView;
 import android.widget.RadioGroup;
 import android.widget.TextView;
@@ -15,6 +17,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 
@@ -22,6 +25,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 
 public class EditMyAssistantActivity extends ThemedActivity {
+    private static final String TAG = "EditMyAssistantActivity";
     public static final String EXTRA_ASSISTANT_ID = "assistant_id";
 
     private MyAssistantStore store;
@@ -31,6 +35,7 @@ public class EditMyAssistantActivity extends ThemedActivity {
     private TextView textAvatarPreview;
     private TextInputEditText editName;
     private TextInputEditText editAvatar;
+    private CharacterMemoryService characterMemoryService;
     private final ActivityResultLauncher<String> imagePickerLauncher =
             registerForActivityResult(new ActivityResultContracts.GetContent(), this::onAvatarImagePicked);
 
@@ -40,6 +45,7 @@ public class EditMyAssistantActivity extends ThemedActivity {
         setContentView(R.layout.activity_edit_my_assistant);
 
         store = new MyAssistantStore(this);
+        characterMemoryService = new CharacterMemoryService(this);
         String assistantId = getIntent().getStringExtra(EXTRA_ASSISTANT_ID);
         assistant = assistantId != null ? store.getById(assistantId) : null;
         if (assistant == null) assistant = store.createEmpty();
@@ -52,6 +58,9 @@ public class EditMyAssistantActivity extends ThemedActivity {
         TextInputEditText editPrompt = findViewById(R.id.editAssistantPrompt);
         editAvatar = findViewById(R.id.editAssistantAvatar);
         RadioGroup radioType = findViewById(R.id.radioAssistantType);
+        View layoutCharacterOptions = findViewById(R.id.layoutCharacterOptions);
+        MaterialCheckBox checkCharacterAutoLife = findViewById(R.id.checkCharacterAutoLife);
+        MaterialCheckBox checkCharacterActiveMessage = findViewById(R.id.checkCharacterActiveMessage);
         MaterialButton btnSave = findViewById(R.id.btnSaveAssistant);
         MaterialButton btnDelete = findViewById(R.id.btnDeleteAssistant);
         MaterialButton btnPickAvatar = findViewById(R.id.btnPickAssistantAvatar);
@@ -69,6 +78,15 @@ public class EditMyAssistantActivity extends ThemedActivity {
         } else {
             radioType.check(R.id.typeDefault);
         }
+        if (checkCharacterAutoLife != null) {
+            checkCharacterAutoLife.setChecked(assistant.allowAutoLife);
+        }
+        if (checkCharacterActiveMessage != null) {
+            checkCharacterActiveMessage.setChecked(assistant.allowProactiveMessage);
+        }
+        updateCharacterOptionsVisibility(layoutCharacterOptions, radioType.getCheckedRadioButtonId());
+        radioType.setOnCheckedChangeListener((group, checkedId) ->
+                updateCharacterOptionsVisibility(layoutCharacterOptions, checkedId));
         refreshAvatarPreview();
 
         formModule = new ChatSettingsFormModule(this, findViewById(R.id.chatSettingsRoot));
@@ -97,12 +115,17 @@ public class EditMyAssistantActivity extends ThemedActivity {
             } else {
                 assistant.type = "default";
             }
+            assistant.allowAutoLife = checkCharacterAutoLife != null && checkCharacterAutoLife.isChecked();
+            assistant.allowProactiveMessage = checkCharacterActiveMessage != null && checkCharacterActiveMessage.isChecked();
             assistant.options = formModule.collect();
             if (assistant.options != null && (assistant.options.systemPrompt == null || assistant.options.systemPrompt.isEmpty())) {
                 assistant.options.systemPrompt = assistant.prompt;
             }
             assistant.updatedAt = System.currentTimeMillis();
             store.save(assistant);
+            if ("character".equals(assistant.type)) {
+                reportCharacterProfileAsync(assistant);
+            }
             finish();
         });
 
@@ -193,5 +216,33 @@ public class EditMyAssistantActivity extends ThemedActivity {
             targetWidth = Math.round(maxSize * ratio);
         }
         return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true);
+    }
+
+    private void reportCharacterProfileAsync(MyAssistant target) {
+        if (target == null || characterMemoryService == null) return;
+        if (!characterMemoryService.isEnabled()) return;
+        final String assistantId = target.id != null ? target.id.trim() : "";
+        final String characterName = target.name != null ? target.name.trim() : "";
+        final String characterBackground = target.prompt != null ? target.prompt.trim() : "";
+        final boolean allowAutoLife = target.allowAutoLife;
+        final boolean allowProactiveMessage = target.allowProactiveMessage;
+        if (assistantId.isEmpty() || characterName.isEmpty() || characterBackground.isEmpty()) return;
+        new Thread(() -> {
+            try {
+                characterMemoryService.reportCharacterProfile(
+                        assistantId,
+                        characterName,
+                        characterBackground,
+                        allowAutoLife,
+                        allowProactiveMessage);
+            } catch (Exception e) {
+                Log.w(TAG, "report character profile failed: " + (e != null ? e.getMessage() : ""));
+            }
+        }).start();
+    }
+
+    private void updateCharacterOptionsVisibility(View layoutCharacterOptions, int checkedTypeId) {
+        if (layoutCharacterOptions == null) return;
+        layoutCharacterOptions.setVisibility(checkedTypeId == R.id.typeCharacter ? View.VISIBLE : View.GONE);
     }
 }
