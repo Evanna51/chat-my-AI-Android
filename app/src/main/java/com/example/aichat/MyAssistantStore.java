@@ -54,6 +54,7 @@ public class MyAssistantStore {
         a.prompt = "";
         a.avatar = "";
         a.avatarImageBase64 = "";
+        a.firstDialogue = "";
         a.type = "default";
         a.allowAutoLife = false;
         a.allowProactiveMessage = false;

@@ -2,6 +2,7 @@ package com.example.aichat;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.util.Base64;
@@ -14,6 +15,7 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.FileProvider;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
@@ -22,7 +24,10 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.InputStream;
+import java.util.List;
+import android.content.pm.ResolveInfo;
 
 public class EditMyAssistantActivity extends ThemedActivity {
     private static final String TAG = "EditMyAssistantActivity";
@@ -35,9 +40,15 @@ public class EditMyAssistantActivity extends ThemedActivity {
     private TextView textAvatarPreview;
     private TextInputEditText editName;
     private TextInputEditText editAvatar;
+    private TextInputEditText editFirstDialogue;
     private CharacterMemoryService characterMemoryService;
+    private Uri pendingCropSourceUri;
+    private Uri pendingCropOutputUri;
     private final ActivityResultLauncher<String> imagePickerLauncher =
             registerForActivityResult(new ActivityResultContracts.GetContent(), this::onAvatarImagePicked);
+    private final ActivityResultLauncher<Intent> cropImageLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result ->
+                    onAvatarCropResult(result.getResultCode(), result.getData()));
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,7 +67,9 @@ public class EditMyAssistantActivity extends ThemedActivity {
 
         editName = findViewById(R.id.editAssistantName);
         TextInputEditText editPrompt = findViewById(R.id.editAssistantPrompt);
+        editFirstDialogue = findViewById(R.id.editAssistantFirstDialogue);
         editAvatar = findViewById(R.id.editAssistantAvatar);
+        FormInputScrollHelper.enableFor(editPrompt, editFirstDialogue);
         RadioGroup radioType = findViewById(R.id.radioAssistantType);
         View layoutCharacterOptions = findViewById(R.id.layoutCharacterOptions);
         MaterialCheckBox checkCharacterAutoLife = findViewById(R.id.checkCharacterAutoLife);
@@ -70,6 +83,7 @@ public class EditMyAssistantActivity extends ThemedActivity {
 
         editName.setText(assistant.name);
         editPrompt.setText(assistant.prompt);
+        if (editFirstDialogue != null) editFirstDialogue.setText(assistant.firstDialogue);
         editAvatar.setText(assistant.avatar);
         if ("writer".equals(assistant.type)) {
             radioType.check(R.id.typeWriter);
@@ -106,6 +120,8 @@ public class EditMyAssistantActivity extends ThemedActivity {
             }
             assistant.name = name;
             assistant.prompt = editPrompt.getText() != null ? editPrompt.getText().toString().trim() : "";
+            assistant.firstDialogue = editFirstDialogue != null && editFirstDialogue.getText() != null
+                    ? editFirstDialogue.getText().toString().trim() : "";
             assistant.avatar = editAvatar.getText() != null ? editAvatar.getText().toString().trim() : "";
             int checkedType = radioType.getCheckedRadioButtonId();
             if (checkedType == R.id.typeWriter) {
@@ -118,9 +134,6 @@ public class EditMyAssistantActivity extends ThemedActivity {
             assistant.allowAutoLife = checkCharacterAutoLife != null && checkCharacterAutoLife.isChecked();
             assistant.allowProactiveMessage = checkCharacterActiveMessage != null && checkCharacterActiveMessage.isChecked();
             assistant.options = formModule.collect();
-            if (assistant.options != null && (assistant.options.systemPrompt == null || assistant.options.systemPrompt.isEmpty())) {
-                assistant.options.systemPrompt = assistant.prompt;
-            }
             assistant.updatedAt = System.currentTimeMillis();
             store.save(assistant);
             if ("character".equals(assistant.type)) {
@@ -142,12 +155,110 @@ public class EditMyAssistantActivity extends ThemedActivity {
 
     private void onAvatarImagePicked(Uri uri) {
         if (uri == null) return;
+        pendingCropSourceUri = uri;
+        if (!launchSystemCrop(uri)) {
+            setAvatarFromUri(uri);
+        }
+    }
+
+    private void onAvatarCropResult(int resultCode, Intent data) {
+        if (resultCode != RESULT_OK) return;
+        Bitmap bitmap = null;
+        if (pendingCropOutputUri != null) {
+            bitmap = decodeSampledBitmap(pendingCropOutputUri, 512);
+        }
+        if (data != null && data.getExtras() != null) {
+            Object value = data.getExtras().get("data");
+            if (value instanceof Bitmap) {
+                bitmap = (Bitmap) value;
+            }
+        }
+        if (bitmap != null) {
+            setAvatarFromBitmap(bitmap);
+            return;
+        }
+        if (pendingCropSourceUri != null) {
+            setAvatarFromUri(pendingCropSourceUri);
+            return;
+        }
+        Toast.makeText(this, "图片处理失败，请重试", Toast.LENGTH_SHORT).show();
+    }
+
+    private boolean launchSystemCrop(Uri uri) {
+        Intent cropIntent = new Intent("com.android.camera.action.CROP");
+        cropIntent.setDataAndType(uri, "image/*");
+        Uri outputUri = createCropOutputUri();
+        pendingCropOutputUri = outputUri;
+        cropIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+        cropIntent.putExtra("crop", "true");
+        cropIntent.putExtra("aspectX", 1);
+        cropIntent.putExtra("aspectY", 1);
+        cropIntent.putExtra("outputX", 256);
+        cropIntent.putExtra("outputY", 256);
+        cropIntent.putExtra("scale", true);
+        cropIntent.putExtra("return-data", false);
+        if (outputUri != null) {
+            cropIntent.putExtra("output", outputUri);
+            cropIntent.putExtra("outputFormat", Bitmap.CompressFormat.JPEG.toString());
+        }
+        cropIntent.putExtra("circleCrop", "true");
+        List<ResolveInfo> handlers = getPackageManager().queryIntentActivities(cropIntent, 0);
+        if (handlers == null || handlers.isEmpty()) {
+            return false;
+        }
+        for (ResolveInfo resolveInfo : handlers) {
+            if (resolveInfo == null || resolveInfo.activityInfo == null) continue;
+            String packageName = resolveInfo.activityInfo.packageName;
+            try {
+                grantUriPermission(packageName, uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                if (outputUri != null) {
+                    grantUriPermission(packageName, outputUri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                }
+            } catch (Exception ignored) {}
+        }
+        try {
+            cropImageLauncher.launch(cropIntent);
+            return true;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private Uri createCropOutputUri() {
+        try {
+            File file = new File(getCacheDir(), "avatar_crop_" + System.currentTimeMillis() + ".jpg");
+            return FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", file);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void setAvatarFromUri(Uri uri) {
         String compressedBase64 = compressImageToBase64(uri, 256, 80);
         if (compressedBase64 == null || compressedBase64.isEmpty()) {
             Toast.makeText(this, "图片处理失败，请重试", Toast.LENGTH_SHORT).show();
             return;
         }
         assistant.avatarImageBase64 = compressedBase64;
+        refreshAvatarPreview();
+    }
+
+    private void setAvatarFromBitmap(Bitmap bitmap) {
+        if (bitmap == null) {
+            Toast.makeText(this, "图片处理失败，请重试", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Bitmap squared = cropCenterSquare(bitmap);
+        Bitmap scaled = scaleBitmapWithin(squared, 256);
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        boolean compressed = scaled.compress(Bitmap.CompressFormat.JPEG, 85, outputStream);
+        if (!compressed) {
+            Toast.makeText(this, "图片处理失败，请重试", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        assistant.avatarImageBase64 = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP);
         refreshAvatarPreview();
     }
 
@@ -159,7 +270,8 @@ public class EditMyAssistantActivity extends ThemedActivity {
     private String compressImageToBase64(Uri uri, int maxSize, int quality) {
         Bitmap bitmap = decodeSampledBitmap(uri, maxSize);
         if (bitmap == null) return null;
-        Bitmap scaled = scaleBitmapWithin(bitmap, maxSize);
+        Bitmap squared = cropCenterSquare(bitmap);
+        Bitmap scaled = scaleBitmapWithin(squared, maxSize);
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         boolean compressed = scaled.compress(Bitmap.CompressFormat.JPEG, quality, outputStream);
         if (!compressed) return null;
@@ -216,6 +328,17 @@ public class EditMyAssistantActivity extends ThemedActivity {
             targetWidth = Math.round(maxSize * ratio);
         }
         return Bitmap.createScaledBitmap(bitmap, targetWidth, targetHeight, true);
+    }
+
+    private Bitmap cropCenterSquare(Bitmap bitmap) {
+        if (bitmap == null) return null;
+        int width = bitmap.getWidth();
+        int height = bitmap.getHeight();
+        if (width <= 0 || height <= 0) return bitmap;
+        int size = Math.min(width, height);
+        int x = (width - size) / 2;
+        int y = (height - size) / 2;
+        return Bitmap.createBitmap(bitmap, x, y, size, size);
     }
 
     private void reportCharacterProfileAsync(MyAssistant target) {

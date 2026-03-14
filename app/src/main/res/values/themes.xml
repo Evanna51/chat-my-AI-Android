@@ -4,6 +4,7 @@
         <item name="colorPrimary">@color/primary</item>
         <item name="colorOnPrimary">@color/on_primary</item>
         <item name="colorSurface">@color/surface</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.AIChat.MaterialAlertDialog</item>
     </style>
 
     <style name="Theme.AIChat.Blue" parent="Theme.AIChat">
@@ -37,5 +38,9 @@
         <item name="boxCornerRadiusBottomEnd">14dp</item>
         <item name="boxStrokeWidth">1dp</item>
         <item name="boxStrokeWidthFocused">2dp</item>
+    </style>
+
+    <style name="ThemeOverlay.AIChat.MaterialAlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="backgroundTint">@color/dialog_surface_bg</item>
     </style>
 </resources>

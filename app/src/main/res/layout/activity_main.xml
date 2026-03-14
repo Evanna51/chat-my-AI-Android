@@ -4,7 +4,8 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:fitsSystemWindows="true">
+    android:fitsSystemWindows="true"
+    android:background="@color/home_background">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -26,12 +27,13 @@
             android:background="@drawable/input_background"
             android:paddingHorizontal="12dp"
             android:layout_marginEnd="8dp" />
+        <!-- 首页按钮：设置入口 -->
         <ImageButton
             android:id="@+id/btnSettings"
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:contentDescription="@string/settings"
-            android:src="@drawable/ic_settings"
+            android:src="@drawable/ic_action_menu"
             android:background="?attr/selectableItemBackgroundBorderless"
             app:tint="?attr/colorOnSurface" />
     </LinearLayout>
@@ -50,6 +52,7 @@
             android:layout_weight="1"
             android:text="对话"
             android:textAppearance="?attr/textAppearanceTitleMedium" />
+        <!-- 首页按钮：进入全部对话 -->
         <TextView
             android:id="@+id/btnAllConversations"
             android:layout_width="wrap_content"
@@ -76,11 +79,12 @@
         android:id="@+id/headerMyAssistants"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:minHeight="52dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:paddingHorizontal="12dp"
-        android:paddingTop="6dp"
-        android:paddingBottom="2dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="8dp"
         android:background="?attr/colorSurface"
         android:clickable="true"
         android:focusable="true">
@@ -100,16 +104,17 @@
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerHomeAssistants"
         android:layout_width="match_parent"
-        android:layout_height="92dp"
+        android:layout_height="70dp"
         android:paddingHorizontal="8dp"
-        android:paddingBottom="6dp"
+        android:paddingBottom="4dp"
         android:background="?attr/colorSurface" />
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:padding="8dp"
+        android:paddingHorizontal="8dp"
+        android:paddingVertical="12dp"
         android:background="?attr/colorSurface"
         android:elevation="4dp">
         <EditText
@@ -124,6 +129,7 @@
             android:background="@drawable/input_background"
             android:padding="12dp"
             android:layout_marginEnd="8dp" />
+        <!-- 首页按钮：发送消息 -->
         <com.google.android.material.button.MaterialButton
             android:id="@+id/sendButton"
             android:layout_width="wrap_content"

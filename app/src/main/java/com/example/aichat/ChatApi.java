@@ -1,6 +1,7 @@
 package com.example.aichat;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonElement;
 import java.util.List;
 
 import com.google.gson.annotations.SerializedName;
@@ -40,6 +41,8 @@ public interface ChatApi {
         public List<String> stop;
         public Boolean thinking;
         public JsonObject reasoning;
+        @SerializedName("response_format")
+        public JsonObject responseFormat;
         @SerializedName("providerOptions")
         public JsonObject providerOptions;
     }
@@ -63,6 +66,6 @@ public interface ChatApi {
     }
 
     class MessageDelta {
-        public String content;
+        public JsonElement content;
     }
 }

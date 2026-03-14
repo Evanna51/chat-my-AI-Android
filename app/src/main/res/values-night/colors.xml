@@ -17,4 +17,17 @@
     <color name="chat_reasoning_text_color">#CCFFFFFF</color>
     <color name="chat_meta_text_color">#A6FFFFFF</color>
     <color name="reasoning_bubble">#232934</color>
+    <color name="action_button_bg">#2EFFFFFF</color>
+    <color name="action_button_icon_tint">#D9FFFFFF</color>
+    <color name="affix_toggle_bg">#40FFFFFF</color>
+    <color name="home_background">#D914161C</color>
+    <color name="chip_outline_type_bg">#1E4DA3FF</color>
+    <color name="chip_outline_type_stroke">#564DA3FF</color>
+    <color name="chip_outline_type_checked_bg">#3A4DA3FF</color>
+    <color name="chip_outline_type_unchecked_bg">#14FFFFFF</color>
+    <color name="chip_outline_type_checked_stroke">#754DA3FF</color>
+    <color name="chip_outline_type_unchecked_stroke">#3D4DA3FF</color>
+    <color name="chip_outline_type_checked_text">#B8D9FF</color>
+    <color name="chip_outline_type_unchecked_text">#8FAAC8</color>
+    <color name="dialog_surface_bg">#FF1A1D25</color>
 </resources>

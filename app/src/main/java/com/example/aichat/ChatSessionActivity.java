@@ -3,6 +3,7 @@ package com.example.aichat;
 import android.content.Intent;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -13,6 +14,7 @@ import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.SimpleItemAnimator;
@@ -100,6 +102,8 @@ public class ChatSessionActivity extends ThemedActivity {
     private boolean streamTypewriterRunning;
     private Message characterMemoryLoadingMessage;
     private TextView loadEarlierMessagesView;
+    private TextView quickModelSwitchView;
+    private TextView firstDialoguePreviewView;
     private boolean hasMoreOlderMessages;
     private boolean loadingOlderMessages;
     private int olderRemainingCount;
@@ -201,10 +205,20 @@ public class ChatSessionActivity extends ThemedActivity {
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
         toolbar.setNavigationOnClickListener(v -> finish());
+        quickModelSwitchView = findViewById(R.id.textQuickModelSwitch);
+        if (quickModelSwitchView != null) {
+            quickModelSwitchView.setOnClickListener(v -> showQuickModelPicker());
+        }
+        firstDialoguePreviewView = findViewById(R.id.textFirstDialoguePreview);
         View btnSessionSettings = findViewById(R.id.btnSessionSettings);
         if (btnSessionSettings != null) {
             btnSessionSettings.setOnClickListener(v -> startActivity(new Intent(this, SessionChatSettingsActivity.class)
                     .putExtra(SessionChatSettingsActivity.EXTRA_SESSION_ID, sessionId)));
+        }
+        View btnSessionMore = findViewById(R.id.btnSessionMore);
+        if (btnSessionMore != null) {
+            btnSessionMore.setOnClickListener(v ->
+                    Toast.makeText(this, "更多功能 TODO", Toast.LENGTH_SHORT).show());
         }
         View btnWriterOutline = findViewById(R.id.btnWriterOutline);
         if (btnWriterOutline != null) {
@@ -245,6 +259,8 @@ public class ChatSessionActivity extends ThemedActivity {
         currentAdapter.setWriterMode(writerAssistant);
         historyAdapter.setDisableAssistantCollapseToggle(characterAssistant);
         currentAdapter.setDisableAssistantCollapseToggle(characterAssistant);
+        historyAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant);
+        currentAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant);
         MessageAdapter.OnAssistantStateChangedListener assistantStateListener = () -> {
             historyAdapter.notifyDataSetChanged();
             currentAdapter.notifyDataSetChanged();
@@ -346,6 +362,7 @@ public class ChatSessionActivity extends ThemedActivity {
                 olderRemainingCount = Math.max(0, finalOlderCount);
                 hasMoreOlderMessages = olderRemainingCount > 0;
                 loadingOlderMessages = false;
+                maybeInsertAssistantOpeningMessage();
                 if (pendingInitialMessage != null && !pendingInitialMessage.isEmpty()) {
                     String msg = pendingInitialMessage;
                     pendingInitialMessage = null;
@@ -366,7 +383,11 @@ public class ChatSessionActivity extends ThemedActivity {
 
     private void applyMessagesAndTitle() {
         if (isFinishing() || isDestroyed()) return;
+        updateFirstDialoguePreview();
         splitAndDisplay();
+        if (scrollMessagesView != null) {
+            scrollMessagesView.post(this::updateCollapseToggleAffixViewport);
+        }
         if (sessionOptions != null && sessionOptions.sessionTitle != null && !sessionOptions.sessionTitle.trim().isEmpty()) {
             if (getSupportActionBar() != null) getSupportActionBar().setTitle(sessionOptions.sessionTitle.trim());
             updateToolbarModelSubtitle();
@@ -475,7 +496,6 @@ public class ChatSessionActivity extends ThemedActivity {
             }
             final String finalUserMessage = enrichedUserMessage;
             mainHandler.post(() -> {
-                removeCharacterMemoryLoadingPlaceholder();
                 if (responseToken != activeResponseToken) return;
                 if (isFinishing() || isDestroyed()) return;
                 dispatchChatRequest(finalHistoryForApi, finalUserMessage, finalOptions, responseToken, true);
@@ -488,16 +508,28 @@ public class ChatSessionActivity extends ThemedActivity {
                                      SessionChatOptions options,
                                      long responseToken,
                                      boolean reportAssistantToMemory) {
-        boolean streamOutput = options != null && options.streamOutput;
+        boolean streamOutput = true;
         Message streamingAssistant = null;
         if (streamOutput) {
-            streamingAssistant = new Message(sessionId, Message.ROLE_ASSISTANT, "");
-            streamingAssistant.thinkingRunning = false;
-            streamingAssistant.thinkingStartedAt = 0L;
-            streamingAssistant.thinkingElapsedMs = 0L;
-            allMessages.add(streamingAssistant);
-            applyMessagesAndTitle();
-            maybeAutoScrollToBottom(true);
+            if (characterMemoryLoadingMessage != null) {
+                // Reuse loading placeholder bubble to avoid a blank gap between loading and first token.
+                streamingAssistant = characterMemoryLoadingMessage;
+                characterMemoryLoadingMessage = null;
+                if (streamingAssistant.content == null || streamingAssistant.content.trim().isEmpty()) {
+                    streamingAssistant.content = CHARACTER_MEMORY_LOADING_TEXT;
+                }
+                streamingAssistant.thinkingRunning = false;
+                streamingAssistant.thinkingStartedAt = 0L;
+                streamingAssistant.thinkingElapsedMs = 0L;
+            } else {
+                streamingAssistant = new Message(sessionId, Message.ROLE_ASSISTANT, "");
+                streamingAssistant.thinkingRunning = false;
+                streamingAssistant.thinkingStartedAt = 0L;
+                streamingAssistant.thinkingElapsedMs = 0L;
+                allMessages.add(streamingAssistant);
+                applyMessagesAndTitle();
+                maybeAutoScrollToBottom(true);
+            }
         }
         Message finalStreamingAssistant = streamingAssistant;
         activeStreamingMessage = finalStreamingAssistant;
@@ -526,6 +558,7 @@ public class ChatSessionActivity extends ThemedActivity {
                         activeChatHandle = null;
                         activeStreamingMessage = null;
                         String safeContent = content != null ? content : "";
+                        removeCharacterMemoryLoadingPlaceholder();
                         if (streamOutput && finalStreamingAssistant != null) {
                             finishThinking(finalStreamingAssistant);
                             stopStreamTypewriter(true);
@@ -558,6 +591,7 @@ public class ChatSessionActivity extends ThemedActivity {
                         setAssistantResponseInProgress(false);
                         activeChatHandle = null;
                         activeStreamingMessage = null;
+                        removeCharacterMemoryLoadingPlaceholder();
                         if (finalStreamingAssistant != null) {
                             finishThinking(finalStreamingAssistant);
                         }
@@ -577,6 +611,7 @@ public class ChatSessionActivity extends ThemedActivity {
                     mainHandler.post(() -> {
                         if (isStale()) return;
                         if (!isUiAlive()) return;
+                        removeCharacterMemoryLoadingPlaceholder();
                         handleResponseStopped(finalStreamingAssistant, reportAssistantToMemory);
                     });
                 }
@@ -587,6 +622,11 @@ public class ChatSessionActivity extends ThemedActivity {
                     mainHandler.post(() -> {
                         if (isStale()) return;
                         if (!isUiAlive()) return;
+                        if (CHARACTER_MEMORY_LOADING_TEXT.equals(
+                                finalStreamingAssistant.content != null ? finalStreamingAssistant.content.trim() : "")) {
+                            finalStreamingAssistant.content = "";
+                            removeCharacterMemoryLoadingPlaceholder();
+                        }
                         finishThinking(finalStreamingAssistant);
                         enqueueStreamDelta(finalStreamingAssistant, delta);
                     });
@@ -598,6 +638,11 @@ public class ChatSessionActivity extends ThemedActivity {
                     mainHandler.post(() -> {
                         if (isStale()) return;
                         if (!isUiAlive()) return;
+                        if (CHARACTER_MEMORY_LOADING_TEXT.equals(
+                                finalStreamingAssistant.content != null ? finalStreamingAssistant.content.trim() : "")) {
+                            finalStreamingAssistant.content = "";
+                            removeCharacterMemoryLoadingPlaceholder();
+                        }
                         beginThinking(finalStreamingAssistant);
                         finalStreamingAssistant.reasoning = reasoning != null ? reasoning : "";
                         scheduleStreamRender();
@@ -667,13 +712,29 @@ public class ChatSessionActivity extends ThemedActivity {
                 Log.d(TAG, "auto title success: " + content);
                 if (content == null || content.trim().isEmpty()) return;
                 executor.execute(() -> {
+                    String trimmedTitle = content.trim();
                     SessionMetaStore store = new SessionMetaStore(ChatSessionActivity.this);
                     SessionMeta m = store.get(sessionId);
                     if (m.title == null || m.title.trim().isEmpty()) {
-                        m.title = content.trim();
+                        m.title = trimmedTitle;
                         store.save(sessionId, m);
                     }
-                    mainHandler.post(ChatSessionActivity.this::applyMessagesAndTitle);
+
+                    // Keep session chat settings form in sync: it reads from SessionChatOptionsStore.
+                    SessionChatOptionsStore optionsStore = new SessionChatOptionsStore(ChatSessionActivity.this);
+                    SessionChatOptions options = optionsStore.get(sessionId);
+                    if (options.sessionTitle == null || options.sessionTitle.trim().isEmpty()) {
+                        options.sessionTitle = trimmedTitle;
+                        optionsStore.save(sessionId, options);
+                    }
+
+                    mainHandler.post(() -> {
+                        if (sessionOptions != null
+                                && (sessionOptions.sessionTitle == null || sessionOptions.sessionTitle.trim().isEmpty())) {
+                            sessionOptions.sessionTitle = trimmedTitle;
+                        }
+                        applyMessagesAndTitle();
+                    });
                 });
             }
 
@@ -718,10 +779,9 @@ public class ChatSessionActivity extends ThemedActivity {
                 if (out.sessionAvatar == null || out.sessionAvatar.trim().isEmpty()) {
                     out.sessionAvatar = AssistantAvatarHelper.resolveTextAvatar(assistant, assistant.name);
                 }
-                // Keep assistant.prompt as prompt fallback for assistants without explicit options prompt.
-                if ((out.systemPrompt == null || out.systemPrompt.isEmpty())
-                        && assistant.prompt != null && !assistant.prompt.isEmpty()) {
-                    out.systemPrompt = assistant.prompt;
+                if ((out.systemPrompt == null || out.systemPrompt.trim().isEmpty())
+                        && assistant.prompt != null && !assistant.prompt.trim().isEmpty()) {
+                    out.systemPrompt = assistant.prompt.trim();
                 }
             }
         }
@@ -749,7 +809,7 @@ public class ChatSessionActivity extends ThemedActivity {
         out.stop = src.stop != null ? src.stop : "";
         out.temperature = src.temperature;
         out.topP = src.topP;
-        out.streamOutput = src.streamOutput;
+        out.streamOutput = true;
         out.thinking = src.thinking;
         out.googleThinkingBudget = src.googleThinkingBudget;
         return out;
@@ -803,6 +863,8 @@ public class ChatSessionActivity extends ThemedActivity {
         if (currentAdapter != null) currentAdapter.setWriterMode(writerAssistant);
         if (historyAdapter != null) historyAdapter.setDisableAssistantCollapseToggle(characterAssistant);
         if (currentAdapter != null) currentAdapter.setDisableAssistantCollapseToggle(characterAssistant);
+        if (historyAdapter != null) historyAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant);
+        if (currentAdapter != null) currentAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant);
         View btnWriterOutline = findViewById(R.id.btnWriterOutline);
         if (btnWriterOutline != null) {
             btnWriterOutline.setVisibility(writerAssistant ? View.VISIBLE : View.GONE);
@@ -819,20 +881,98 @@ public class ChatSessionActivity extends ThemedActivity {
     }
 
     private void updateToolbarModelSubtitle() {
-        if (getSupportActionBar() == null) return;
-        String modelLabel = "";
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setSubtitle(null);
+        }
+        if (quickModelSwitchView == null) return;
+        String modelLabel = resolveCurrentModelLabel();
+        if (modelLabel.isEmpty()) {
+            quickModelSwitchView.setText(getString(R.string.quick_model_switch_placeholder));
+        } else {
+            quickModelSwitchView.setText(getString(R.string.quick_model_switch_value, modelLabel));
+        }
+    }
+
+    private String resolveCurrentModelLabel() {
         String modelKey = sessionOptions != null ? sessionOptions.modelKey : "";
         ConfiguredModelPicker.Option option = ConfiguredModelPicker.Option.fromStorageKey(modelKey, this);
         if (option != null && option.displayName != null && !option.displayName.trim().isEmpty()) {
-            modelLabel = option.displayName.trim();
-        } else if (modelKey != null && modelKey.contains(":")) {
-            modelLabel = modelKey.substring(modelKey.indexOf(':') + 1).trim();
+            return option.displayName.trim();
         }
-        if (modelLabel.isEmpty()) {
-            getSupportActionBar().setSubtitle(null);
+        if (modelKey != null && modelKey.contains(":")) {
+            return modelKey.substring(modelKey.indexOf(':') + 1).trim();
+        }
+        return "";
+    }
+
+    private void showQuickModelPicker() {
+        List<ConfiguredModelPicker.Option> options = ConfiguredModelPicker.getConfiguredModels(this);
+        if (options == null || options.isEmpty()) {
+            new MaterialAlertDialogBuilder(this)
+                    .setMessage("请先在「模型管理」中添加厂商并添加模型")
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
             return;
         }
-        getSupportActionBar().setSubtitle(modelLabel);
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_model_picker, null);
+        RecyclerView recycler = dialogView.findViewById(R.id.recyclerOptions);
+        recycler.setLayoutManager(new LinearLayoutManager(this));
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+                .setTitle("快速切换模型")
+                .setView(dialogView)
+                .setNegativeButton(android.R.string.cancel, null)
+                .create();
+        String currentModelKey = sessionOptions != null ? sessionOptions.modelKey : "";
+        ModelPickerAdapter adapter = new ModelPickerAdapter(options, currentModelKey, option -> {
+            if (sessionOptions == null) sessionOptions = new SessionChatOptions();
+            sessionOptions.modelKey = option.getStorageKey();
+            new SessionChatOptionsStore(this).save(sessionId, sessionOptions);
+            updateToolbarModelSubtitle();
+            dialog.dismiss();
+        });
+        recycler.setAdapter(adapter);
+        dialog.show();
+    }
+
+    private void updateFirstDialoguePreview() {
+        if (firstDialoguePreviewView == null) return;
+        String source = "";
+        if (sessionOptions != null && sessionOptions.systemPrompt != null) {
+            source = sessionOptions.systemPrompt.trim();
+        }
+        if (source.isEmpty()) {
+            firstDialoguePreviewView.setVisibility(View.GONE);
+            return;
+        }
+        String preview = buildFirstDialoguePreviewText(source, 200);
+        firstDialoguePreviewView.setText(getString(R.string.system_prompt_preview_value, preview));
+        firstDialoguePreviewView.setVisibility(View.VISIBLE);
+    }
+
+    private String buildFirstDialoguePreviewText(String text, int maxChars) {
+        if (text == null) return "";
+        String compact = text.trim();
+        if (compact.length() <= maxChars) return compact;
+        return compact.substring(0, maxChars) + "...";
+    }
+
+    private void maybeInsertAssistantOpeningMessage() {
+        if (allMessages != null && !allMessages.isEmpty()) return;
+        String firstDialogue = "";
+        if (assistantId != null && !assistantId.trim().isEmpty()) {
+            MyAssistant assistant = new MyAssistantStore(this).getById(assistantId);
+            if (assistant != null && assistant.firstDialogue != null) {
+                firstDialogue = assistant.firstDialogue.trim();
+            }
+        }
+        if (firstDialogue.isEmpty()) return;
+        Message opening = new Message(sessionId, Message.ROLE_ASSISTANT, firstDialogue);
+        allMessages.add(opening);
+        executor.execute(() -> {
+            try {
+                db.messageDao().insert(opening);
+            } catch (Exception ignored) {}
+        });
     }
 
     private void bindMessageActions(MessageAdapter adapter) {
@@ -925,7 +1065,7 @@ public class ChatSessionActivity extends ThemedActivity {
             if (one == null) continue;
             String type = "章节";
             if ("material".equals(one.type)) type = "资料";
-            else if ("task".equals(one.type)) type = "任务资料";
+            else if ("task".equals(one.type)) type = "人物资料";
             else if ("world".equals(one.type)) type = "世界背景";
             else if ("knowledge".equals(one.type)) type = "知情约束";
             String title = one.title != null ? one.title.trim() : "";
@@ -1144,7 +1284,20 @@ public class ChatSessionActivity extends ThemedActivity {
                 updateAutoScrollStateFromPosition();
                 if (scrollY != oldScrollY || scrollX != oldScrollX) collapseMessageActions();
                 updateLoadEarlierEntryVisibility();
+                updateCollapseToggleAffixViewport();
             });
+        }
+    }
+
+    private void updateCollapseToggleAffixViewport() {
+        if (scrollMessagesView == null) return;
+        Rect rect = new Rect();
+        if (!scrollMessagesView.getGlobalVisibleRect(rect)) return;
+        if (historyAdapter != null) {
+            historyAdapter.setCollapseToggleAffixViewport(rect.top, rect.bottom);
+        }
+        if (currentAdapter != null) {
+            currentAdapter.setCollapseToggleAffixViewport(rect.top, rect.bottom);
         }
     }
 

@@ -80,7 +80,7 @@ public class SessionOutlineAdapter extends RecyclerView.Adapter<SessionOutlineAd
 
     private String displayType(String type) {
         if ("material".equals(type)) return "资料";
-        if ("task".equals(type)) return "任务资料";
+        if ("task".equals(type)) return "人物资料";
         if ("world".equals(type)) return "世界背景";
         if ("knowledge".equals(type)) return "知情约束";
         return "章节";

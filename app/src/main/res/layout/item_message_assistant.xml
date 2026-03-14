@@ -14,6 +14,7 @@
         android:textSize="12sp"
         android:textColor="@color/chat_meta_text_color" />
 
+    <!-- Thinking 区域：头部和内容气泡样式在这里调 -->
     <LinearLayout
         android:id="@+id/layoutReasoning"
         android:layout_width="wrap_content"
@@ -21,6 +22,7 @@
         android:orientation="vertical"
         android:layout_marginBottom="4dp"
         android:visibility="gone">
+        <!-- Thinking 标题行（可点击折叠/展开） -->
         <TextView
             android:id="@+id/textReasoningHeader"
             android:layout_width="wrap_content"
@@ -32,6 +34,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:paddingHorizontal="6dp"
             android:paddingVertical="2dp" />
+        <!-- Thinking 内容：默认折叠时显示一行，展开显示全文 -->
         <TextView
             android:id="@+id/textReasoningContent"
             android:layout_width="wrap_content"
@@ -45,14 +48,40 @@
             android:visibility="gone" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/textContent"
+    <!-- 助手消息气泡容器：正文 + affix 折叠按钮 -->
+    <FrameLayout
+        android:id="@+id/layoutAssistantBubble"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="12dp"
-        android:background="@drawable/bubble_assistant"
-        android:textColor="@color/chat_assistant_text_color"
-        android:textSize="16sp" />
+        android:background="@drawable/bubble_assistant">
+        <!-- 正文内容：长文折叠/展开逻辑由 MessageAdapter 控制 -->
+        <TextView
+            android:id="@+id/textContent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingStart="12dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="10dp"
+            android:textColor="@color/chat_assistant_text_color"
+            android:textSize="16sp" />
+        <!-- affix 折叠按钮：相对该条消息悬浮，不是全局悬浮 -->
+        <TextView
+            android:id="@+id/textCollapseToggle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end|center_vertical"
+            android:layout_marginEnd="6dp"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="3dp"
+            android:text="展开"
+            android:textSize="12sp"
+            android:textColor="@color/chat_meta_text_color"
+            android:drawablePadding="2dp"
+            android:drawableEnd="@drawable/ic_collapse_expand_more"
+            android:drawableTint="@color/chat_meta_text_color"
+            android:background="@drawable/bg_affix_toggle" />
+    </FrameLayout>
 
     <TextView
         android:id="@+id/textUsage"
@@ -63,70 +92,68 @@
         android:textColor="@color/chat_meta_text_color"
         android:visibility="gone" />
 
+    <!-- 助手消息底部操作区：点击消息后显示 -->
     <LinearLayout
         android:id="@+id/layoutActions"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:minHeight="32dp"
-        android:layout_marginTop="12dp"
+        android:layout_marginTop="6dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
         android:visibility="visible">
+        <!-- 编辑按钮 -->
         <ImageButton
             android:id="@+id/actionEdit"
             android:layout_width="32dp"
             android:layout_height="32dp"
-            android:padding="9dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
             android:scaleType="centerInside"
             android:src="@drawable/ic_action_edit"
-            android:tint="?attr/colorOnSurface"
+            android:tint="@color/action_button_icon_tint"
             android:contentDescription="编辑" />
+        <!-- 复制按钮 -->
         <ImageButton
             android:id="@+id/actionCopy"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:padding="9dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
             android:scaleType="centerInside"
             android:src="@drawable/ic_action_copy"
-            android:tint="?attr/colorOnSurface"
+            android:tint="@color/action_button_icon_tint"
             android:contentDescription="复制" />
+        <!-- 提取到大纲按钮：仅写作模式会显示 -->
         <ImageButton
             android:id="@+id/actionOutline"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:padding="9dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
             android:scaleType="centerInside"
             android:src="@drawable/ic_action_outline"
-            android:tint="?attr/colorOnSurface"
+            android:tint="@color/action_button_icon_tint"
             android:contentDescription="提取到大纲"
             android:visibility="gone" />
+        <!-- 删除按钮：间距更大，图标暗红 -->
         <ImageButton
             android:id="@+id/actionDelete"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_marginStart="14dp"
-            android:padding="9dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="10dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
             android:scaleType="centerInside"
             android:src="@drawable/ic_action_delete"
-            android:tint="?attr/colorOnSurface"
+            android:tint="#8B2E2E"
             android:contentDescription="删除" />
+        <!-- 占位弹簧：把操作按钮整体顶到左侧 -->
         <Space
             android:layout_width="0dp"
             android:layout_height="1dp"
             android:layout_weight="1" />
-        <TextView
-            android:id="@+id/textCollapseToggle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingHorizontal="4dp"
-            android:paddingVertical="2dp"
-            android:text="▼ 展开"
-            android:textSize="12sp"
-            android:textColor="@color/chat_meta_text_color"
-            android:background="?attr/selectableItemBackgroundBorderless" />
     </LinearLayout>
 </LinearLayout>
