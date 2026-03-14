@@ -6,6 +6,7 @@ public class MyAssistant {
     public String prompt;
     public String avatar;
     public String avatarImageBase64;
+    public String firstDialogue;
     public String type; // default / writer
     public boolean allowAutoLife;
     public boolean allowProactiveMessage;

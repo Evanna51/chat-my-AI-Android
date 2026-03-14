@@ -7,23 +7,37 @@
 
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize">
+        android:layout_height="68dp">
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:paddingEnd="100dp"
+            android:paddingEnd="144dp"
             app:title="@string/current_conversation"
             app:titleTextAppearance="@style/TextAppearance.AIChat.Toolbar.Title.Small"
             app:subtitleTextAppearance="@style/TextAppearance.AIChat.Toolbar.Subtitle"
             app:navigationIcon="?attr/homeAsUpIndicator" />
 
+        <TextView
+            android:id="@+id/textQuickModelSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start|bottom"
+            android:paddingStart="60dp"
+            android:paddingTop="0dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="4dp"
+            android:text="@string/quick_model_switch_placeholder"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="@color/list_subtitle_color" />
+
         <ImageButton
             android:id="@+id/btnWriterOutline"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:layout_gravity="end|center_vertical"
-            android:layout_marginEnd="52dp"
+            android:layout_gravity="end|top"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="96dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="作家大纲"
             android:src="@drawable/ic_action_outline"
@@ -34,13 +48,37 @@
             android:id="@+id/btnSessionSettings"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:layout_gravity="end|center_vertical"
-            android:layout_marginEnd="8dp"
+            android:layout_gravity="end|top"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="52dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/session_chat_settings"
-            android:src="@drawable/ic_settings"
+            android:src="@drawable/ic_action_settings"
             app:tint="?attr/colorOnSurface" />
+
+        <ImageButton
+            android:id="@+id/btnSessionMore"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="end|top"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/more_options"
+            android:src="@drawable/ic_action_more"
+            app:tint="?attr/colorOnSurface" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_gravity="bottom"
+            android:background="#0D808080" />
     </FrameLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="2dp"
+        android:background="@drawable/bg_header_bottom_shadow" />
 
     <androidx.core.widget.NestedScrollView
         android:id="@+id/scrollMessages"
@@ -53,6 +91,18 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/textFirstDialoguePreview"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingStart="16dp"
+                android:paddingTop="0dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="8dp"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="@color/list_subtitle_color"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/textLoadEarlierMessages"

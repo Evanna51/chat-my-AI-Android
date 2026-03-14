@@ -1,7 +1,10 @@
 package com.example.aichat;
 
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowManager;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -11,7 +14,9 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
+import com.google.android.material.chip.Chip;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.chip.ChipGroup;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -91,26 +96,16 @@ public class SessionOutlineActivity extends ThemedActivity {
         EditText editTitle = view.findViewById(R.id.editOutlineTitle);
         EditText editContent = view.findViewById(R.id.editOutlineContent);
         String[] typeValues = new String[] {"chapter", "material", "task", "world", "knowledge"};
-        String[] typeLabels = new String[] {"章节", "资料", "任务资料", "世界背景", "知情约束"};
+        ChipGroup chipGroupType = view.findViewById(R.id.chipGroupOutlineType);
         final int[] selected = new int[] {0};
-        TextView textType = view.findViewById(R.id.textOutlineTypeValue);
-        textType.setText(typeLabels[0]);
-        textType.setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
-                .setTitle("选择类型")
-                .setItems(typeLabels, (d, which) -> {
-                    selected[0] = which;
-                    textType.setText(typeLabels[which]);
-                    if (which == 0 && (editTitle.getText() == null || editTitle.getText().toString().trim().isEmpty())) {
-                        int next = outlineStore.nextChapterIndex(sessionId);
-                        editTitle.setText("章节" + next);
-                    }
-                })
-                .show());
+        bindTypeChipSelection(view, selected, editTitle);
+        if (chipGroupType != null) chipGroupType.check(R.id.chipTypeChapter);
+        FormInputScrollHelper.enableFor(editContent);
 
         int next = outlineStore.nextChapterIndex(sessionId);
         editTitle.setText("章节" + next);
 
-        new MaterialAlertDialogBuilder(this)
+        androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(this)
                 .setTitle("新增大纲")
                 .setView(view)
                 .setPositiveButton(android.R.string.ok, (d, w) -> {
@@ -124,7 +119,9 @@ public class SessionOutlineActivity extends ThemedActivity {
                     refreshList();
                 })
                 .setNegativeButton(android.R.string.cancel, null)
-                .show();
+                .create();
+        dialog.show();
+        moveDialogUp(dialog, 40);
     }
 
     private void showEditDialog(SessionOutlineItem item) {
@@ -132,24 +129,18 @@ public class SessionOutlineActivity extends ThemedActivity {
         View view = getLayoutInflater().inflate(R.layout.dialog_edit_outline, null);
         EditText editTitle = view.findViewById(R.id.editOutlineTitle);
         EditText editContent = view.findViewById(R.id.editOutlineContent);
-        TextView textType = view.findViewById(R.id.textOutlineTypeValue);
+        ChipGroup chipGroupType = view.findViewById(R.id.chipGroupOutlineType);
         String[] typeValues = new String[] {"chapter", "material", "task", "world", "knowledge"};
-        String[] typeLabels = new String[] {"章节", "资料", "任务资料", "世界背景", "知情约束"};
         int defaultType = indexOfType(typeValues, outlineStore.normalizeType(item.type));
         final int[] selected = new int[] {defaultType};
-        textType.setText(typeLabels[defaultType]);
-        textType.setOnClickListener(v -> new MaterialAlertDialogBuilder(this)
-                .setTitle("选择类型")
-                .setItems(typeLabels, (d, which) -> {
-                    selected[0] = which;
-                    textType.setText(typeLabels[which]);
-                })
-                .show());
+        bindTypeChipSelection(view, selected, null);
+        if (chipGroupType != null) chipGroupType.check(typeIndexToChipId(defaultType));
+        FormInputScrollHelper.enableFor(editContent);
 
         editTitle.setText(item.title != null ? item.title : "");
         editContent.setText(item.content != null ? item.content : "");
 
-        new MaterialAlertDialogBuilder(this)
+        androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(this)
                 .setTitle("编辑大纲")
                 .setView(view)
                 .setPositiveButton(android.R.string.ok, (d, w) -> {
@@ -164,7 +155,9 @@ public class SessionOutlineActivity extends ThemedActivity {
                     refreshList();
                 })
                 .setNegativeButton(android.R.string.cancel, null)
-                .show();
+                .create();
+        dialog.show();
+        moveDialogUp(dialog, 40);
     }
 
     private int indexOfType(String[] values, String type) {
@@ -172,6 +165,53 @@ public class SessionOutlineActivity extends ThemedActivity {
             if (values[i].equals(type)) return i;
         }
         return 0;
+    }
+
+    private void bindTypeChipSelection(View view, int[] selected, EditText editTitleForChapterAutofill) {
+        if (view == null || selected == null || selected.length == 0) return;
+        bindTypeChip(view, R.id.chipTypeChapter, 0, selected, editTitleForChapterAutofill);
+        bindTypeChip(view, R.id.chipTypeMaterial, 1, selected, editTitleForChapterAutofill);
+        bindTypeChip(view, R.id.chipTypeTask, 2, selected, editTitleForChapterAutofill);
+        bindTypeChip(view, R.id.chipTypeWorld, 3, selected, editTitleForChapterAutofill);
+        bindTypeChip(view, R.id.chipTypeKnowledge, 4, selected, editTitleForChapterAutofill);
+    }
+
+    private void bindTypeChip(View view, int chipId, int typeIndex, int[] selected, EditText editTitleForChapterAutofill) {
+        Chip chip = view.findViewById(chipId);
+        if (chip == null) return;
+        chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            if (!isChecked) return;
+            selected[0] = typeIndex;
+            if (typeIndex == 0 && editTitleForChapterAutofill != null
+                    && (editTitleForChapterAutofill.getText() == null
+                    || editTitleForChapterAutofill.getText().toString().trim().isEmpty())) {
+                int nextChapter = outlineStore.nextChapterIndex(sessionId);
+                editTitleForChapterAutofill.setText("章节" + nextChapter);
+            }
+        });
+    }
+
+    private void moveDialogUp(androidx.appcompat.app.AlertDialog dialog, int offsetDp) {
+        if (dialog == null) return;
+        Window window = dialog.getWindow();
+        if (window == null) return;
+        WindowManager.LayoutParams params = window.getAttributes();
+        if (params == null) return;
+        params.gravity = Gravity.CENTER;
+        params.y = -dpToPx(offsetDp);
+        window.setAttributes(params);
+    }
+
+    private int dpToPx(int dp) {
+        return Math.round(dp * getResources().getDisplayMetrics().density);
+    }
+
+    private int typeIndexToChipId(int index) {
+        if (index == 1) return R.id.chipTypeMaterial;
+        if (index == 2) return R.id.chipTypeTask;
+        if (index == 3) return R.id.chipTypeWorld;
+        if (index == 4) return R.id.chipTypeKnowledge;
+        return R.id.chipTypeChapter;
     }
 
     private void runLeakageAudit() {

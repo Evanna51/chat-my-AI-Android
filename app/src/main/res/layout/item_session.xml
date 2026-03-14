@@ -51,32 +51,34 @@
                 android:textColor="@color/list_subtitle_color" />
         </LinearLayout>
 
+        <!-- 首页按钮：隐藏会话 -->
         <ImageButton
             android:id="@+id/btnHideSession"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/hide_conversation"
-            android:padding="7dp"
+            android:padding="6dp"
             android:src="@drawable/ic_action_hide"
             app:tint="@color/list_icon_color" />
 
+        <!-- 首页按钮：删除会话 -->
         <ImageButton
             android:id="@+id/btnDeleteSession"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/delete_conversation"
-            android:padding="7dp"
+            android:padding="6dp"
             android:src="@drawable/ic_action_delete"
             app:tint="@color/list_icon_color" />
     </LinearLayout>
 
     <View
         android:layout_width="match_parent"
-        android:layout_height="1dp"
+        android:layout_height="0.5dp"
         android:layout_marginStart="56dp"
         android:background="?attr/colorOutline"
-        android:alpha="0.32" />
+        android:alpha="0.16" />
 
 </LinearLayout>

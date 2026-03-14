@@ -50,6 +50,9 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             Collections.newSetFromMap(new IdentityHashMap<>());
     private boolean writerMode;
     private boolean disableAssistantCollapseToggle;
+    private boolean autoFocusLatestOnSetMessages = true;
+    private int affixViewportTop = Integer.MIN_VALUE;
+    private int affixViewportBottom = Integer.MIN_VALUE;
 
     public MessageAdapter() {
         this(new AssistantMarkdownStateStore());
@@ -177,6 +180,16 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         notifyDataSetChanged();
     }
 
+    public void setAutoFocusLatestOnSetMessages(boolean enabled) {
+        autoFocusLatestOnSetMessages = enabled;
+    }
+
+    public void setCollapseToggleAffixViewport(int viewportTop, int viewportBottom) {
+        affixViewportTop = viewportTop;
+        affixViewportBottom = viewportBottom;
+        updateCollapseToggleAffixForAttachedHolders();
+    }
+
     public void setMessages(List<Message> list) {
         messages.clear();
         if (list != null) {
@@ -185,7 +198,9 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         expandedReasoningMessages.retainAll(messages);
         markdownRenderedSource.keySet().retainAll(messages);
         markdownLastRenderAt.keySet().retainAll(messages);
-        focusedPosition = messages.isEmpty() ? -1 : messages.size() - 1;
+        focusedPosition = messages.isEmpty()
+                ? -1
+                : (autoFocusLatestOnSetMessages ? messages.size() - 1 : -1);
         notifyDataSetChanged();
     }
 
@@ -218,10 +233,11 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 bindAssistantContentStreaming(h, target, content);
             }
             if (h.lastHasVisibleContent != hasVisibleContent) {
-                h.textCollapseToggle.setVisibility(hasVisibleContent ? View.VISIBLE : View.INVISIBLE);
+                h.textCollapseToggle.setVisibility(hasVisibleContent ? View.VISIBLE : View.GONE);
                 h.lastHasVisibleContent = hasVisibleContent;
             }
             bindReasoning(h, target, h.getBindingAdapterPosition());
+            applyCollapseToggleAffix(h);
             rendered = true;
         }
         return rendered;
@@ -322,34 +338,37 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 h.layoutReasoning.setVisibility(View.GONE);
                 h.textUsage.setVisibility(View.GONE);
                 h.layoutActions.setVisibility(View.GONE);
-                h.textCollapseToggle.setVisibility(View.INVISIBLE);
+                h.textCollapseToggle.setVisibility(View.GONE);
                 if (fullBind) h.itemView.setOnClickListener(null);
                 return;
             }
             boolean expanded = m != null && assistantStateStore.isExpanded(m);
             if (disableAssistantCollapseToggle) expanded = true;
             boolean hasVisibleContent = !content.trim().isEmpty();
+            h.layoutActions.setVisibility(showActions ? View.VISIBLE : View.GONE);
             if (fullBind || h.lastHasVisibleContent != hasVisibleContent) {
                 if (disableAssistantCollapseToggle) {
                     h.textCollapseToggle.setVisibility(View.GONE);
                 } else {
-                    h.textCollapseToggle.setVisibility(hasVisibleContent ? View.VISIBLE : View.INVISIBLE);
+                    h.textCollapseToggle.setVisibility(hasVisibleContent ? View.VISIBLE : View.GONE);
                 }
-                h.layoutActions.setVisibility(View.VISIBLE);
                 h.lastHasVisibleContent = hasVisibleContent;
             }
-            if (fullBind && !disableAssistantCollapseToggle) {
-                h.textCollapseToggle.setText(expanded ? "▲ 收起" : "▼ 展开");
+            if (!disableAssistantCollapseToggle) {
+                setCollapseToggleLabel(h.textCollapseToggle, expanded);
+            }
+            if (disableAssistantCollapseToggle) {
+                // Character chats do not use assistant content collapse controls at all.
+                h.textCollapseToggle.setOnClickListener(null);
             }
             h.textContent.setVisibility(hasVisibleContent ? View.VISIBLE : View.GONE);
             if (hasVisibleContent) bindAssistantContent(h, m, content, expanded);
-            if (fullBind) {
-                h.actionOutline.setVisibility(writerMode && showActions ? View.VISIBLE : View.INVISIBLE);
-                h.actionEdit.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
-                h.actionCopy.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
-                h.actionDelete.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
-            }
+            h.actionOutline.setVisibility(writerMode && showActions ? View.VISIBLE : View.INVISIBLE);
+            h.actionEdit.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
+            h.actionCopy.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
+            h.actionDelete.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
             bindReasoning(h, m, position);
+            applyCollapseToggleAffix(h);
             if (fullBind) {
                 h.itemView.setOnClickListener(v -> focus(position));
                 h.actionEdit.setOnClickListener(v -> { if (actionListener != null) actionListener.onEdit(m); });
@@ -381,7 +400,9 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     public void onViewAttachedToWindow(@NonNull RecyclerView.ViewHolder holder) {
         super.onViewAttachedToWindow(holder);
         if (holder instanceof AssistantHolder) {
-            attachedAssistantHolders.add((AssistantHolder) holder);
+            AssistantHolder h = (AssistantHolder) holder;
+            attachedAssistantHolders.add(h);
+            applyCollapseToggleAffix(h);
         }
     }
 
@@ -420,6 +441,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         TextView textTimestamp;
         TextView textContent;
         TextView textCollapseToggle;
+        View layoutAssistantBubble;
         View layoutActions;
         View layoutReasoning;
         TextView textReasoningHeader;
@@ -437,6 +459,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             textTimestamp = itemView.findViewById(R.id.textTimestamp);
             textContent = itemView.findViewById(R.id.textContent);
             textCollapseToggle = itemView.findViewById(R.id.textCollapseToggle);
+            layoutAssistantBubble = itemView.findViewById(R.id.layoutAssistantBubble);
             layoutActions = itemView.findViewById(R.id.layoutActions);
             layoutReasoning = itemView.findViewById(R.id.layoutReasoning);
             textReasoningHeader = itemView.findViewById(R.id.textReasoningHeader);
@@ -468,11 +491,20 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         if (hasThinkingState) {
             h.textReasoningHeader.setVisibility(View.VISIBLE);
             boolean expanded = m != null && expandedReasoningMessages.contains(m);
-            h.textReasoningContent.setVisibility(expanded ? View.VISIBLE : View.GONE);
             String thinkingTime = formatSeconds(m != null ? m.thinkingElapsedMs : 0);
             h.textReasoningHeader.setText((expanded ? "Thinking ▲ " : "Thinking ▼ ") + thinkingTime);
             String reasoning = m != null ? m.reasoning : null;
-            h.textReasoningContent.setText((reasoning == null || reasoning.trim().isEmpty()) ? "Thinking 中..." : reasoning);
+            String display = (reasoning == null || reasoning.trim().isEmpty()) ? "Thinking 中..." : reasoning;
+            h.textReasoningContent.setVisibility(View.VISIBLE);
+            h.textReasoningContent.setText(display);
+            if (expanded) {
+                h.textReasoningContent.setMaxLines(Integer.MAX_VALUE);
+                h.textReasoningContent.setEllipsize(null);
+            } else {
+                // Collapsed preview: render only the first visible line.
+                h.textReasoningContent.setMaxLines(1);
+                h.textReasoningContent.setEllipsize(TextUtils.TruncateAt.END);
+            }
             h.textReasoningHeader.setOnClickListener(v -> {
                 if (m == null) return;
                 if (expandedReasoningMessages.contains(m)) {
@@ -562,6 +594,63 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         h.textContent.setMaxLines(Integer.MAX_VALUE);
         h.textContent.setEllipsize(null);
         h.textContent.setText(content);
+    }
+
+    private void updateCollapseToggleAffixForAttachedHolders() {
+        List<AssistantHolder> snapshot = new ArrayList<>(attachedAssistantHolders);
+        for (AssistantHolder h : snapshot) {
+            applyCollapseToggleAffix(h);
+        }
+    }
+
+    private void applyCollapseToggleAffix(AssistantHolder h) {
+        if (h == null || h.textCollapseToggle == null) return;
+        if (disableAssistantCollapseToggle) {
+            h.textCollapseToggle.setTranslationY(0f);
+            return;
+        }
+        Message m = h.boundMessage;
+        boolean expanded = m != null && assistantStateStore.isExpanded(m);
+        if (!expanded || h.textCollapseToggle.getVisibility() != View.VISIBLE) {
+            h.textCollapseToggle.setTranslationY(0f);
+            return;
+        }
+        if (affixViewportTop == Integer.MIN_VALUE || affixViewportBottom <= affixViewportTop) {
+            h.textCollapseToggle.setTranslationY(0f);
+            return;
+        }
+        View bubble = h.layoutAssistantBubble;
+        if (bubble == null || bubble.getHeight() <= 0) {
+            h.textCollapseToggle.setTranslationY(0f);
+            return;
+        }
+        int[] loc = new int[2];
+        bubble.getLocationOnScreen(loc);
+        int bubbleTop = loc[1];
+        int bubbleBottom = bubbleTop + bubble.getHeight();
+        int toggleH = h.textCollapseToggle.getHeight();
+        float density = h.textCollapseToggle.getResources().getDisplayMetrics().density;
+        int half = toggleH > 0 ? (toggleH / 2) : Math.round(14f * density);
+        int edgePad = Math.round(8f * density);
+        int minCenter = bubbleTop + edgePad + half;
+        int maxCenter = bubbleBottom - edgePad - half;
+        if (maxCenter <= minCenter) {
+            h.textCollapseToggle.setTranslationY(0f);
+            return;
+        }
+        int viewportHeight = affixViewportBottom - affixViewportTop;
+        int desiredCenter = affixViewportBottom - Math.max(1, viewportHeight / 10);
+        if (desiredCenter < minCenter) desiredCenter = minCenter;
+        if (desiredCenter > maxCenter) desiredCenter = maxCenter;
+        int baseCenter = bubbleTop + (bubble.getHeight() / 2);
+        h.textCollapseToggle.setTranslationY((float) (desiredCenter - baseCenter));
+    }
+
+    private void setCollapseToggleLabel(TextView toggle, boolean expanded) {
+        if (toggle == null) return;
+        toggle.setText(expanded ? "收起" : "展开");
+        int icon = expanded ? R.drawable.ic_collapse_expand_less : R.drawable.ic_collapse_expand_more;
+        toggle.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, icon, 0);
     }
 
     private String formatSeconds(long ms) {

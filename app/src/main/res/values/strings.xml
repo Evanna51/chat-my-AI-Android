@@ -50,7 +50,7 @@
     <string name="session_model">当前对话模型</string>
     <string name="session_title">对话标题</string>
     <string name="session_avatar_optional">对话头像（可选）</string>
-    <string name="system_prompt">预先提示</string>
+    <string name="system_prompt">系统设定</string>
     <string name="temperature">Temperature</string>
     <string name="top_p">Top P</string>
     <string name="stop_sequences">Stop 序列（每行一条）</string>
@@ -63,6 +63,7 @@
     <string name="edit_assistant">编辑我的助手</string>
     <string name="assistant_name">名字</string>
     <string name="assistant_prompt">设定</string>
+    <string name="assistant_first_dialogue">首次对话</string>
     <string name="assistant_avatar_optional">头像（可选）</string>
     <string name="pick_avatar_from_album">从相册选择</string>
     <string name="clear_avatar_image">清除图片</string>
@@ -89,4 +90,9 @@
     <string name="load_earlier_messages">查看更早消息</string>
     <string name="load_earlier_messages_remaining">查看更早消息（剩余%1$d条）</string>
     <string name="loading_earlier_messages">正在加载更早消息…</string>
+    <string name="more_options">更多选项</string>
+    <string name="first_dialogue_helper">可留空；若填写，将作为该角色发起的默认对话</string>
+    <string name="quick_model_switch_placeholder">选择模型 ▾</string>
+    <string name="quick_model_switch_value">%1$s ▾</string>
+    <string name="system_prompt_preview_value">系统提示：%1$s</string>
 </resources>

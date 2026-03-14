@@ -36,7 +36,9 @@ public class SessionChatOptionsStore {
         if (sessionId == null || sessionId.isEmpty()) return new SessionChatOptions();
         Map<String, SessionChatOptions> map = getMap();
         SessionChatOptions options = map.get(sessionId);
-        return options != null ? options : new SessionChatOptions();
+        SessionChatOptions out = options != null ? options : new SessionChatOptions();
+        out.streamOutput = true;
+        return out;
     }
 
     public boolean has(String sessionId) {
@@ -47,6 +49,7 @@ public class SessionChatOptionsStore {
 
     public void save(String sessionId, SessionChatOptions options) {
         if (sessionId == null || sessionId.isEmpty() || options == null) return;
+        options.streamOutput = true;
         Map<String, SessionChatOptions> map = getMap();
         map.put(sessionId, options);
         saveMap(map);

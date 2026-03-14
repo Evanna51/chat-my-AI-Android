@@ -1,43 +1,128 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:paddingTop="8dp">
+    android:padding="16dp">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="类型"
-        android:textStyle="bold" />
-
-    <TextView
-        android:id="@+id/textOutlineTypeValue"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:paddingHorizontal="10dp"
-        android:paddingVertical="6dp"
-        android:background="@drawable/bg_pill_outline_type"
-        android:text="章节"
-        android:textColor="?attr/colorPrimary" />
-
-    <EditText
-        android:id="@+id/editOutlineTitle"
+    <HorizontalScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:hint="标题（如：章节1）"
-        android:maxLines="2" />
+        android:scrollbars="none">
 
-    <EditText
-        android:id="@+id/editOutlineContent"
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chipGroupOutlineType"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:singleLine="true"
+            app:selectionRequired="true"
+            app:singleSelection="true">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipTypeChapter"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="章节"
+                android:textColor="@color/chip_outline_type_text_selector"
+                app:chipBackgroundColor="@color/chip_outline_type_bg_selector"
+                app:chipStrokeColor="@color/chip_outline_type_stroke_selector"
+                app:chipStrokeWidth="1dp"
+                app:checkedIconVisible="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipTypeMaterial"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="资料"
+                android:textColor="@color/chip_outline_type_text_selector"
+                app:chipBackgroundColor="@color/chip_outline_type_bg_selector"
+                app:chipStrokeColor="@color/chip_outline_type_stroke_selector"
+                app:chipStrokeWidth="1dp"
+                app:checkedIconVisible="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipTypeTask"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="人物资料"
+                android:textColor="@color/chip_outline_type_text_selector"
+                app:chipBackgroundColor="@color/chip_outline_type_bg_selector"
+                app:chipStrokeColor="@color/chip_outline_type_stroke_selector"
+                app:chipStrokeWidth="1dp"
+                app:checkedIconVisible="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipTypeWorld"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="世界背景"
+                android:textColor="@color/chip_outline_type_text_selector"
+                app:chipBackgroundColor="@color/chip_outline_type_bg_selector"
+                app:chipStrokeColor="@color/chip_outline_type_stroke_selector"
+                app:chipStrokeWidth="1dp"
+                app:checkedIconVisible="false" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chipTypeKnowledge"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="true"
+                android:text="知情约束"
+                android:textColor="@color/chip_outline_type_text_selector"
+                app:chipBackgroundColor="@color/chip_outline_type_bg_selector"
+                app:chipStrokeColor="@color/chip_outline_type_stroke_selector"
+                app:chipStrokeWidth="1dp"
+                app:checkedIconVisible="false" />
+        </com.google.android.material.chip.ChipGroup>
+    </HorizontalScrollView>
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="14dp"
+        android:hint="例如：章节1"
+        app:boxBackgroundMode="outline">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editOutlineTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textCapSentences"
+            android:maxLines="2"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="10dp"
         android:hint="内容"
-        android:minLines="4"
-        android:gravity="top|start"
-        android:inputType="textMultiLine|textCapSentences" />
+        app:boxBackgroundMode="outline">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editOutlineContent"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="top|start"
+            android:inputType="textMultiLine|textCapSentences"
+            android:maxLines="12"
+            android:minLines="6"
+            android:overScrollMode="ifContentScrolls"
+            android:scrollbars="vertical"
+            android:scrollHorizontally="false" />
+    </com.google.android.material.textfield.TextInputLayout>
 
 </LinearLayout>

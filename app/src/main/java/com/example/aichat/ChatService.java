@@ -205,7 +205,7 @@ public class ChatService {
                         if (body.choices != null && !body.choices.isEmpty()) {
                             ChatApi.Choice choice = body.choices.get(0);
                             if (choice != null && choice.message != null) {
-                                String content = choice.message.content;
+                                String content = extractAssistantContent(body);
                                 callback.onUsage(0, 0, 0, System.currentTimeMillis() - start);
                                 callback.onSuccess(content != null ? content : "");
                                 return;
@@ -269,13 +269,16 @@ public class ChatService {
         String baseUrl = config.toRetrofitBaseUrl();
         if (!baseUrl.endsWith("/")) baseUrl += "/";
 
+        boolean localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId);
+        int timeoutSec = localOpenAiCompat ? 45 : 15;
+
         HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
         logging.setLevel(HttpLoggingInterceptor.Level.BASIC);
         OkHttpClient client = new OkHttpClient.Builder()
                 .addInterceptor(logging)
-                .connectTimeout(15, TimeUnit.SECONDS)
-                .readTimeout(15, TimeUnit.SECONDS)
-                .writeTimeout(15, TimeUnit.SECONDS)
+                .connectTimeout(timeoutSec, TimeUnit.SECONDS)
+                .readTimeout(timeoutSec, TimeUnit.SECONDS)
+                .writeTimeout(timeoutSec, TimeUnit.SECONDS)
                 .build();
 
         Retrofit retrofit = new Retrofit.Builder()
@@ -286,24 +289,31 @@ public class ChatService {
         ChatApi api = retrofit.create(ChatApi.class);
 
         List<ChatApi.ChatMessage> requestMessages = new ArrayList<>();
-        requestMessages.add(new ChatApi.ChatMessage("system", "你是标题助手。请仅输出一个中文标题，长度3到12个字，不要标点，不要解释。"));
-        requestMessages.add(new ChatApi.ChatMessage("user", source));
+        String titlePrompt = "你是标题助手。根据输入生成一个中文短标题。\n"
+                + "仅输出一个JSON对象，不要任何额外文本。\n"
+                + "严格格式:{\"title\":\"3到12个字中文短标题\"}\n"
+                + "约束: 不要标点，不要换行，不要解释。\n"
+                + "输入:" + source;
+        requestMessages.add(new ChatApi.ChatMessage("user", titlePrompt));
 
         ChatApi.ChatRequest request = new ChatApi.ChatRequest();
         request.model = config.modelId;
         request.messages = requestMessages;
         request.stream = false;
         request.n = 1;
-        request.maxTokens = 24;
-        request.temperature = 0.1;
-        request.topP = 0.7;
-        request.stop = new ArrayList<>();
-        request.stop.add("\n");
-        request.thinking = false;
-        SessionChatOptions namingOptions = new SessionChatOptions();
-        namingOptions.thinking = false;
-        namingOptions.streamOutput = false;
-        request.reasoning = ProviderRequestOptionsBuilder.buildReasoningConfig(providerId, namingOptions);
+        request.maxTokens = 512;
+        request.temperature = 0.0;
+        request.topP = 0.2;
+        request.stop = null;
+        request.thinking = localOpenAiCompat ? Boolean.FALSE : null;
+        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat);
+        if (!localOpenAiCompat) {
+            JsonObject responseFormat = new JsonObject();
+            responseFormat.addProperty("type", "json_object");
+            request.responseFormat = responseFormat;
+        } else {
+            request.responseFormat = null;
+        }
         request.providerOptions = null;
 
         String auth = (config.apiKey != null && !config.apiKey.trim().isEmpty())
@@ -330,13 +340,9 @@ public class ChatService {
                             + (detail.isEmpty() ? "" : ("\n" + detail)));
                     return;
                 }
-                String title = response.body().choices.get(0).message.content;
-                if (title == null) {
-                    callback.onError("命名失败");
-                    return;
-                }
-                title = title.replace("\n", " ").trim();
-                title = title.replaceAll("[。！？，,.!?:：;；\"'“”‘’（）()\\[\\]{}]", "");
+                String raw = extractAssistantContent(response.body());
+                String title = extractTitleFromJsonOrText(raw);
+                title = cleanTitleResult(title);
                 if (title.length() > 12) title = title.substring(0, 12);
                 if (title.length() < 3) title = source.length() > 12 ? source.substring(0, 12) : source;
                 callback.onSuccess(title);
@@ -385,13 +391,23 @@ public class ChatService {
             return;
         }
 
+        String providerId = "";
+        String summaryPreset = new ModelConfig(context).getSummaryPreset();
+        if (summaryPreset != null && summaryPreset.contains(":")) {
+            providerId = summaryPreset.substring(0, summaryPreset.indexOf(':'));
+        }
+        providerId = resolveProviderId(providerId, config.apiHost);
+
         String baseUrl = config.toRetrofitBaseUrl();
         if (!baseUrl.endsWith("/")) baseUrl += "/";
 
+        boolean localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId);
+        int timeoutSec = localOpenAiCompat ? 60 : 20;
+
         OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(20, TimeUnit.SECONDS)
-                .readTimeout(20, TimeUnit.SECONDS)
-                .writeTimeout(20, TimeUnit.SECONDS)
+                .connectTimeout(timeoutSec, TimeUnit.SECONDS)
+                .readTimeout(timeoutSec, TimeUnit.SECONDS)
+                .writeTimeout(timeoutSec, TimeUnit.SECONDS)
                 .build();
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(baseUrl)
@@ -402,21 +418,34 @@ public class ChatService {
 
         List<ChatApi.ChatMessage> requestMessages = new ArrayList<>();
         requestMessages.add(new ChatApi.ChatMessage("system",
-                "你是对话大纲助手。请根据输入对话的长度，输出一段精简大纲（20到200字）。只输出正文，不要标题，不要列表。"));
+                "你是对话大纲助手。请根据输入对话长度生成精简大纲正文（20到200字）。\n"
+                        + "仅输出一个JSON对象，不要任何额外文本。\n"
+                        + "严格格式:{\"outline\":\"...\"}\n"
+                        + "强约束:\n"
+                        + "1) 输出必须以 { 开始、以 } 结束。\n"
+                        + "2) 只允许一个键 outline，不要额外键。\n"
+                        + "3) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。\n"
+                        + "4) outline 内容不要标题，不要列表。"));
         requestMessages.add(new ChatApi.ChatMessage("user", prompt));
 
         ChatApi.ChatRequest request = new ChatApi.ChatRequest();
         request.model = config.modelId;
         request.messages = requestMessages;
         request.stream = false;
-        // Keep summary request minimal for best provider compatibility.
-        request.n = null;
-        request.maxTokens = null;
-        request.temperature = null;
-        request.topP = null;
+        request.n = 1;
+        request.maxTokens = 420;
+        request.temperature = 0.2;
+        request.topP = 0.8;
         request.stop = null;
-        request.thinking = null;
-        request.reasoning = null;
+        request.thinking = localOpenAiCompat ? Boolean.FALSE : null;
+        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat);
+        if (!localOpenAiCompat) {
+            JsonObject outlineResponseFormat = new JsonObject();
+            outlineResponseFormat.addProperty("type", "json_object");
+            request.responseFormat = outlineResponseFormat;
+        } else {
+            request.responseFormat = null;
+        }
         request.providerOptions = null;
 
         String auth = (config.apiKey != null && !config.apiKey.trim().isEmpty())
@@ -439,8 +468,9 @@ public class ChatService {
                                     + (detail.isEmpty() ? "" : ("\n" + detail)));
                             return;
                         }
-                        String outline = response.body().choices.get(0).message.content;
-                        outline = outline != null ? outline.replace("\n", " ").trim() : "";
+                        String outline = extractAssistantContent(response.body());
+                        outline = extractTextFieldFromJsonOrText(outline, "outline", "summary", "content", "result");
+                        outline = stripThinkTags(outline).replace("\n", " ").trim();
                         if (outline.isEmpty()) {
                             callback.onError("生成大纲失败");
                             return;
@@ -477,13 +507,23 @@ public class ChatService {
             return;
         }
 
+        String providerId = "";
+        String summaryPreset = new ModelConfig(context).getSummaryPreset();
+        if (summaryPreset != null && summaryPreset.contains(":")) {
+            providerId = summaryPreset.substring(0, summaryPreset.indexOf(':'));
+        }
+        providerId = resolveProviderId(providerId, config.apiHost);
+
         String baseUrl = config.toRetrofitBaseUrl();
         if (!baseUrl.endsWith("/")) baseUrl += "/";
 
+        boolean localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId);
+        int timeoutSec = localOpenAiCompat ? 60 : 20;
+
         OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(20, TimeUnit.SECONDS)
-                .readTimeout(20, TimeUnit.SECONDS)
-                .writeTimeout(20, TimeUnit.SECONDS)
+                .connectTimeout(timeoutSec, TimeUnit.SECONDS)
+                .readTimeout(timeoutSec, TimeUnit.SECONDS)
+                .writeTimeout(timeoutSec, TimeUnit.SECONDS)
                 .build();
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(baseUrl)
@@ -494,20 +534,34 @@ public class ChatService {
 
         List<ChatApi.ChatMessage> requestMessages = new ArrayList<>();
         requestMessages.add(new ChatApi.ChatMessage("system",
-                "你是小说写作助手。请把输入内容提炼为一个可放入大纲的条目正文，要求：40到180字，聚焦关键事件、人物动机、世界设定或任务线索。只输出正文，不要标题，不要列表。"));
+                "你是小说写作助手。请把输入内容提炼为可放入大纲的条目正文（40到180字），聚焦关键事件、人物动机、世界设定或任务线索。\n"
+                        + "仅输出一个JSON对象，不要任何额外文本。\n"
+                        + "严格格式:{\"summary\":\"...\"}\n"
+                        + "强约束:\n"
+                        + "1) 输出必须以 { 开始、以 } 结束。\n"
+                        + "2) 只允许一个键 summary，不要额外键。\n"
+                        + "3) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。\n"
+                        + "4) summary 内容不要标题，不要列表。"));
         requestMessages.add(new ChatApi.ChatMessage("user", source));
 
         ChatApi.ChatRequest request = new ChatApi.ChatRequest();
         request.model = config.modelId;
         request.messages = requestMessages;
         request.stream = false;
-        request.n = null;
-        request.maxTokens = null;
-        request.temperature = null;
-        request.topP = null;
+        request.n = 1;
+        request.maxTokens = 360;
+        request.temperature = 0.2;
+        request.topP = 0.8;
         request.stop = null;
-        request.thinking = null;
-        request.reasoning = null;
+        request.thinking = localOpenAiCompat ? Boolean.FALSE : null;
+        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat);
+        if (!localOpenAiCompat) {
+            JsonObject summaryResponseFormat = new JsonObject();
+            summaryResponseFormat.addProperty("type", "json_object");
+            request.responseFormat = summaryResponseFormat;
+        } else {
+            request.responseFormat = null;
+        }
         request.providerOptions = null;
 
         String auth = (config.apiKey != null && !config.apiKey.trim().isEmpty())
@@ -530,8 +584,9 @@ public class ChatService {
                                     + (detail.isEmpty() ? "" : ("\n" + detail)));
                             return;
                         }
-                        String summary = response.body().choices.get(0).message.content;
-                        summary = summary != null ? summary.replace("\n", " ").trim() : "";
+                        String summary = extractAssistantContent(response.body());
+                        summary = extractTextFieldFromJsonOrText(summary, "summary", "outline", "content", "result");
+                        summary = stripThinkTags(summary).replace("\n", " ").trim();
                         if (summary.isEmpty()) {
                             callback.onError("总结失败");
                             return;
@@ -573,13 +628,23 @@ public class ChatService {
             return;
         }
 
+        String providerId = "";
+        String summaryPreset = new ModelConfig(context).getSummaryPreset();
+        if (summaryPreset != null && summaryPreset.contains(":")) {
+            providerId = summaryPreset.substring(0, summaryPreset.indexOf(':'));
+        }
+        providerId = resolveProviderId(providerId, config.apiHost);
+
         String baseUrl = config.toRetrofitBaseUrl();
         if (!baseUrl.endsWith("/")) baseUrl += "/";
 
+        boolean localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId);
+        int timeoutSec = localOpenAiCompat ? 60 : 20;
+
         OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(20, TimeUnit.SECONDS)
-                .readTimeout(20, TimeUnit.SECONDS)
-                .writeTimeout(20, TimeUnit.SECONDS)
+                .connectTimeout(timeoutSec, TimeUnit.SECONDS)
+                .readTimeout(timeoutSec, TimeUnit.SECONDS)
+                .writeTimeout(timeoutSec, TimeUnit.SECONDS)
                 .build();
         Retrofit retrofit = new Retrofit.Builder()
                 .baseUrl(baseUrl)
@@ -590,10 +655,14 @@ public class ChatService {
 
         List<ChatApi.ChatMessage> requestMessages = new ArrayList<>();
         requestMessages.add(new ChatApi.ChatMessage("system",
-                "你是小说写作审计员。请依据“知情约束”检查文本是否存在角色越权知情（泄密）问题。输出格式严格如下：\n"
-                        + "结论：通过/不通过\n"
-                        + "风险点：逐条列出（若无写“无”）\n"
-                        + "修复建议：给出可执行改写建议（若通过可写“保持当前写法”）"));
+                "你是小说写作审计员。请依据“知情约束”检查文本是否存在角色越权知情（泄密）问题。\n"
+                        + "仅输出一个JSON对象，不要任何额外文本。\n"
+                        + "严格格式:{\"report\":\"结论：通过/不通过\\n风险点：...\\n修复建议：...\"}\n"
+                        + "强约束:\n"
+                        + "1) 输出必须以 { 开始、以 } 结束。\n"
+                        + "2) 只允许一个键 report，不要额外键。\n"
+                        + "3) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。\n"
+                        + "4) 风险点逐条列出（若无写“无”），修复建议需可执行（若通过可写“保持当前写法”）。"));
         requestMessages.add(new ChatApi.ChatMessage("user",
                 "【知情约束】\n" + constraints + "\n\n【待审计文本】\n" + aiText));
 
@@ -601,13 +670,20 @@ public class ChatService {
         request.model = config.modelId;
         request.messages = requestMessages;
         request.stream = false;
-        request.n = null;
-        request.maxTokens = null;
-        request.temperature = null;
-        request.topP = null;
+        request.n = 1;
+        request.maxTokens = 520;
+        request.temperature = 0.1;
+        request.topP = 0.8;
         request.stop = null;
-        request.thinking = null;
-        request.reasoning = null;
+        request.thinking = localOpenAiCompat ? Boolean.FALSE : null;
+        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat);
+        if (!localOpenAiCompat) {
+            JsonObject auditResponseFormat = new JsonObject();
+            auditResponseFormat.addProperty("type", "json_object");
+            request.responseFormat = auditResponseFormat;
+        } else {
+            request.responseFormat = null;
+        }
         request.providerOptions = null;
 
         String auth = (config.apiKey != null && !config.apiKey.trim().isEmpty())
@@ -630,8 +706,9 @@ public class ChatService {
                                     + (detail.isEmpty() ? "" : ("\n" + detail)));
                             return;
                         }
-                        String report = response.body().choices.get(0).message.content;
-                        report = report != null ? report.trim() : "";
+                        String report = extractAssistantContent(response.body());
+                        report = extractTextFieldFromJsonOrText(report, "report", "summary", "content", "result");
+                        report = stripThinkTags(report).trim();
                         if (report.isEmpty()) {
                             callback.onError("审计失败");
                             return;
@@ -696,9 +773,11 @@ public class ChatService {
         if (reasoning != null) request.add("reasoning", reasoning);
         JsonObject providerOptions = ProviderRequestOptionsBuilder.buildProviderOptions(providerId, using);
         if (providerOptions != null) request.add("providerOptions", providerOptions);
+        boolean shouldShowReasoning = shouldShowReasoning(using, providerId, config != null ? config.modelId : null);
         Log.d(TAG, "stream request providerId=" + providerId
                 + ", model=" + config.modelId
                 + ", thinking=" + using.thinking
+                + ", showReasoning=" + shouldShowReasoning
                 + ", stopCount=" + (stops != null ? stops.size() : 0)
                 + ", reasoning=" + (reasoning != null ? reasoning.toString() : "null")
                 + ", providerOptions=" + (providerOptions != null ? providerOptions.toString() : "null"));
@@ -744,6 +823,8 @@ public class ChatService {
                 }
                 StringBuilder fullContent = new StringBuilder();
                 StringBuilder fullReasoning = new StringBuilder();
+                InlineThinkState inlineThinkState = new InlineThinkState();
+                boolean normalizeInlineThink = shouldNormalizeInlineThink(providerId);
                 int promptTokens = 0, completionTokens = 0, totalTokens = 0;
                 try (ResponseBody body = response.body()) {
                     if (body == null) {
@@ -789,14 +870,28 @@ public class ChatService {
                                     ? first.getAsJsonObject("message") : null;
                             if (delta == null) continue;
                             String contentDelta = getString(delta, "content");
+                            boolean emittedInlineReasoning = false;
                             if (!contentDelta.isEmpty()) {
-                                fullContent.append(contentDelta);
-                                callback.onPartial(contentDelta);
+                                if (normalizeInlineThink) {
+                                    ContentReasoningParts parts = splitInlineThink(contentDelta, inlineThinkState, false);
+                                    if (!parts.content.isEmpty()) {
+                                        fullContent.append(parts.content);
+                                        callback.onPartial(parts.content);
+                                    }
+                                    if (!parts.reasoning.isEmpty()) {
+                                        emittedInlineReasoning = true;
+                                        if (shouldShowReasoning) {
+                                            fullReasoning.append(parts.reasoning);
+                                            callback.onReasoning(fullReasoning.toString());
+                                        }
+                                    }
+                                } else {
+                                    fullContent.append(contentDelta);
+                                    callback.onPartial(contentDelta);
+                                }
                             }
-                            String reasoningDelta = getString(delta, "reasoning_content");
-                            if (reasoningDelta.isEmpty()) reasoningDelta = getString(delta, "reasoning");
-                            if (reasoningDelta.isEmpty()) reasoningDelta = getString(delta, "thinking");
-                            if (using.thinking && !reasoningDelta.isEmpty()) {
+                            String reasoningDelta = extractReasoningDelta(obj, first, delta);
+                            if (shouldShowReasoning && !reasoningDelta.isEmpty() && !emittedInlineReasoning) {
                                 fullReasoning.append(reasoningDelta);
                                 callback.onReasoning(fullReasoning.toString());
                             }
@@ -809,6 +904,17 @@ public class ChatService {
                     }
                     callback.onError("流式解析失败: " + (e != null ? e.getMessage() : ""));
                     return;
+                }
+                if (normalizeInlineThink) {
+                    ContentReasoningParts tail = splitInlineThink("", inlineThinkState, true);
+                    if (!tail.content.isEmpty()) {
+                        fullContent.append(tail.content);
+                        callback.onPartial(tail.content);
+                    }
+                    if (shouldShowReasoning && !tail.reasoning.isEmpty()) {
+                        fullReasoning.append(tail.reasoning);
+                        callback.onReasoning(fullReasoning.toString());
+                    }
                 }
                 if (handle.isCancelled()) {
                     fireCancelledOnce(callback, handle);
@@ -871,6 +977,311 @@ public class ChatService {
         if (host.contains("openrouter.ai")) return "openrouter";
         if (host.contains("googleapis.com") || host.contains("generativelanguage")) return "gemini";
         return "";
+    }
+
+    private boolean shouldShowReasoning(SessionChatOptions options, String providerId, String modelId) {
+        if (isIntrinsicReasoningModel(providerId, modelId)) return true;
+        return options != null && options.thinking;
+    }
+
+    private boolean isIntrinsicReasoningModel(String providerId, String modelId) {
+        String pid = providerId != null ? providerId.trim().toLowerCase() : "";
+        String mid = modelId != null ? modelId.trim().toLowerCase() : "";
+        if (mid.isEmpty()) return false;
+        // Model-driven reasoning families: show reasoning if returned, even when toggle is off.
+        if (mid.contains("reasoner")) return true;
+        if (mid.contains("deepseek-r1")) return true;
+        if (mid.matches(".*(^|[-_/])r1([-. _/]|$).*")) return true;
+        // Keep provider hint as fallback for renamed reasoner deployments.
+        return "deepseek".equals(pid) && mid.contains("r1");
+    }
+
+    private String extractReasoningDelta(JsonObject root, JsonObject choice, JsonObject delta) {
+        String v = firstNonEmpty(
+                getStringFlexible(delta, "reasoning_content"),
+                getStringFlexible(delta, "reasoning"),
+                getStringFlexible(delta, "thinking"));
+        if (!v.isEmpty()) return v;
+
+        JsonObject messageObj = choice != null && choice.has("message") && choice.get("message").isJsonObject()
+                ? choice.getAsJsonObject("message") : null;
+        v = firstNonEmpty(
+                getStringFlexible(choice, "reasoning_content"),
+                getStringFlexible(choice, "reasoning"),
+                getStringFlexible(choice, "thinking"),
+                getStringFlexible(messageObj, "reasoning_content"),
+                getStringFlexible(messageObj, "reasoning"),
+                getStringFlexible(messageObj, "thinking"),
+                getStringFlexible(root, "reasoning_content"),
+                getStringFlexible(root, "reasoning"),
+                getStringFlexible(root, "thinking"));
+        return v;
+    }
+
+    private String getStringFlexible(JsonObject obj, String key) {
+        try {
+            if (obj == null || key == null || key.isEmpty()) return "";
+            JsonElement e = obj.get(key);
+            if (e == null || e.isJsonNull()) return "";
+            if (e.isJsonPrimitive()) return e.getAsString();
+            // Some gateways return reasoning as array/object chunks; keep textual representation.
+            return e.toString();
+        } catch (Exception ex) {
+            return "";
+        }
+    }
+
+    private String firstNonEmpty(String... values) {
+        if (values == null || values.length == 0) return "";
+        for (String one : values) {
+            if (one != null && !one.isEmpty()) return one;
+        }
+        return "";
+    }
+
+    private boolean shouldNormalizeInlineThink(String providerId) {
+        String pid = providerId != null ? providerId.trim().toLowerCase() : "";
+        return "lmstudio".equals(pid) || "ollama".equals(pid) || isLlamaProviderId(pid);
+    }
+
+    private boolean isLocalOpenAiCompatibleProvider(String providerId) {
+        String pid = providerId != null ? providerId.trim().toLowerCase() : "";
+        if ("lmstudio".equals(pid)) return true;
+        if ("ollama".equals(pid)) return true;
+        return isLlamaProviderId(pid);
+    }
+
+    private boolean isLlamaProviderId(String pid) {
+        if (pid == null || pid.isEmpty()) return false;
+        return "llama".equals(pid)
+                || "llamacpp".equals(pid)
+                || "llama.cpp".equals(pid)
+                || "llama-cpp".equals(pid);
+    }
+
+    private String extractAssistantContent(ChatApi.ChatResponse body) {
+        if (body == null || body.choices == null || body.choices.isEmpty()) return "";
+        ChatApi.Choice first = body.choices.get(0);
+        if (first == null || first.message == null) return "";
+        JsonElement content = first.message.content;
+        if (content == null || content.isJsonNull()) return "";
+        try {
+            if (content.isJsonPrimitive()) return content.getAsString();
+            if (content.isJsonArray()) {
+                StringBuilder out = new StringBuilder();
+                JsonArray arr = content.getAsJsonArray();
+                for (JsonElement one : arr) {
+                    if (one == null || one.isJsonNull()) continue;
+                    if (one.isJsonPrimitive()) {
+                        out.append(one.getAsString());
+                        continue;
+                    }
+                    if (!one.isJsonObject()) continue;
+                    JsonObject obj = one.getAsJsonObject();
+                    String txt = firstNonEmpty(
+                            getStringFlexible(obj, "text"),
+                            getStringFlexible(obj, "content"),
+                            getStringFlexible(obj, "value"));
+                    if (!txt.isEmpty()) out.append(txt);
+                }
+                return out.toString();
+            }
+            if (content.isJsonObject()) {
+                JsonObject obj = content.getAsJsonObject();
+                return firstNonEmpty(
+                        getStringFlexible(obj, "text"),
+                        getStringFlexible(obj, "content"),
+                        getStringFlexible(obj, "value"));
+            }
+        } catch (Exception ignored) {}
+        return "";
+    }
+
+    private String stripThinkTags(String text) {
+        if (text == null || text.isEmpty()) return "";
+        return text.replaceAll("(?is)<think>.*?</think>", "").trim();
+    }
+
+    private String cleanTitleResult(String raw) {
+        String text = stripThinkTags(raw);
+        if (text == null) text = "";
+        text = text.replace("\r", "\n").trim();
+
+        // Remove common verbose reasoning prefixes from uncensored/local models.
+        text = text.replaceAll("(?is)^\\s*(thinking\\s*process|reasoning|analysis|思考过程|分析过程)\\s*[:：].*$", "");
+        if (text.isEmpty()) return "";
+
+        // Prefer first non-empty line that looks like a short Chinese title.
+        String[] lines = text.split("\\n+");
+        String best = "";
+        for (String line : lines) {
+            if (line == null) continue;
+            String one = line.trim();
+            if (one.isEmpty()) continue;
+            one = one.replaceAll("^[\\-\\*\\d\\.\\)\\(\\[\\]【】\\s]+", "").trim();
+            one = one.replaceAll("[。！？，,.!?:：;；\"'“”‘’（）()\\[\\]{}]", "").trim();
+            if (one.isEmpty()) continue;
+            if (one.matches(".*[\\u4e00-\\u9fa5].*") && one.length() >= 3 && one.length() <= 12) {
+                return one;
+            }
+            if (best.isEmpty()) best = one;
+        }
+
+        if (!best.isEmpty()) {
+            best = best.replaceAll("[。！？，,.!?:：;；\"'“”‘’（）()\\[\\]{}]", "").trim();
+            return best;
+        }
+        return text.replace("\n", " ").replaceAll("[。！？，,.!?:：;；\"'“”‘’（）()\\[\\]{}]", "").trim();
+    }
+
+    private String extractTitleFromJsonOrText(String raw) {
+        String text = raw != null ? raw.trim() : "";
+        if (text.isEmpty()) return "";
+        try {
+            String jsonSlice = extractJsonObjectSlice(text);
+            if (!jsonSlice.isEmpty()) {
+                JsonObject obj = new JsonParser().parse(jsonSlice).getAsJsonObject();
+                String title = firstNonEmpty(
+                        getStringFlexible(obj, "title"),
+                        getStringFlexible(obj, "name"),
+                        getStringFlexible(obj, "result"));
+                if (title != null && !title.trim().isEmpty()) return title.trim();
+            }
+        } catch (Exception ignored) {}
+        return text;
+    }
+
+    private String extractTextFieldFromJsonOrText(String raw, String... preferredKeys) {
+        String text = raw != null ? raw.trim() : "";
+        if (text.isEmpty()) return "";
+        try {
+            String jsonSlice = extractJsonObjectSlice(text);
+            if (!jsonSlice.isEmpty()) {
+                JsonObject obj = new JsonParser().parse(jsonSlice).getAsJsonObject();
+                if (preferredKeys != null) {
+                    for (String key : preferredKeys) {
+                        String value = getStringFlexible(obj, key);
+                        if (value != null && !value.trim().isEmpty()) return value.trim();
+                    }
+                }
+                String fallback = firstNonEmpty(
+                        getStringFlexible(obj, "text"),
+                        getStringFlexible(obj, "message"),
+                        getStringFlexible(obj, "data"));
+                if (fallback != null && !fallback.trim().isEmpty()) return fallback.trim();
+            }
+        } catch (Exception ignored) {}
+        return text;
+    }
+
+    private String extractJsonObjectSlice(String text) {
+        if (text == null || text.isEmpty()) return "";
+        int start = text.indexOf('{');
+        int end = text.lastIndexOf('}');
+        if (start < 0 || end <= start) return "";
+        return text.substring(start, end + 1);
+    }
+
+    private JsonObject buildNoThinkingReasoning(String providerId, boolean localOpenAiCompat) {
+        SessionChatOptions options = new SessionChatOptions();
+        options.thinking = false;
+        options.streamOutput = true;
+        JsonObject reasoning = ProviderRequestOptionsBuilder.buildReasoningConfig(providerId, options);
+        if (reasoning != null) return reasoning;
+        if (!localOpenAiCompat) return null;
+        JsonObject fallback = new JsonObject();
+        fallback.addProperty("budget", 0);
+        fallback.addProperty("format", "hide");
+        return fallback;
+    }
+
+    private static class InlineThinkState {
+        boolean inThink;
+        String carry = "";
+    }
+
+    private static class ContentReasoningParts {
+        final String content;
+        final String reasoning;
+
+        ContentReasoningParts(String content, String reasoning) {
+            this.content = content != null ? content : "";
+            this.reasoning = reasoning != null ? reasoning : "";
+        }
+    }
+
+    private ContentReasoningParts splitInlineThink(String delta, InlineThinkState state, boolean flushTail) {
+        if (state == null) {
+            return new ContentReasoningParts(delta != null ? delta : "", "");
+        }
+        String chunk = delta != null ? delta : "";
+        String input = state.carry + chunk;
+        state.carry = "";
+        if (input.isEmpty()) return new ContentReasoningParts("", "");
+
+        int carryLen = flushTail ? 0 : computeThinkTagCarry(input);
+        String parse = input.substring(0, input.length() - carryLen);
+        if (!flushTail && carryLen > 0) {
+            state.carry = input.substring(input.length() - carryLen);
+        }
+
+        StringBuilder outContent = new StringBuilder();
+        StringBuilder outReasoning = new StringBuilder();
+        int i = 0;
+        final String openTag = "<think>";
+        final String closeTag = "</think>";
+        while (i < parse.length()) {
+            if (state.inThink) {
+                int close = indexOfIgnoreCase(parse, closeTag, i);
+                if (close < 0) {
+                    outReasoning.append(parse.substring(i));
+                    i = parse.length();
+                } else {
+                    outReasoning.append(parse, i, close);
+                    i = close + closeTag.length();
+                    state.inThink = false;
+                }
+            } else {
+                int open = indexOfIgnoreCase(parse, openTag, i);
+                if (open < 0) {
+                    outContent.append(parse.substring(i));
+                    i = parse.length();
+                } else {
+                    outContent.append(parse, i, open);
+                    i = open + openTag.length();
+                    state.inThink = true;
+                }
+            }
+        }
+
+        if (flushTail && state.carry != null && !state.carry.isEmpty()) {
+            if (state.inThink) outReasoning.append(state.carry);
+            else outContent.append(state.carry);
+            state.carry = "";
+        }
+        return new ContentReasoningParts(outContent.toString(), outReasoning.toString());
+    }
+
+    private int computeThinkTagCarry(String input) {
+        if (input == null || input.isEmpty()) return 0;
+        String lower = input.toLowerCase(java.util.Locale.ROOT);
+        String[] tags = new String[] {"<think>", "</think>"};
+        int best = 0;
+        for (String tag : tags) {
+            for (int len = 1; len < tag.length(); len++) {
+                if (lower.endsWith(tag.substring(0, len))) {
+                    if (len > best) best = len;
+                }
+            }
+        }
+        return best;
+    }
+
+    private int indexOfIgnoreCase(String text, String needle, int fromIndex) {
+        if (text == null || needle == null) return -1;
+        String lowerText = text.toLowerCase(java.util.Locale.ROOT);
+        String lowerNeedle = needle.toLowerCase(java.util.Locale.ROOT);
+        return lowerText.indexOf(lowerNeedle, Math.max(0, fromIndex));
     }
 
     public interface ChatCallback {

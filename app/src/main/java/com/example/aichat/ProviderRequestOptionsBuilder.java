@@ -15,6 +15,11 @@ public final class ProviderRequestOptionsBuilder {
         if (options == null || !options.thinking) return null;
         String pid = providerId != null ? providerId.toLowerCase() : "";
 
+        if ("deepseek".equals(pid)) {
+            // DeepSeek reasoner behavior is model-driven; avoid injecting OpenAI-only reasoning knobs.
+            return null;
+        }
+
         if ("gemini".equals(pid) || "google".equals(pid)) {
             JsonObject google = new JsonObject();
             JsonObject thinkingConfig = new JsonObject();
@@ -50,7 +55,6 @@ public final class ProviderRequestOptionsBuilder {
 
         // OpenAI-compatible providers: use medium reasoning effort hint.
         JsonObject openai = new JsonObject();
-        openai.addProperty("reasoningEffort", "medium");
         JsonObject root = new JsonObject();
         root.add("openai", openai);
         return root;

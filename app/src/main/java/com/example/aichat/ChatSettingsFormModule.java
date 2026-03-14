@@ -21,6 +21,8 @@ import java.util.List;
  * 可复用的聊天设置表单模块。
  */
 public class ChatSettingsFormModule {
+    private static final float[] CONTEXT_SLIDER_POSITIONS = buildContextSliderPositions();
+    private static final int[] CONTEXT_SLIDER_VALUES = buildContextSliderValues();
 
     private final Activity activity;
     private final View root;
@@ -32,7 +34,6 @@ public class ChatSettingsFormModule {
     private final TextInputEditText editTopP;
     private final Slider sliderContextCount;
     private final TextView textContextCountValue;
-    private final MaterialSwitch switchStream;
     private final MaterialSwitch switchThinking;
     private final TextInputLayout layoutGoogleThinkingBudget;
     private final TextInputEditText editGoogleThinkingBudget;
@@ -49,15 +50,32 @@ public class ChatSettingsFormModule {
         this.editTopP = root.findViewById(R.id.editTopP);
         this.sliderContextCount = root.findViewById(R.id.sliderContextCount);
         this.textContextCountValue = root.findViewById(R.id.textContextCountValue);
-        this.switchStream = root.findViewById(R.id.switchStream);
         this.switchThinking = root.findViewById(R.id.switchThinking);
         this.layoutGoogleThinkingBudget = root.findViewById(R.id.layoutGoogleThinkingBudget);
         this.editGoogleThinkingBudget = root.findViewById(R.id.editGoogleThinkingBudget);
+        FormInputScrollHelper.enableFor(editSystemPrompt);
         if (sliderContextCount != null) {
             sliderContextCount.setValueFrom(0f);
             sliderContextCount.setValueTo(100f);
-            sliderContextCount.setStepSize(1f);
-            sliderContextCount.addOnChangeListener((slider, value, fromUser) -> updateContextCountValue(Math.round(value)));
+            sliderContextCount.setStepSize(0f);
+            sliderContextCount.setLabelFormatter(value ->
+                    String.valueOf(mapSliderPositionToContextValue(value)));
+            sliderContextCount.addOnChangeListener((slider, value, fromUser) ->
+                    updateContextCountValue(mapSliderPositionToContextValue(value)));
+            sliderContextCount.addOnSliderTouchListener(new Slider.OnSliderTouchListener() {
+                @Override
+                public void onStartTrackingTouch(Slider slider) {}
+
+                @Override
+                public void onStopTrackingTouch(Slider slider) {
+                    if (slider == null) return;
+                    float snapped = snapSliderPosition(slider.getValue());
+                    if (Math.abs(snapped - slider.getValue()) > 0.0001f) {
+                        slider.setValue(snapped);
+                    }
+                    updateContextCountValue(mapSliderPositionToContextValue(snapped));
+                }
+            });
         }
 
         if (btnPickModel != null) {
@@ -79,11 +97,11 @@ public class ChatSettingsFormModule {
         if (editTemperature != null) editTemperature.setText(String.valueOf(current.temperature));
         if (editTopP != null) editTopP.setText(String.valueOf(current.topP));
         if (sliderContextCount != null) {
-            int count = Math.max(0, Math.min(100, current.contextMessageCount));
-            sliderContextCount.setValue((float) count);
-            updateContextCountValue(count);
+            int count = current.contextMessageCount;
+            float position = mapContextValueToSliderPosition(count);
+            sliderContextCount.setValue(position);
+            updateContextCountValue(mapSliderPositionToContextValue(position));
         }
-        if (switchStream != null) switchStream.setChecked(current.streamOutput);
         if (switchThinking != null) switchThinking.setChecked(current.thinking);
         if (editGoogleThinkingBudget != null) {
             editGoogleThinkingBudget.setText(String.valueOf(current.googleThinkingBudget > 0 ? current.googleThinkingBudget : 1024));
@@ -103,7 +121,7 @@ public class ChatSettingsFormModule {
         out.temperature = parseFloat(editTemperature, 0.7f);
         out.topP = parseFloat(editTopP, 1.0f);
         out.contextMessageCount = getContextCount();
-        out.streamOutput = switchStream != null && switchStream.isChecked();
+        out.streamOutput = true;
         out.thinking = switchThinking != null && switchThinking.isChecked();
         out.googleThinkingBudget = parseInt(editGoogleThinkingBudget, 1024);
         return out;
@@ -111,14 +129,75 @@ public class ChatSettingsFormModule {
 
     private int getContextCount() {
         if (sliderContextCount == null) return 6;
-        int count = Math.round(sliderContextCount.getValue());
-        return Math.max(0, Math.min(100, count));
+        return mapSliderPositionToContextValue(sliderContextCount.getValue());
     }
 
     private void updateContextCountValue(int value) {
         if (textContextCountValue != null) {
             textContextCountValue.setText(String.valueOf(value));
         }
+    }
+
+    private float snapSliderPosition(float raw) {
+        int nearest = 0;
+        float minDiff = Float.MAX_VALUE;
+        for (int i = 0; i < CONTEXT_SLIDER_POSITIONS.length; i++) {
+            float diff = Math.abs(raw - CONTEXT_SLIDER_POSITIONS[i]);
+            if (diff < minDiff) {
+                minDiff = diff;
+                nearest = i;
+            }
+        }
+        return CONTEXT_SLIDER_POSITIONS[nearest];
+    }
+
+    private int mapSliderPositionToContextValue(float position) {
+        int nearest = 0;
+        float minDiff = Float.MAX_VALUE;
+        for (int i = 0; i < CONTEXT_SLIDER_POSITIONS.length; i++) {
+            float diff = Math.abs(position - CONTEXT_SLIDER_POSITIONS[i]);
+            if (diff < minDiff) {
+                minDiff = diff;
+                nearest = i;
+            }
+        }
+        return CONTEXT_SLIDER_VALUES[nearest];
+    }
+
+    private float mapContextValueToSliderPosition(int contextValue) {
+        int nearest = 0;
+        int minDiff = Integer.MAX_VALUE;
+        for (int i = 0; i < CONTEXT_SLIDER_VALUES.length; i++) {
+            int diff = Math.abs(contextValue - CONTEXT_SLIDER_VALUES[i]);
+            if (diff < minDiff) {
+                minDiff = diff;
+                nearest = i;
+            }
+        }
+        return CONTEXT_SLIDER_POSITIONS[nearest];
+    }
+
+    private static int[] buildContextSliderValues() {
+        int[] values = new int[26];
+        for (int i = 0; i <= 10; i++) {
+            values[i] = i;
+        }
+        for (int i = 0; i < 15; i++) {
+            values[11 + i] = 16 + i * 8; // 16..128
+        }
+        return values;
+    }
+
+    private static float[] buildContextSliderPositions() {
+        float[] positions = new float[26];
+        for (int i = 0; i <= 10; i++) {
+            positions[i] = i * 6f; // 0..60
+        }
+        float step = 40f / 14f; // 60..100 split into 15 nodes
+        for (int i = 0; i < 15; i++) {
+            positions[11 + i] = 60f + i * step;
+        }
+        return positions;
     }
 
     private float parseFloat(TextInputEditText edit, float def) {
