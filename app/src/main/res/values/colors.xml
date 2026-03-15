@@ -2,9 +2,21 @@
 <resources>
     <color name="primary">#1976D2</color>
     <color name="primary_blue">#1976D2</color>
+    <color name="primary_blue_subtle">#F5FAFF</color>
+    <color name="primary_blue_light">#E3F2FD</color>
+    <color name="primary_blue_deep">#0D47A1</color>
     <color name="primary_green">#2E7D32</color>
+    <color name="primary_green_subtle">#F3FAF4</color>
+    <color name="primary_green_light">#E8F5E9</color>
+    <color name="primary_green_deep">#1B5E20</color>
     <color name="primary_purple">#6A1B9A</color>
+    <color name="primary_purple_subtle">#FBF5FF</color>
+    <color name="primary_purple_light">#F3E5F5</color>
+    <color name="primary_purple_deep">#4A148C</color>
     <color name="primary_orange">#EF6C00</color>
+    <color name="primary_orange_subtle">#FFFAF3</color>
+    <color name="primary_orange_light">#FFF3E0</color>
+    <color name="primary_orange_deep">#E65100</color>
     <color name="on_primary">#FFFFFF</color>
     <color name="surface">#FFFFFF</color>
     <color name="user_bubble">#E3F2FD</color>
@@ -21,13 +33,6 @@
     <color name="action_button_icon_tint">#66000000</color>
     <color name="affix_toggle_bg">#E7E7E7</color>
     <color name="home_background">#FFFFFFFF</color>
-    <color name="chip_outline_type_bg">#086750A4</color>
-    <color name="chip_outline_type_stroke">#186750A4</color>
-    <color name="chip_outline_type_checked_bg">#166750A4</color>
-    <color name="chip_outline_type_unchecked_bg">#06FFFFFF</color>
-    <color name="chip_outline_type_checked_stroke">#446750A4</color>
-    <color name="chip_outline_type_unchecked_stroke">#206750A4</color>
-    <color name="chip_outline_type_checked_text">#6750A4</color>
-    <color name="chip_outline_type_unchecked_text">#9E8FAF</color>
     <color name="dialog_surface_bg">#FFFDFEFF</color>
+    <color name="outline_label_text">#73000000</color>
 </resources>

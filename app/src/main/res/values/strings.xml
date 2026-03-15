@@ -36,6 +36,7 @@
     <string name="thread_naming_model">话题命名模型</string>
     <string name="search_model">搜索模型</string>
     <string name="summary_model">总结模型</string>
+    <string name="novel_sharp_model">小说敏锐模型</string>
     <string name="theme_light">浅色</string>
     <string name="theme_dark">深色</string>
     <string name="theme_system">跟随系统</string>
@@ -56,13 +57,14 @@
     <string name="stop_sequences">Stop 序列（每行一条）</string>
     <string name="context_message_count">上下文消息数量</string>
     <string name="stream_output">流式输出</string>
+    <string name="auto_chapter_plan">自动开启章节计划（作家）</string>
     <string name="open_thinking">开启 Thinking</string>
     <string name="google_thinking_budget">Google Thinking Budget</string>
     <string name="my_assistants">我的助手</string>
     <string name="create_assistant">+ 新建我的助手</string>
     <string name="edit_assistant">编辑我的助手</string>
     <string name="assistant_name">名字</string>
-    <string name="assistant_prompt">设定</string>
+    <string name="assistant_type">类型</string>
     <string name="assistant_first_dialogue">首次对话</string>
     <string name="assistant_avatar_optional">头像（可选）</string>
     <string name="pick_avatar_from_album">从相册选择</string>
@@ -91,6 +93,10 @@
     <string name="load_earlier_messages_remaining">查看更早消息（剩余%1$d条）</string>
     <string name="loading_earlier_messages">正在加载更早消息…</string>
     <string name="more_options">更多选项</string>
+    <string name="quick_jump_chapters">快速跳转</string>
+    <string name="chapter_jump_item_format">章节%1$d：%2$s</string>
+    <string name="no_assistant_chapters">暂无可跳转的 AI 输出</string>
+    <string name="chapter_jump_failed">定位失败，请重试</string>
     <string name="first_dialogue_helper">可留空；若填写，将作为该角色发起的默认对话</string>
     <string name="quick_model_switch_placeholder">选择模型 ▾</string>
     <string name="quick_model_switch_value">%1$s ▾</string>

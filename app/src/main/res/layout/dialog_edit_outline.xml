@@ -28,9 +28,12 @@
                 android:text="章节"
                 android:textColor="@color/chip_outline_type_text_selector"
                 app:chipBackgroundColor="@color/chip_outline_type_bg_selector"
-                app:chipStrokeColor="@color/chip_outline_type_stroke_selector"
-                app:chipStrokeWidth="1dp"
-                app:checkedIconVisible="false" />
+                app:chipEndPadding="10dp"
+                app:chipStartPadding="10dp"
+                app:chipStrokeWidth="0dp"
+                app:checkedIconVisible="false"
+                app:textEndPadding="0dp"
+                app:textStartPadding="0dp" />
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipTypeMaterial"
@@ -41,9 +44,12 @@
                 android:text="资料"
                 android:textColor="@color/chip_outline_type_text_selector"
                 app:chipBackgroundColor="@color/chip_outline_type_bg_selector"
-                app:chipStrokeColor="@color/chip_outline_type_stroke_selector"
-                app:chipStrokeWidth="1dp"
-                app:checkedIconVisible="false" />
+                app:chipEndPadding="10dp"
+                app:chipStartPadding="10dp"
+                app:chipStrokeWidth="0dp"
+                app:checkedIconVisible="false"
+                app:textEndPadding="0dp"
+                app:textStartPadding="0dp" />
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipTypeTask"
@@ -54,9 +60,12 @@
                 android:text="人物资料"
                 android:textColor="@color/chip_outline_type_text_selector"
                 app:chipBackgroundColor="@color/chip_outline_type_bg_selector"
-                app:chipStrokeColor="@color/chip_outline_type_stroke_selector"
-                app:chipStrokeWidth="1dp"
-                app:checkedIconVisible="false" />
+                app:chipEndPadding="10dp"
+                app:chipStartPadding="10dp"
+                app:chipStrokeWidth="0dp"
+                app:checkedIconVisible="false"
+                app:textEndPadding="0dp"
+                app:textStartPadding="0dp" />
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipTypeWorld"
@@ -67,9 +76,12 @@
                 android:text="世界背景"
                 android:textColor="@color/chip_outline_type_text_selector"
                 app:chipBackgroundColor="@color/chip_outline_type_bg_selector"
-                app:chipStrokeColor="@color/chip_outline_type_stroke_selector"
-                app:chipStrokeWidth="1dp"
-                app:checkedIconVisible="false" />
+                app:chipEndPadding="10dp"
+                app:chipStartPadding="10dp"
+                app:chipStrokeWidth="0dp"
+                app:checkedIconVisible="false"
+                app:textEndPadding="0dp"
+                app:textStartPadding="0dp" />
 
             <com.google.android.material.chip.Chip
                 android:id="@+id/chipTypeKnowledge"
@@ -80,29 +92,26 @@
                 android:text="知情约束"
                 android:textColor="@color/chip_outline_type_text_selector"
                 app:chipBackgroundColor="@color/chip_outline_type_bg_selector"
-                app:chipStrokeColor="@color/chip_outline_type_stroke_selector"
-                app:chipStrokeWidth="1dp"
-                app:checkedIconVisible="false" />
+                app:chipEndPadding="10dp"
+                app:chipStartPadding="10dp"
+                app:chipStrokeWidth="0dp"
+                app:checkedIconVisible="false"
+                app:textEndPadding="0dp"
+                app:textStartPadding="0dp" />
         </com.google.android.material.chip.ChipGroup>
     </HorizontalScrollView>
 
-    <com.google.android.material.textfield.TextInputLayout
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/editOutlineTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="14dp"
+        android:backgroundTint="?attr/colorOutline"
         android:hint="例如：章节1"
-        app:boxBackgroundMode="outline">
-
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/editOutlineTitle"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="textCapSentences"
-            android:maxLines="2"
-            android:paddingTop="8dp"
-            android:paddingBottom="8dp" />
-    </com.google.android.material.textfield.TextInputLayout>
+        android:inputType="textCapSentences"
+        android:maxLines="1"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp" />
 
     <com.google.android.material.textfield.TextInputLayout
         style="@style/Widget.Material3.TextInputLayout.OutlinedBox"

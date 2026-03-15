@@ -17,10 +17,12 @@ public class ModelConfig {
     private static final String KEY_THREAD_NAMING = "preset_thread_naming";
     private static final String KEY_SEARCH = "preset_search";
     private static final String KEY_SUMMARY = "preset_summary";
+    private static final String KEY_NOVEL_SHARP = "preset_novel_sharp";
     private static final String KEY_CHAT_AWAY = "preset_chat_away";
     private static final String KEY_THREAD_NAMING_AWAY = "preset_thread_naming_away";
     private static final String KEY_SEARCH_AWAY = "preset_search_away";
     private static final String KEY_SUMMARY_AWAY = "preset_summary_away";
+    private static final String KEY_NOVEL_SHARP_AWAY = "preset_novel_sharp_away";
     private static final String KEY_HOME_MODE_ENABLED = "home_mode_enabled";
 
     /** 主预设：当某任务未单独设置时，回退到此 */
@@ -80,6 +82,16 @@ public class ModelConfig {
         else setAwaySummaryPreset(modelKey);
     }
 
+    /** 小说敏锐选用的预设 */
+    public String getNovelSharpPreset() {
+        return isHomeModeEnabled() ? getHomeNovelSharpPreset() : getAwayNovelSharpPreset();
+    }
+
+    public void setNovelSharpPreset(String modelKey) {
+        if (isHomeModeEnabled()) setHomeNovelSharpPreset(modelKey);
+        else setAwayNovelSharpPreset(modelKey);
+    }
+
     public boolean isHomeModeEnabled() {
         return prefs.getBoolean(KEY_HOME_MODE_ENABLED, true);
     }
@@ -96,6 +108,8 @@ public class ModelConfig {
     public void setHomeSearchPreset(String modelKey) { put(KEY_SEARCH, modelKey); }
     public String getHomeSummaryPreset() { return getWithPrimary(KEY_SUMMARY); }
     public void setHomeSummaryPreset(String modelKey) { put(KEY_SUMMARY, modelKey); }
+    public String getHomeNovelSharpPreset() { return getWithPrimary(KEY_NOVEL_SHARP); }
+    public void setHomeNovelSharpPreset(String modelKey) { put(KEY_NOVEL_SHARP, modelKey); }
 
     public String getAwayChatPreset() { return getWithPrimary(KEY_CHAT_AWAY); }
     public void setAwayChatPreset(String modelKey) { put(KEY_CHAT_AWAY, modelKey); }
@@ -105,6 +119,8 @@ public class ModelConfig {
     public void setAwaySearchPreset(String modelKey) { put(KEY_SEARCH_AWAY, modelKey); }
     public String getAwaySummaryPreset() { return getWithPrimary(KEY_SUMMARY_AWAY); }
     public void setAwaySummaryPreset(String modelKey) { put(KEY_SUMMARY_AWAY, modelKey); }
+    public String getAwayNovelSharpPreset() { return getWithPrimary(KEY_NOVEL_SHARP_AWAY); }
+    public void setAwayNovelSharpPreset(String modelKey) { put(KEY_NOVEL_SHARP_AWAY, modelKey); }
 
     /** 主预设：作为未单独设置的任务的回退 */
     public String getPrimaryPreset() {

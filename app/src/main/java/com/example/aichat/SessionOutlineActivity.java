@@ -105,7 +105,7 @@ public class SessionOutlineActivity extends ThemedActivity {
         int next = outlineStore.nextChapterIndex(sessionId);
         editTitle.setText("章节" + next);
 
-        androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+        androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_AIChat_MaterialAlertDialog)
                 .setTitle("新增大纲")
                 .setView(view)
                 .setPositiveButton(android.R.string.ok, (d, w) -> {
@@ -195,6 +195,9 @@ public class SessionOutlineActivity extends ThemedActivity {
         if (dialog == null) return;
         Window window = dialog.getWindow();
         if (window == null) return;
+        // Force dialog window background to our custom surface color
+        // so it does not fall back to theme-derived tinted backgrounds.
+        // window.setBackgroundDrawableResource(R.drawable.bg_material_alert_dialog);
         WindowManager.LayoutParams params = window.getAttributes();
         if (params == null) return;
         params.gravity = Gravity.CENTER;
@@ -256,7 +259,8 @@ public class SessionOutlineActivity extends ThemedActivity {
                 new ChatService(this).auditNovelLeakage(knowledge.toString().trim(), aiText, new ChatService.ChatCallback() {
                     @Override
                     public void onSuccess(String content) {
-                        runOnUiThread(() -> new MaterialAlertDialogBuilder(SessionOutlineActivity.this)
+                        runOnUiThread(() -> new MaterialAlertDialogBuilder(
+                                SessionOutlineActivity.this)
                                 .setTitle("泄密审计结果")
                                 .setMessage(content != null ? content.trim() : "")
                                 .setPositiveButton(android.R.string.ok, null)

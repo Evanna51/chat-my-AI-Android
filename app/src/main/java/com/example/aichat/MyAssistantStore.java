@@ -29,6 +29,27 @@ public class MyAssistantStore {
         String json = prefs.getString(KEY_LIST, "[]");
         List<MyAssistant> list = GSON.fromJson(json, LIST_TYPE);
         if (list == null) list = new ArrayList<>();
+        boolean migrated = false;
+        for (MyAssistant one : list) {
+            if (one == null) continue;
+            if (one.options == null) {
+                one.options = new SessionChatOptions();
+                migrated = true;
+            }
+            String optionPrompt = one.options.systemPrompt != null ? one.options.systemPrompt.trim() : "";
+            String legacyPrompt = one.prompt != null ? one.prompt.trim() : "";
+            if (optionPrompt.isEmpty() && !legacyPrompt.isEmpty()) {
+                one.options.systemPrompt = legacyPrompt;
+                migrated = true;
+            }
+            if (one.prompt != null && !one.prompt.isEmpty()) {
+                one.prompt = "";
+                migrated = true;
+            }
+        }
+        if (migrated) {
+            prefs.edit().putString(KEY_LIST, GSON.toJson(list)).apply();
+        }
         Collections.sort(list, (a, b) -> Long.compare(b != null ? b.updatedAt : 0L, a != null ? a.updatedAt : 0L));
         return list;
     }

@@ -12,6 +12,7 @@ public class AiModelConfig {
     public static final String TASK_THREAD_NAMING = "thread_naming";
     public static final String TASK_SEARCH = "search";
     public static final String TASK_SUMMARY = "summary";
+    public static final String TASK_NOVEL_SHARP = "novel_sharp";
 
     /** 解析后的完整 API 配置 */
     public static class ResolvedConfig {
@@ -74,12 +75,18 @@ public class AiModelConfig {
         return resolve(modelConfig.getSummaryPreset());
     }
 
+    /** 获取小说敏锐用配置 */
+    public ResolvedConfig getConfigForNovelSharp() {
+        return resolve(modelConfig.getNovelSharpPreset());
+    }
+
     /** 按任务类型获取配置 */
     public ResolvedConfig getConfigForTask(String taskType) {
         if (TASK_CHAT.equals(taskType)) return getConfigForChat();
         if (TASK_THREAD_NAMING.equals(taskType)) return getConfigForThreadNaming();
         if (TASK_SEARCH.equals(taskType)) return getConfigForSearch();
         if (TASK_SUMMARY.equals(taskType)) return getConfigForSummary();
+        if (TASK_NOVEL_SHARP.equals(taskType)) return getConfigForNovelSharp();
         return getConfigForChat();
     }
 
