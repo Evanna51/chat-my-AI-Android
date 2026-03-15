@@ -10,7 +10,9 @@ import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.view.MotionEvent;
+import android.view.ViewParent;
 import android.widget.EditText;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -20,6 +22,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import androidx.recyclerview.widget.SimpleItemAnimator;
 import androidx.core.widget.NestedScrollView;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
@@ -37,7 +43,6 @@ public class ChatSessionActivity extends ThemedActivity {
     public static final String EXTRA_SESSION_ID = "session_id";
     public static final String EXTRA_INITIAL_MESSAGE = "initial_message";
     public static final String EXTRA_ASSISTANT_ID = "assistant_id";
-    private static final int CURRENT_THRESHOLD = 10;
     private static final long STREAM_RENDER_THROTTLE_MS = 24L;
     private static final long STREAM_RENDER_THROTTLE_BUSY_MS = 48L;
     private static final int STREAM_RENDER_BUSY_PENDING_CHARS = 80;
@@ -46,8 +51,9 @@ public class ChatSessionActivity extends ThemedActivity {
     private static final long STREAM_AUTO_SCROLL_THROTTLE_MS = 300L;
     private static final int AUTO_SCROLL_BOTTOM_GAP_DP = 32;
     private static final int WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS = 500;
+    private static final int WRITER_ASSISTANT_LAST_SEGMENT_CHARS = 1000;
     private static final String CHARACTER_MEMORY_LOADING_TEXT = "[...正在输入中]";
-    private static final int INITIAL_RENDER_MESSAGE_LIMIT = 200; // 100轮消息窗口
+    private static final int INITIAL_RENDER_MESSAGE_LIMIT = 200; // 当前对话窗口保留最近 200 条消息
     private static final int LOAD_MORE_BATCH_SIZE = 50;
     private static final int TOP_LOAD_TRIGGER_GAP_DP = 8;
     private static final long PROACTIVE_POLL_INTERVAL_MS = 30_000L;
@@ -104,6 +110,8 @@ public class ChatSessionActivity extends ThemedActivity {
     private TextView loadEarlierMessagesView;
     private TextView quickModelSwitchView;
     private TextView firstDialoguePreviewView;
+    private View expandHistoryView;
+    private View historyExpandIconView;
     private boolean hasMoreOlderMessages;
     private boolean loadingOlderMessages;
     private int olderRemainingCount;
@@ -217,8 +225,7 @@ public class ChatSessionActivity extends ThemedActivity {
         }
         View btnSessionMore = findViewById(R.id.btnSessionMore);
         if (btnSessionMore != null) {
-            btnSessionMore.setOnClickListener(v ->
-                    Toast.makeText(this, "更多功能 TODO", Toast.LENGTH_SHORT).show());
+            btnSessionMore.setOnClickListener(this::showSessionMoreMenu);
         }
         View btnWriterOutline = findViewById(R.id.btnWriterOutline);
         if (btnWriterOutline != null) {
@@ -250,8 +257,8 @@ public class ChatSessionActivity extends ThemedActivity {
         }
 
         View headerHistory = findViewById(R.id.headerHistory);
-        View expandHistory = findViewById(R.id.expandHistory);
-        View iconExpand = findViewById(R.id.iconHistoryExpand);
+        expandHistoryView = findViewById(R.id.expandHistory);
+        historyExpandIconView = findViewById(R.id.iconHistoryExpand);
 
         historyAdapter = new MessageAdapter(assistantMarkdownStateStore);
         currentAdapter = new MessageAdapter(assistantMarkdownStateStore);
@@ -283,11 +290,9 @@ public class ChatSessionActivity extends ThemedActivity {
         bindMessageActions(currentAdapter);
         setupAutoCollapseActions(recyclerHistory, recyclerCurrent, scrollMessages);
 
-        if (headerHistory != null && expandHistory != null && iconExpand != null) {
+        if (headerHistory != null && expandHistoryView != null && historyExpandIconView != null) {
             headerHistory.setOnClickListener(v -> {
-                historyExpanded = !historyExpanded;
-                expandHistory.setVisibility(historyExpanded ? View.VISIBLE : View.GONE);
-                iconExpand.setRotation(historyExpanded ? 90 : 0);
+                setHistoryExpanded(!historyExpanded);
             });
         }
 
@@ -429,14 +434,14 @@ public class ChatSessionActivity extends ThemedActivity {
         }
 
         int total = allMessages.size();
-        if (total <= CURRENT_THRESHOLD) {
+        if (total <= INITIAL_RENDER_MESSAGE_LIMIT) {
             cardHistory.setVisibility(View.GONE);
             currentAdapter.setMessages(allMessages);
             historyAdapter.setMessages(new ArrayList<>());
         } else {
             cardHistory.setVisibility(View.VISIBLE);
             if (textHistoryTitle != null) textHistoryTitle.setVisibility(View.VISIBLE);
-            int split = total - CURRENT_THRESHOLD;
+            int split = total - INITIAL_RENDER_MESSAGE_LIMIT;
             List<Message> history = new ArrayList<>(allMessages.subList(0, split));
             List<Message> current = new ArrayList<>(allMessages.subList(split, total));
             historyAdapter.setMessages(history);
@@ -475,16 +480,92 @@ public class ChatSessionActivity extends ThemedActivity {
         SessionChatOptions options = resolveChatOptions();
         final boolean shouldUseCharacterMemory = shouldUseCharacterMemory();
         if (shouldUseCharacterMemory) {
-            showCharacterMemoryLoadingPlaceholder(responseToken);
             reportCharacterInteractionAsync(CharacterMemoryApi.ROLE_USER, text);
         }
         final String plainApiUserMessage = buildUserMessageForApi(text);
         final List<Message> finalHistoryForApi = historyForApi;
         final SessionChatOptions finalOptions = options;
-        if (!shouldUseCharacterMemory) {
-            dispatchChatRequest(finalHistoryForApi, plainApiUserMessage, finalOptions, responseToken, false);
+        if (shouldAutoChapterPlan(finalOptions)) {
+            startChapterPlanFlow(finalHistoryForApi, text, plainApiUserMessage, finalOptions, responseToken, shouldUseCharacterMemory);
             return;
         }
+        dispatchChatRequestWithOptionalMemory(finalHistoryForApi, plainApiUserMessage, finalOptions, responseToken, shouldUseCharacterMemory);
+    }
+
+    private boolean shouldAutoChapterPlan(SessionChatOptions options) {
+        return writerAssistant && options != null && options.autoChapterPlan;
+    }
+
+    private void startChapterPlanFlow(List<Message> historyForApi,
+                                      String originalInput,
+                                      String plainApiUserMessage,
+                                      SessionChatOptions options,
+                                      long responseToken,
+                                      boolean shouldUseCharacterMemory) {
+        if (isFinishing() || isDestroyed()) return;
+        Toast.makeText(this, "正在生成章节计划…", Toast.LENGTH_SHORT).show();
+        chatService.generateChapterPlanJson(originalInput, plainApiUserMessage, new ChatService.ChatCallback() {
+            @Override
+            public void onSuccess(String content) {
+                mainHandler.post(() -> {
+                    if (responseToken != activeResponseToken) return;
+                    if (isFinishing() || isDestroyed()) return;
+                    ChapterPlanDraft draft = parseChapterPlanDraft(content);
+                    if (draft == null) {
+                        dispatchChatRequestWithOptionalMemory(historyForApi, plainApiUserMessage, options, responseToken, shouldUseCharacterMemory);
+                        return;
+                    }
+                    showChapterPlanDialog(draft, new ChapterPlanDialogCallback() {
+                        @Override
+                        public void onCancel() {
+                            if (responseToken != activeResponseToken) return;
+                            setAssistantResponseInProgress(false);
+                            activeChatHandle = null;
+                            activeStreamingMessage = null;
+                            removeCharacterMemoryLoadingPlaceholder();
+                        }
+
+                        @Override
+                        public void onConfirm(ChapterPlanDraft edited, boolean addOutline) {
+                            if (responseToken != activeResponseToken) return;
+                            if (edited == null) {
+                                dispatchChatRequestWithOptionalMemory(historyForApi, plainApiUserMessage, options, responseToken, shouldUseCharacterMemory);
+                                return;
+                            }
+                            if (addOutline) {
+                                addChapterPlanToOutline(edited);
+                            }
+                            String finalUserMessage = composeUserMessageWithChapterPlan(plainApiUserMessage, edited);
+                            dispatchChatRequestWithOptionalMemory(historyForApi, finalUserMessage, options, responseToken, shouldUseCharacterMemory);
+                        }
+                    });
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                mainHandler.post(() -> {
+                    if (responseToken != activeResponseToken) return;
+                    if (isFinishing() || isDestroyed()) return;
+                    if (message != null && !message.trim().isEmpty()) {
+                        Toast.makeText(ChatSessionActivity.this, message + "，已回退直接生成正文", Toast.LENGTH_SHORT).show();
+                    }
+                    dispatchChatRequestWithOptionalMemory(historyForApi, plainApiUserMessage, options, responseToken, shouldUseCharacterMemory);
+                });
+            }
+        });
+    }
+
+    private void dispatchChatRequestWithOptionalMemory(List<Message> historyForApi,
+                                                       String plainApiUserMessage,
+                                                       SessionChatOptions options,
+                                                       long responseToken,
+                                                       boolean shouldUseCharacterMemory) {
+        if (!shouldUseCharacterMemory) {
+            dispatchChatRequest(historyForApi, plainApiUserMessage, options, responseToken, false);
+            return;
+        }
+        showCharacterMemoryLoadingPlaceholder(responseToken);
         executor.execute(() -> {
             String enrichedUserMessage = plainApiUserMessage;
             try {
@@ -498,7 +579,7 @@ public class ChatSessionActivity extends ThemedActivity {
             mainHandler.post(() -> {
                 if (responseToken != activeResponseToken) return;
                 if (isFinishing() || isDestroyed()) return;
-                dispatchChatRequest(finalHistoryForApi, finalUserMessage, finalOptions, responseToken, true);
+                dispatchChatRequest(historyForApi, finalUserMessage, options, responseToken, true);
             });
         });
     }
@@ -703,6 +784,12 @@ public class ChatSessionActivity extends ThemedActivity {
             Log.d(TAG, "skip auto title: user message count = " + userCount);
             return;
         }
+        final String fallbackTitle = buildFallbackThreadTitle(firstUserMessage);
+        persistSessionTitle(fallbackTitle, false);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(fallbackTitle);
+        }
+        updateToolbarModelSubtitle();
         autoNamingInFlight = true;
         Log.d(TAG, "start auto title generation, sessionId=" + sessionId);
         chatService.generateThreadTitle(firstUserMessage, new ChatService.ChatCallback() {
@@ -710,32 +797,13 @@ public class ChatSessionActivity extends ThemedActivity {
             public void onSuccess(String content) {
                 autoNamingInFlight = false;
                 Log.d(TAG, "auto title success: " + content);
-                if (content == null || content.trim().isEmpty()) return;
-                executor.execute(() -> {
-                    String trimmedTitle = content.trim();
-                    SessionMetaStore store = new SessionMetaStore(ChatSessionActivity.this);
-                    SessionMeta m = store.get(sessionId);
-                    if (m.title == null || m.title.trim().isEmpty()) {
-                        m.title = trimmedTitle;
-                        store.save(sessionId, m);
-                    }
-
-                    // Keep session chat settings form in sync: it reads from SessionChatOptionsStore.
-                    SessionChatOptionsStore optionsStore = new SessionChatOptionsStore(ChatSessionActivity.this);
-                    SessionChatOptions options = optionsStore.get(sessionId);
-                    if (options.sessionTitle == null || options.sessionTitle.trim().isEmpty()) {
-                        options.sessionTitle = trimmedTitle;
-                        optionsStore.save(sessionId, options);
-                    }
-
-                    mainHandler.post(() -> {
-                        if (sessionOptions != null
-                                && (sessionOptions.sessionTitle == null || sessionOptions.sessionTitle.trim().isEmpty())) {
-                            sessionOptions.sessionTitle = trimmedTitle;
-                        }
-                        applyMessagesAndTitle();
-                    });
-                });
+                String generated = content != null ? content.trim() : "";
+                if (generated.isEmpty()) {
+                    Log.d(TAG, "auto title empty, keep fallback title");
+                    return;
+                }
+                persistSessionTitle(generated, true);
+                mainHandler.post(ChatSessionActivity.this::applyMessagesAndTitle);
             }
 
             @Override
@@ -743,6 +811,42 @@ public class ChatSessionActivity extends ThemedActivity {
                 autoNamingInFlight = false;
                 Log.e(TAG, "auto title failed: " + message);
             }
+        });
+    }
+
+    private String buildFallbackThreadTitle(String userMessage) {
+        String source = userMessage != null ? userMessage.trim() : "";
+        if (source.isEmpty()) return "新对话";
+        return source.length() > 10 ? source.substring(0, 10) : source;
+    }
+
+    private void persistSessionTitle(String title, boolean overwriteExisting) {
+        String trimmed = title != null ? title.trim() : "";
+        if (trimmed.isEmpty()) return;
+        executor.execute(() -> {
+            SessionMetaStore metaStore = new SessionMetaStore(ChatSessionActivity.this);
+            SessionMeta meta = metaStore.get(sessionId);
+            String metaTitle = meta.title != null ? meta.title.trim() : "";
+            if (overwriteExisting || metaTitle.isEmpty()) {
+                meta.title = trimmed;
+                metaStore.save(sessionId, meta);
+            }
+
+            SessionChatOptionsStore optionsStore = new SessionChatOptionsStore(ChatSessionActivity.this);
+            SessionChatOptions options = optionsStore.get(sessionId);
+            String optionsTitle = options.sessionTitle != null ? options.sessionTitle.trim() : "";
+            if (overwriteExisting || optionsTitle.isEmpty()) {
+                options.sessionTitle = trimmed;
+                optionsStore.save(sessionId, options);
+            }
+
+            mainHandler.post(() -> {
+                if (sessionOptions == null) sessionOptions = new SessionChatOptions();
+                String current = sessionOptions.sessionTitle != null ? sessionOptions.sessionTitle.trim() : "";
+                if (overwriteExisting || current.isEmpty()) {
+                    sessionOptions.sessionTitle = trimmed;
+                }
+            });
         });
     }
 
@@ -779,10 +883,6 @@ public class ChatSessionActivity extends ThemedActivity {
                 if (out.sessionAvatar == null || out.sessionAvatar.trim().isEmpty()) {
                     out.sessionAvatar = AssistantAvatarHelper.resolveTextAvatar(assistant, assistant.name);
                 }
-                if ((out.systemPrompt == null || out.systemPrompt.trim().isEmpty())
-                        && assistant.prompt != null && !assistant.prompt.trim().isEmpty()) {
-                    out.systemPrompt = assistant.prompt.trim();
-                }
             }
         }
 
@@ -810,6 +910,7 @@ public class ChatSessionActivity extends ThemedActivity {
         out.temperature = src.temperature;
         out.topP = src.topP;
         out.streamOutput = true;
+        out.autoChapterPlan = src.autoChapterPlan;
         out.thinking = src.thinking;
         out.googleThinkingBudget = src.googleThinkingBudget;
         return out;
@@ -934,6 +1035,174 @@ public class ChatSessionActivity extends ThemedActivity {
         dialog.show();
     }
 
+    private void showSessionMoreMenu(View anchor) {
+        PopupMenu popupMenu = new PopupMenu(this, anchor);
+        popupMenu.getMenu().add(0, 1, 0, getString(R.string.quick_jump_chapters));
+        popupMenu.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == 1) {
+                showChapterJumpDialog();
+                return true;
+            }
+            return false;
+        });
+        popupMenu.show();
+    }
+
+    private void showChapterJumpDialog() {
+        List<ChapterJumpItem> items = buildChapterJumpItems();
+        if (items.isEmpty()) {
+            Toast.makeText(this, R.string.no_assistant_chapters, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String[] labels = new String[items.size()];
+        for (int i = 0; i < items.size(); i++) {
+            ChapterJumpItem one = items.get(i);
+            labels[i] = getString(R.string.chapter_jump_item_format, one.index, one.preview);
+        }
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.quick_jump_chapters)
+                .setItems(labels, (dialog, which) -> {
+                    if (which < 0 || which >= items.size()) return;
+                    ChapterJumpItem target = items.get(which);
+                    scrollToChapterMessage(target.createdAt, target.messageId);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private List<ChapterJumpItem> buildChapterJumpItems() {
+        List<ChapterJumpItem> out = new ArrayList<>();
+        int chapterIndex = 1;
+        for (Message m : allMessages) {
+            if (m == null || m.role != Message.ROLE_ASSISTANT) continue;
+            String content = m.content != null ? m.content.trim() : "";
+            if (content.isEmpty()) continue;
+            ChapterJumpItem item = new ChapterJumpItem();
+            item.index = chapterIndex++;
+            item.messageId = m.id;
+            item.createdAt = m.createdAt;
+            item.preview = buildChapterPreview(content);
+            out.add(item);
+        }
+        return out;
+    }
+
+    private String buildChapterPreview(String content) {
+        String[] lines = content.split("\\r?\\n");
+        StringBuilder sb = new StringBuilder();
+        int count = 0;
+        for (String line : lines) {
+            if (line == null) continue;
+            String one = line.trim();
+            if (one.isEmpty()) continue;
+            if (sb.length() > 0) sb.append(" / ");
+            sb.append(one);
+            count++;
+            if (count >= 2) break;
+        }
+        String preview = sb.length() > 0 ? sb.toString() : content.trim();
+        if (preview.length() > 60) {
+            preview = preview.substring(0, 60) + "...";
+        }
+        return preview;
+    }
+
+    private void scrollToChapterMessage(long createdAt, long messageId) {
+        if (scrollMessagesView == null) return;
+        if (containsMessage(historyAdapter, createdAt, messageId) && !historyExpanded) {
+            setHistoryExpanded(true);
+        }
+        attemptScrollToChapterMessage(createdAt, messageId, 0);
+    }
+
+    private void attemptScrollToChapterMessage(long createdAt, long messageId, int attempt) {
+        if (scrollMessagesView == null) return;
+        boolean moved = scrollToMessageTopInRecycler((RecyclerView) findViewById(R.id.recyclerHistory), historyAdapter, createdAt, messageId);
+        if (!moved) {
+            moved = scrollToMessageTopInRecycler((RecyclerView) findViewById(R.id.recyclerCurrent), currentAdapter, createdAt, messageId);
+        }
+        if (moved) return;
+        if (attempt >= 12) {
+            Toast.makeText(this, R.string.chapter_jump_failed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        mainHandler.postDelayed(() -> attemptScrollToChapterMessage(createdAt, messageId, attempt + 1), 60L);
+    }
+
+    private boolean scrollToMessageTopInRecycler(RecyclerView recyclerView, MessageAdapter adapter, long createdAt, long messageId) {
+        if (recyclerView == null || adapter == null || scrollMessagesView == null) return false;
+        List<Message> list = adapter.getMessages();
+        int pos = -1;
+        for (int i = 0; i < list.size(); i++) {
+            Message one = list.get(i);
+            if (matchesJumpTarget(one, createdAt, messageId)) {
+                pos = i;
+                break;
+            }
+        }
+        if (pos < 0) return false;
+        RecyclerView.LayoutManager layoutManager = recyclerView.getLayoutManager();
+        if (layoutManager instanceof LinearLayoutManager) {
+            ((LinearLayoutManager) layoutManager).scrollToPositionWithOffset(pos, 0);
+        } else {
+            recyclerView.scrollToPosition(pos);
+        }
+        RecyclerView.ViewHolder vh = recyclerView.findViewHolderForAdapterPosition(pos);
+        View itemView = vh != null ? vh.itemView : null;
+        if (itemView == null && layoutManager != null) {
+            itemView = layoutManager.findViewByPosition(pos);
+        }
+        if (itemView == null) return false;
+        View timestampView = itemView.findViewById(R.id.textTimestamp);
+        int targetY = computeScrollYInContainer(timestampView != null ? timestampView : itemView);
+        if (targetY < 0) return false;
+        int margin = (int) (8f * getResources().getDisplayMetrics().density);
+        scrollMessagesView.smoothScrollTo(0, Math.max(0, targetY - margin));
+        return true;
+    }
+
+    private boolean containsMessage(MessageAdapter adapter, long createdAt, long messageId) {
+        if (adapter == null) return false;
+        List<Message> list = adapter.getMessages();
+        for (Message one : list) {
+            if (matchesJumpTarget(one, createdAt, messageId)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean matchesJumpTarget(Message one, long createdAt, long messageId) {
+        if (one == null) return false;
+        if (messageId > 0 && one.id > 0) return one.id == messageId;
+        return createdAt > 0 && one.createdAt == createdAt;
+    }
+
+    private int computeScrollYInContainer(View targetView) {
+        if (targetView == null || scrollMessagesView == null) return -1;
+        View child = scrollMessagesView.getChildAt(0);
+        if (child == null) return -1;
+        int y = 0;
+        View cursor = targetView;
+        while (cursor != null && cursor != child) {
+            y += cursor.getTop() - cursor.getScrollY();
+            ViewParent parent = cursor.getParent();
+            if (!(parent instanceof View)) return -1;
+            cursor = (View) parent;
+        }
+        return cursor == child ? y : -1;
+    }
+
+    private void setHistoryExpanded(boolean expanded) {
+        historyExpanded = expanded;
+        if (expandHistoryView != null) {
+            expandHistoryView.setVisibility(expanded ? View.VISIBLE : View.GONE);
+        }
+        if (historyExpandIconView != null) {
+            historyExpandIconView.setRotation(expanded ? 90f : 0f);
+        }
+    }
+
     private void updateFirstDialoguePreview() {
         if (firstDialoguePreviewView == null) return;
         String source = "";
@@ -954,6 +1223,13 @@ public class ChatSessionActivity extends ThemedActivity {
         String compact = text.trim();
         if (compact.length() <= maxChars) return compact;
         return compact.substring(0, maxChars) + "...";
+    }
+
+    private static class ChapterJumpItem {
+        int index;
+        String preview;
+        long messageId;
+        long createdAt;
     }
 
     private void maybeInsertAssistantOpeningMessage() {
@@ -1052,6 +1328,138 @@ public class ChatSessionActivity extends ThemedActivity {
         });
     }
 
+    private void showChapterPlanDialog(ChapterPlanDraft draft, ChapterPlanDialogCallback callback) {
+        if (draft == null || callback == null) return;
+        View view = getLayoutInflater().inflate(R.layout.dialog_chapter_plan, null);
+        TextInputEditText editGoal = view.findViewById(R.id.editPlanChapterGoal);
+        TextInputEditText editStart = view.findViewById(R.id.editPlanStartState);
+        TextInputEditText editEnd = view.findViewById(R.id.editPlanEndState);
+        TextInputEditText editDrives = view.findViewById(R.id.editPlanCharacterDrives);
+        TextInputEditText editKnowledge = view.findViewById(R.id.editPlanKnowledgeBoundary);
+        TextInputEditText editEvents = view.findViewById(R.id.editPlanEventChain);
+        TextInputEditText editForeshadow = view.findViewById(R.id.editPlanForeshadow);
+        TextInputEditText editPayoff = view.findViewById(R.id.editPlanPayoff);
+        TextInputEditText editForbidden = view.findViewById(R.id.editPlanForbidden);
+        TextInputEditText editStyle = view.findViewById(R.id.editPlanStyleGuide);
+        TextInputEditText editLength = view.findViewById(R.id.editPlanTargetLength);
+
+        if (editGoal != null) editGoal.setText(draft.chapterGoal);
+        if (editStart != null) editStart.setText(draft.startState);
+        if (editEnd != null) editEnd.setText(draft.endState);
+        if (editDrives != null) editDrives.setText(draft.characterDrivesToMultiline());
+        if (editKnowledge != null) editKnowledge.setText(joinLines(draft.knowledgeBoundary));
+        if (editEvents != null) editEvents.setText(joinLines(draft.eventChain));
+        if (editForeshadow != null) editForeshadow.setText(joinLines(draft.foreshadow));
+        if (editPayoff != null) editPayoff.setText(joinLines(draft.payoff));
+        if (editForbidden != null) editForbidden.setText(joinLines(draft.forbidden));
+        if (editStyle != null) editStyle.setText(draft.styleGuide);
+        if (editLength != null) editLength.setText(draft.targetLength);
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("本轮写作计划")
+                .setView(view)
+                .setNegativeButton("取消", (d, w) -> callback.onCancel())
+                .setNeutralButton("确认并加入大纲", (d, w) -> callback.onConfirm(
+                        collectChapterPlanDraft(editGoal, editStart, editEnd, editDrives, editKnowledge,
+                                editEvents, editForeshadow, editPayoff, editForbidden, editStyle, editLength),
+                        true))
+                .setPositiveButton("确认", (d, w) -> callback.onConfirm(
+                        collectChapterPlanDraft(editGoal, editStart, editEnd, editDrives, editKnowledge,
+                                editEvents, editForeshadow, editPayoff, editForbidden, editStyle, editLength),
+                        false))
+                .show();
+    }
+
+    private ChapterPlanDraft collectChapterPlanDraft(TextInputEditText editGoal,
+                                                     TextInputEditText editStart,
+                                                     TextInputEditText editEnd,
+                                                     TextInputEditText editDrives,
+                                                     TextInputEditText editKnowledge,
+                                                     TextInputEditText editEvents,
+                                                     TextInputEditText editForeshadow,
+                                                     TextInputEditText editPayoff,
+                                                     TextInputEditText editForbidden,
+                                                     TextInputEditText editStyle,
+                                                     TextInputEditText editLength) {
+        ChapterPlanDraft draft = new ChapterPlanDraft();
+        draft.chapterGoal = textOf(editGoal);
+        draft.startState = textOf(editStart);
+        draft.endState = textOf(editEnd);
+        draft.characterDrives = ChapterPlanDraft.parseCharacterDrives(textOf(editDrives));
+        draft.knowledgeBoundary = parseLines(textOf(editKnowledge));
+        draft.eventChain = parseLines(textOf(editEvents));
+        draft.foreshadow = parseLines(textOf(editForeshadow));
+        draft.payoff = parseLines(textOf(editPayoff));
+        draft.forbidden = parseLines(textOf(editForbidden));
+        draft.styleGuide = textOf(editStyle);
+        draft.targetLength = textOf(editLength);
+        return draft;
+    }
+
+    private String composeUserMessageWithChapterPlan(String plainApiUserMessage, ChapterPlanDraft draft) {
+        String base = plainApiUserMessage != null ? plainApiUserMessage.trim() : "";
+        if (draft == null) return base;
+        JsonObject plan = draft.toJson();
+        StringBuilder sb = new StringBuilder();
+        if (!base.isEmpty()) {
+            sb.append(base).append("\n\n");
+        }
+        sb.append("【本轮写作计划（必须遵循）】\n")
+                .append(plan.toString())
+                .append("\n\n")
+                .append("执行要求：优先遵循本轮计划推进剧情；不得违背知情约束与既有设定。");
+        return sb.toString().trim();
+    }
+
+    private void addChapterPlanToOutline(ChapterPlanDraft draft) {
+        if (draft == null) return;
+        int next = outlineStore.nextChapterIndex(sessionId);
+        String title = "章节" + next;
+        String content = draft.toOutlineText();
+        outlineStore.add(sessionId, "chapter", title, content);
+        Toast.makeText(this, "已加入大纲：" + title, Toast.LENGTH_SHORT).show();
+    }
+
+    private ChapterPlanDraft parseChapterPlanDraft(String json) {
+        String raw = json != null ? json.trim() : "";
+        if (raw.isEmpty()) return null;
+        try {
+            JsonObject obj = new JsonParser().parse(raw).getAsJsonObject();
+            return ChapterPlanDraft.fromJson(obj);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private String textOf(TextInputEditText edit) {
+        if (edit == null || edit.getText() == null) return "";
+        return edit.getText().toString().trim();
+    }
+
+    private List<String> parseLines(String text) {
+        List<String> out = new ArrayList<>();
+        if (text == null || text.trim().isEmpty()) return out;
+        String[] lines = text.split("\\r?\\n");
+        for (String line : lines) {
+            if (line == null) continue;
+            String one = line.trim();
+            if (!one.isEmpty()) out.add(one);
+        }
+        return out;
+    }
+
+    private String joinLines(List<String> items) {
+        if (items == null || items.isEmpty()) return "";
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < items.size(); i++) {
+            String one = items.get(i);
+            if (one == null || one.trim().isEmpty()) continue;
+            if (sb.length() > 0) sb.append("\n");
+            sb.append(one.trim());
+        }
+        return sb.toString();
+    }
+
     private String buildUserMessageForApi(String text) {
         String source = text != null ? text.trim() : "";
         if (!writerAssistant || source.isEmpty()) return source;
@@ -1117,21 +1525,245 @@ public class ChatSessionActivity extends ThemedActivity {
     private List<Message> buildHistoryForApi(List<Message> sourceHistory) {
         List<Message> source = sourceHistory != null ? sourceHistory : new ArrayList<>();
         if (!writerAssistant || source.isEmpty()) return source;
+        int lastAssistantIndex = -1;
+        for (int i = source.size() - 1; i >= 0; i--) {
+            Message one = source.get(i);
+            if (one != null && one.role == Message.ROLE_ASSISTANT) {
+                lastAssistantIndex = i;
+                break;
+            }
+        }
         List<Message> out = new ArrayList<>(source.size());
-        for (Message m : source) {
+        for (int i = 0; i < source.size(); i++) {
+            Message m = source.get(i);
             if (m == null) continue;
             String content = m.content != null ? m.content : "";
-            if (m.role == Message.ROLE_ASSISTANT && content.length() > WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS) {
-                String excerpt = content.substring(0, WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS);
-                content = "【节选说明】以下内容为上一轮助手回复的前"
-                        + WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS
-                        + "字节选，仅用于延续文风，不代表完整情节；情节发展请以写作大纲与资料为准。\n"
-                        + excerpt;
+            if (m.role == Message.ROLE_ASSISTANT) {
+                if (i == lastAssistantIndex) {
+                    content = buildLastAssistantExcerpt(content);
+                } else if (content.length() > WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS) {
+                    String excerpt = content.substring(0, WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS);
+                    content = "【节选说明】以下内容为较早助手回复的前"
+                            + WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS
+                            + "字节选，用于保留关键语气与事实锚点；完整情节请以写作大纲与资料为准。\n"
+                            + excerpt;
+                }
             }
             Message copy = new Message(sessionId, m.role, content);
             out.add(copy);
         }
         return out;
+    }
+
+    private String buildLastAssistantExcerpt(String content) {
+        String source = content != null ? content : "";
+        int total = source.length();
+        int segment = WRITER_ASSISTANT_LAST_SEGMENT_CHARS;
+        if (total <= segment * 3) {
+            return source;
+        }
+        String start = source.substring(0, segment);
+        int middleStart = Math.max(0, (total - segment) / 2);
+        String middle = source.substring(middleStart, middleStart + segment);
+        String end = source.substring(total - segment);
+        return "【节选说明】以下内容为最近一条助手回复的分段节选（前"
+                + segment + "字 / 中间" + segment + "字 / 后" + segment
+                + "字），用于保留上下文细节与风格连续性；完整情节请以写作大纲与资料为准。\n"
+                + "【前段】\n" + start
+                + "\n【中段】\n" + middle
+                + "\n【后段】\n" + end;
+    }
+
+    private interface ChapterPlanDialogCallback {
+        void onCancel();
+        void onConfirm(ChapterPlanDraft edited, boolean addOutline);
+    }
+
+    private static class ChapterPlanDraft {
+        String chapterGoal = "";
+        String startState = "";
+        String endState = "";
+        List<CharacterDrive> characterDrives = new ArrayList<>();
+        List<String> knowledgeBoundary = new ArrayList<>();
+        List<String> eventChain = new ArrayList<>();
+        List<String> foreshadow = new ArrayList<>();
+        List<String> payoff = new ArrayList<>();
+        List<String> forbidden = new ArrayList<>();
+        String styleGuide = "";
+        String targetLength = "";
+
+        static ChapterPlanDraft fromJson(JsonObject obj) {
+            ChapterPlanDraft out = new ChapterPlanDraft();
+            if (obj == null) return out;
+            out.chapterGoal = getString(obj, "chapterGoal");
+            out.startState = getString(obj, "startState");
+            out.endState = getString(obj, "endState");
+            out.characterDrives = parseCharacterDrives(obj.get("characterDrives"));
+            out.knowledgeBoundary = parseStringArray(obj.get("knowledgeBoundary"));
+            out.eventChain = parseStringArray(obj.get("eventChain"));
+            out.foreshadow = parseStringArray(obj.get("foreshadow"));
+            out.payoff = parseStringArray(obj.get("payoff"));
+            out.forbidden = parseStringArray(obj.get("forbidden"));
+            out.styleGuide = getString(obj, "styleGuide");
+            out.targetLength = getString(obj, "targetLength");
+            return out;
+        }
+
+        JsonObject toJson() {
+            JsonObject out = new JsonObject();
+            out.addProperty("chapterGoal", chapterGoal != null ? chapterGoal : "");
+            out.addProperty("startState", startState != null ? startState : "");
+            out.addProperty("endState", endState != null ? endState : "");
+            JsonArray drives = new JsonArray();
+            if (characterDrives != null) {
+                for (CharacterDrive one : characterDrives) {
+                    if (one == null) continue;
+                    JsonObject item = new JsonObject();
+                    item.addProperty("name", one.name != null ? one.name : "");
+                    item.addProperty("goal", one.goal != null ? one.goal : "");
+                    item.addProperty("misbelief", one.misbelief != null ? one.misbelief : "");
+                    item.addProperty("emotion", one.emotion != null ? one.emotion : "");
+                    drives.add(item);
+                }
+            }
+            out.add("characterDrives", drives);
+            out.add("knowledgeBoundary", toJsonArray(knowledgeBoundary));
+            out.add("eventChain", toJsonArray(eventChain));
+            out.add("foreshadow", toJsonArray(foreshadow));
+            out.add("payoff", toJsonArray(payoff));
+            out.add("forbidden", toJsonArray(forbidden));
+            out.addProperty("styleGuide", styleGuide != null ? styleGuide : "");
+            out.addProperty("targetLength", targetLength != null ? targetLength : "");
+            return out;
+        }
+
+        String toOutlineText() {
+            StringBuilder sb = new StringBuilder();
+            if (chapterGoal != null && !chapterGoal.trim().isEmpty()) {
+                sb.append("目标：").append(chapterGoal.trim()).append("\n");
+            }
+            if (startState != null && !startState.trim().isEmpty()) {
+                sb.append("起始状态：").append(startState.trim()).append("\n");
+            }
+            if (endState != null && !endState.trim().isEmpty()) {
+                sb.append("结束状态：").append(endState.trim()).append("\n");
+            }
+            if (eventChain != null && !eventChain.isEmpty()) {
+                sb.append("事件链：");
+                for (int i = 0; i < eventChain.size(); i++) {
+                    String one = eventChain.get(i);
+                    if (one == null || one.trim().isEmpty()) continue;
+                    if (i > 0) sb.append(" -> ");
+                    sb.append(one.trim());
+                }
+                sb.append("\n");
+            }
+            if (styleGuide != null && !styleGuide.trim().isEmpty()) {
+                sb.append("文风：").append(styleGuide.trim()).append("\n");
+            }
+            if (targetLength != null && !targetLength.trim().isEmpty()) {
+                sb.append("建议篇幅：").append(targetLength.trim());
+            }
+            return sb.toString().trim();
+        }
+
+        String characterDrivesToMultiline() {
+            if (characterDrives == null || characterDrives.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder();
+            for (CharacterDrive one : characterDrives) {
+                if (one == null) continue;
+                if (sb.length() > 0) sb.append("\n");
+                sb.append(one.name != null ? one.name : "")
+                        .append("|")
+                        .append(one.goal != null ? one.goal : "")
+                        .append("|")
+                        .append(one.misbelief != null ? one.misbelief : "")
+                        .append("|")
+                        .append(one.emotion != null ? one.emotion : "");
+            }
+            return sb.toString();
+        }
+
+        static List<CharacterDrive> parseCharacterDrives(String multiline) {
+            List<CharacterDrive> out = new ArrayList<>();
+            if (multiline == null || multiline.trim().isEmpty()) return out;
+            String[] lines = multiline.split("\\r?\\n");
+            for (String line : lines) {
+                if (line == null || line.trim().isEmpty()) continue;
+                String[] parts = line.split("\\|", -1);
+                CharacterDrive drive = new CharacterDrive();
+                drive.name = parts.length > 0 ? parts[0].trim() : "";
+                drive.goal = parts.length > 1 ? parts[1].trim() : "";
+                drive.misbelief = parts.length > 2 ? parts[2].trim() : "";
+                drive.emotion = parts.length > 3 ? parts[3].trim() : "";
+                out.add(drive);
+            }
+            return out;
+        }
+
+        static List<CharacterDrive> parseCharacterDrives(JsonElement element) {
+            List<CharacterDrive> out = new ArrayList<>();
+            if (element == null || element.isJsonNull() || !element.isJsonArray()) return out;
+            JsonArray arr = element.getAsJsonArray();
+            for (int i = 0; i < arr.size(); i++) {
+                JsonElement one = arr.get(i);
+                if (one == null || one.isJsonNull()) continue;
+                CharacterDrive drive = new CharacterDrive();
+                if (one.isJsonObject()) {
+                    JsonObject obj = one.getAsJsonObject();
+                    drive.name = getString(obj, "name");
+                    drive.goal = getString(obj, "goal");
+                    drive.misbelief = getString(obj, "misbelief");
+                    drive.emotion = getString(obj, "emotion");
+                } else {
+                    drive.goal = one.isJsonPrimitive() ? one.getAsString() : one.toString();
+                }
+                out.add(drive);
+            }
+            return out;
+        }
+
+        private static List<String> parseStringArray(JsonElement element) {
+            List<String> out = new ArrayList<>();
+            if (element == null || element.isJsonNull() || !element.isJsonArray()) return out;
+            JsonArray arr = element.getAsJsonArray();
+            for (int i = 0; i < arr.size(); i++) {
+                JsonElement one = arr.get(i);
+                if (one == null || one.isJsonNull()) continue;
+                String text = one.isJsonPrimitive() ? one.getAsString() : one.toString();
+                if (text != null && !text.trim().isEmpty()) out.add(text.trim());
+            }
+            return out;
+        }
+
+        private static JsonArray toJsonArray(List<String> source) {
+            JsonArray out = new JsonArray();
+            if (source == null) return out;
+            for (String one : source) {
+                if (one == null || one.trim().isEmpty()) continue;
+                out.add(one.trim());
+            }
+            return out;
+        }
+
+        private static String getString(JsonObject obj, String key) {
+            if (obj == null || key == null || !obj.has(key)) return "";
+            try {
+                JsonElement e = obj.get(key);
+                if (e == null || e.isJsonNull()) return "";
+                if (e.isJsonPrimitive()) return e.getAsString();
+                return e.toString();
+            } catch (Exception ignored) {
+                return "";
+            }
+        }
+    }
+
+    private static class CharacterDrive {
+        String name = "";
+        String goal = "";
+        String misbelief = "";
+        String emotion = "";
     }
 
     private boolean resolveWriterAssistant() {

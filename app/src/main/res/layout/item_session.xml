@@ -54,22 +54,29 @@
         <!-- 首页按钮：隐藏会话 -->
         <ImageButton
             android:id="@+id/btnHideSession"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/hide_conversation"
-            android:padding="6dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="4dp"
+            android:scaleType="centerInside"
             android:src="@drawable/ic_action_hide"
             app:tint="@color/list_icon_color" />
 
         <!-- 首页按钮：删除会话 -->
         <ImageButton
             android:id="@+id/btnDeleteSession"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_marginStart="10dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/delete_conversation"
-            android:padding="6dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:padding="4dp"
+            android:scaleType="centerInside"
             android:src="@drawable/ic_action_delete"
             app:tint="@color/list_icon_color" />
     </LinearLayout>

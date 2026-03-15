@@ -53,6 +53,7 @@
                         android:inputType="text"
                         android:maxLength="6" />
                 </com.google.android.material.textfield.TextInputLayout>
+
             </LinearLayout>
 
             <include layout="@layout/view_chat_settings_form" />

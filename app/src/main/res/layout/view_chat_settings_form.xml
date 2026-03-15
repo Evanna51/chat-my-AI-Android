@@ -36,6 +36,7 @@
     </LinearLayout>
 
     <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/layoutSystemPrompt"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
@@ -119,10 +120,17 @@
     </LinearLayout>
 
     <com.google.android.material.materialswitch.MaterialSwitch
-        android:id="@+id/switchThinking"
+        android:id="@+id/switchAutoChapterPlan"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
+        android:text="@string/auto_chapter_plan" />
+
+    <com.google.android.material.materialswitch.MaterialSwitch
+        android:id="@+id/switchThinking"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
         android:text="@string/open_thinking" />
 
     <com.google.android.material.textfield.TextInputLayout

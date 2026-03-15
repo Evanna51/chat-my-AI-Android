@@ -34,6 +34,7 @@ public class ChatSettingsFormModule {
     private final TextInputEditText editTopP;
     private final Slider sliderContextCount;
     private final TextView textContextCountValue;
+    private final MaterialSwitch switchAutoChapterPlan;
     private final MaterialSwitch switchThinking;
     private final TextInputLayout layoutGoogleThinkingBudget;
     private final TextInputEditText editGoogleThinkingBudget;
@@ -50,6 +51,7 @@ public class ChatSettingsFormModule {
         this.editTopP = root.findViewById(R.id.editTopP);
         this.sliderContextCount = root.findViewById(R.id.sliderContextCount);
         this.textContextCountValue = root.findViewById(R.id.textContextCountValue);
+        this.switchAutoChapterPlan = root.findViewById(R.id.switchAutoChapterPlan);
         this.switchThinking = root.findViewById(R.id.switchThinking);
         this.layoutGoogleThinkingBudget = root.findViewById(R.id.layoutGoogleThinkingBudget);
         this.editGoogleThinkingBudget = root.findViewById(R.id.editGoogleThinkingBudget);
@@ -103,6 +105,7 @@ public class ChatSettingsFormModule {
             updateContextCountValue(mapSliderPositionToContextValue(position));
         }
         if (switchThinking != null) switchThinking.setChecked(current.thinking);
+        if (switchAutoChapterPlan != null) switchAutoChapterPlan.setChecked(current.autoChapterPlan);
         if (editGoogleThinkingBudget != null) {
             editGoogleThinkingBudget.setText(String.valueOf(current.googleThinkingBudget > 0 ? current.googleThinkingBudget : 1024));
         }
@@ -122,6 +125,7 @@ public class ChatSettingsFormModule {
         out.topP = parseFloat(editTopP, 1.0f);
         out.contextMessageCount = getContextCount();
         out.streamOutput = true;
+        out.autoChapterPlan = switchAutoChapterPlan != null && switchAutoChapterPlan.isChecked();
         out.thinking = switchThinking != null && switchThinking.isChecked();
         out.googleThinkingBudget = parseInt(editGoogleThinkingBudget, 1024);
         return out;

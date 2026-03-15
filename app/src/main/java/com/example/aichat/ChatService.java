@@ -418,14 +418,17 @@ public class ChatService {
 
         List<ChatApi.ChatMessage> requestMessages = new ArrayList<>();
         requestMessages.add(new ChatApi.ChatMessage("system",
-                "你是对话大纲助手。请根据输入对话长度生成精简大纲正文（20到200字）。\n"
+                "你是对话大纲助手。请根据输入对话生成“信息保真”的大纲正文（80到320字），宁可稍长也不要遗漏关键信息。\n"
                         + "仅输出一个JSON对象，不要任何额外文本。\n"
                         + "严格格式:{\"outline\":\"...\"}\n"
                         + "强约束:\n"
                         + "1) 输出必须以 { 开始、以 } 结束。\n"
                         + "2) 只允许一个键 outline，不要额外键。\n"
                         + "3) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。\n"
-                        + "4) outline 内容不要标题，不要列表。"));
+                        + "4) outline 内容不要标题，不要列表。\n"
+                        + "5) 必须保留关键细节：人物/对象名称、核心事件、动机或目标、约束条件、结果或当前进展。\n"
+                        + "6) 若原文出现时间、地点、数字、专有名词、规则设定，优先保留，不要泛化改写。\n"
+                        + "7) 避免空泛词（如“发生了一些事”“进行了讨论”），改为具体事实。"));
         requestMessages.add(new ChatApi.ChatMessage("user", prompt));
 
         ChatApi.ChatRequest request = new ChatApi.ChatRequest();
@@ -433,7 +436,7 @@ public class ChatService {
         request.messages = requestMessages;
         request.stream = false;
         request.n = 1;
-        request.maxTokens = 420;
+        request.maxTokens = 620;
         request.temperature = 0.2;
         request.topP = 0.8;
         request.stop = null;
@@ -534,14 +537,17 @@ public class ChatService {
 
         List<ChatApi.ChatMessage> requestMessages = new ArrayList<>();
         requestMessages.add(new ChatApi.ChatMessage("system",
-                "你是小说写作助手。请把输入内容提炼为可放入大纲的条目正文（40到180字），聚焦关键事件、人物动机、世界设定或任务线索。\n"
+                "你是小说写作助手。请把输入内容提炼为可放入大纲的条目正文（80到280字），要求细节充分、便于后续续写。\n"
                         + "仅输出一个JSON对象，不要任何额外文本。\n"
                         + "严格格式:{\"summary\":\"...\"}\n"
                         + "强约束:\n"
                         + "1) 输出必须以 { 开始、以 } 结束。\n"
                         + "2) 只允许一个键 summary，不要额外键。\n"
                         + "3) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。\n"
-                        + "4) summary 内容不要标题，不要列表。"));
+                        + "4) summary 内容不要标题，不要列表。\n"
+                        + "5) 必须覆盖：关键事件经过、人物意图/冲突、重要设定或规则、任务线索与阶段结果。\n"
+                        + "6) 保留可复用细节：时间地点、名称称谓、数字阈值、道具/能力/组织名等。\n"
+                        + "7) 不要只写结论，需包含必要过程与因果关系。"));
         requestMessages.add(new ChatApi.ChatMessage("user", source));
 
         ChatApi.ChatRequest request = new ChatApi.ChatRequest();
@@ -549,7 +555,7 @@ public class ChatService {
         request.messages = requestMessages;
         request.stream = false;
         request.n = 1;
-        request.maxTokens = 360;
+        request.maxTokens = 520;
         request.temperature = 0.2;
         request.topP = 0.8;
         request.stop = null;
@@ -597,6 +603,132 @@ public class ChatService {
                     @Override
                     public void onFailure(retrofit2.Call<ChatApi.ChatResponse> call, Throwable t) {
                         callback.onError(t != null ? t.getMessage() : "总结失败");
+                    }
+                });
+    }
+
+    public void generateChapterPlanJson(String userInput, String storyContext, ChatCallback callback) {
+        if (callback == null) return;
+        String input = userInput != null ? userInput.trim() : "";
+        String contextText = storyContext != null ? storyContext.trim() : "";
+        if (input.isEmpty()) {
+            callback.onError("输入为空，无法生成章节计划");
+            return;
+        }
+        if (contextText.length() > 5000) {
+            contextText = contextText.substring(0, 5000);
+        }
+
+        AiModelConfig.ResolvedConfig config;
+        try {
+            config = new AiModelConfig(context).getConfigForNovelSharp();
+        } catch (Exception e) {
+            callback.onError("配置解析失败");
+            return;
+        }
+        if (config == null || !config.isValid()) {
+            callback.onError("请先在「模型配置」中选用小说敏锐模型");
+            return;
+        }
+
+        String providerId = "";
+        String preset = new ModelConfig(context).getNovelSharpPreset();
+        if (preset != null && preset.contains(":")) {
+            providerId = preset.substring(0, preset.indexOf(':'));
+        }
+        providerId = resolveProviderId(providerId, config.apiHost);
+
+        String baseUrl = config.toRetrofitBaseUrl();
+        if (!baseUrl.endsWith("/")) baseUrl += "/";
+
+        boolean localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId);
+        int timeoutSec = localOpenAiCompat ? 60 : 20;
+
+        OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(timeoutSec, TimeUnit.SECONDS)
+                .readTimeout(timeoutSec, TimeUnit.SECONDS)
+                .writeTimeout(timeoutSec, TimeUnit.SECONDS)
+                .build();
+        Retrofit retrofit = new Retrofit.Builder()
+                .baseUrl(baseUrl)
+                .client(client)
+                .addConverterFactory(GsonConverterFactory.create())
+                .build();
+        ChatApi api = retrofit.create(ChatApi.class);
+
+        List<ChatApi.ChatMessage> requestMessages = new ArrayList<>();
+        requestMessages.add(new ChatApi.ChatMessage("system",
+                "你是小说章节规划助手。请为“本轮写作”生成可执行计划，并严格输出 JSON 对象。\n"
+                        + "仅输出一个JSON对象，不要任何额外文本。\n"
+                        + "严格键集合:\n"
+                        + "{\"chapterGoal\":\"\",\"startState\":\"\",\"endState\":\"\",\"characterDrives\":[],\"knowledgeBoundary\":[],\"eventChain\":[],\"foreshadow\":[],\"payoff\":[],\"forbidden\":[],\"styleGuide\":\"\",\"targetLength\":\"\"}\n"
+                        + "约束:\n"
+                        + "1) 输出必须以 { 开始、以 } 结束。\n"
+                        + "2) 必须保留全部键，禁止新增或删除键。\n"
+                        + "3) 除 characterDrives 外，数组元素都用字符串；characterDrives 用对象数组，结构为 {\"name\":\"\",\"goal\":\"\",\"misbelief\":\"\",\"emotion\":\"\"}。\n"
+                        + "4) 内容具体可执行，避免空话。"));
+        requestMessages.add(new ChatApi.ChatMessage("user",
+                "【用户本轮输入】\n" + input
+                        + (contextText.isEmpty() ? "" : ("\n\n【当前写作上下文】\n" + contextText))));
+
+        ChatApi.ChatRequest request = new ChatApi.ChatRequest();
+        request.model = config.modelId;
+        request.messages = requestMessages;
+        request.stream = false;
+        request.n = 1;
+        request.maxTokens = 900;
+        request.temperature = 0.2;
+        request.topP = 0.8;
+        request.stop = null;
+        request.thinking = localOpenAiCompat ? Boolean.FALSE : null;
+        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat);
+        if (!localOpenAiCompat) {
+            JsonObject responseFormat = new JsonObject();
+            responseFormat.addProperty("type", "json_object");
+            request.responseFormat = responseFormat;
+        } else {
+            request.responseFormat = null;
+        }
+        request.providerOptions = null;
+
+        String auth = (config.apiKey != null && !config.apiKey.trim().isEmpty())
+                ? ("Bearer " + config.apiKey.trim()) : null;
+        String chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath);
+        api.chatWithUrl(chatUrl, auth, "application/json", request)
+                .enqueue(new retrofit2.Callback<ChatApi.ChatResponse>() {
+                    @Override
+                    public void onResponse(retrofit2.Call<ChatApi.ChatResponse> call, retrofit2.Response<ChatApi.ChatResponse> response) {
+                        if (!response.isSuccessful() || response.body() == null || response.body().choices == null
+                                || response.body().choices.isEmpty() || response.body().choices.get(0) == null
+                                || response.body().choices.get(0).message == null) {
+                            String detail = "";
+                            try {
+                                if (response != null && response.errorBody() != null) {
+                                    detail = response.errorBody().string();
+                                }
+                            } catch (Exception ignored) {}
+                            callback.onError("章节计划生成失败: " + (response != null ? response.code() : "无响应")
+                                    + (detail.isEmpty() ? "" : ("\n" + detail)));
+                            return;
+                        }
+                        String raw = extractAssistantContent(response.body());
+                        raw = stripThinkTags(raw).trim();
+                        String jsonSlice = extractJsonObjectSlice(raw);
+                        if (jsonSlice.isEmpty()) {
+                            callback.onError("章节计划生成失败");
+                            return;
+                        }
+                        try {
+                            JsonObject obj = new JsonParser().parse(jsonSlice).getAsJsonObject();
+                            callback.onSuccess(normalizeChapterPlanJson(obj).toString());
+                        } catch (Exception e) {
+                            callback.onError("章节计划解析失败");
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(retrofit2.Call<ChatApi.ChatResponse> call, Throwable t) {
+                        callback.onError(t != null ? t.getMessage() : "章节计划生成失败");
                     }
                 });
     }
@@ -1172,6 +1304,69 @@ public class ChatService {
             }
         } catch (Exception ignored) {}
         return text;
+    }
+
+    private JsonObject normalizeChapterPlanJson(JsonObject source) {
+        JsonObject out = new JsonObject();
+        out.addProperty("chapterGoal", getStringFlexible(source, "chapterGoal"));
+        out.addProperty("startState", getStringFlexible(source, "startState"));
+        out.addProperty("endState", getStringFlexible(source, "endState"));
+        out.add("characterDrives", normalizeCharacterDrives(source != null ? source.get("characterDrives") : null));
+        out.add("knowledgeBoundary", normalizeStringArray(source != null ? source.get("knowledgeBoundary") : null));
+        out.add("eventChain", normalizeStringArray(source != null ? source.get("eventChain") : null));
+        out.add("foreshadow", normalizeStringArray(source != null ? source.get("foreshadow") : null));
+        out.add("payoff", normalizeStringArray(source != null ? source.get("payoff") : null));
+        out.add("forbidden", normalizeStringArray(source != null ? source.get("forbidden") : null));
+        out.addProperty("styleGuide", getStringFlexible(source, "styleGuide"));
+        out.addProperty("targetLength", getStringFlexible(source, "targetLength"));
+        return out;
+    }
+
+    private JsonArray normalizeStringArray(JsonElement element) {
+        JsonArray out = new JsonArray();
+        if (element == null || element.isJsonNull() || !element.isJsonArray()) return out;
+        JsonArray arr = element.getAsJsonArray();
+        for (int i = 0; i < arr.size(); i++) {
+            JsonElement one = arr.get(i);
+            if (one == null || one.isJsonNull()) continue;
+            if (one.isJsonPrimitive()) out.add(one.getAsString());
+            else if (one.isJsonObject()) {
+                String text = firstNonEmpty(
+                        getStringFlexible(one.getAsJsonObject(), "text"),
+                        getStringFlexible(one.getAsJsonObject(), "value"),
+                        one.toString());
+                if (text != null && !text.trim().isEmpty()) out.add(text.trim());
+            } else {
+                out.add(one.toString());
+            }
+        }
+        return out;
+    }
+
+    private JsonArray normalizeCharacterDrives(JsonElement element) {
+        JsonArray out = new JsonArray();
+        if (element == null || element.isJsonNull() || !element.isJsonArray()) return out;
+        JsonArray arr = element.getAsJsonArray();
+        for (int i = 0; i < arr.size(); i++) {
+            JsonElement one = arr.get(i);
+            if (one == null || one.isJsonNull()) continue;
+            JsonObject item = new JsonObject();
+            if (one.isJsonObject()) {
+                JsonObject src = one.getAsJsonObject();
+                item.addProperty("name", getStringFlexible(src, "name"));
+                item.addProperty("goal", getStringFlexible(src, "goal"));
+                item.addProperty("misbelief", getStringFlexible(src, "misbelief"));
+                item.addProperty("emotion", getStringFlexible(src, "emotion"));
+            } else {
+                String text = one.isJsonPrimitive() ? one.getAsString() : one.toString();
+                item.addProperty("name", "");
+                item.addProperty("goal", text != null ? text : "");
+                item.addProperty("misbelief", "");
+                item.addProperty("emotion", "");
+            }
+            out.add(item);
+        }
+        return out;
     }
 
     private String extractJsonObjectSlice(String text) {

@@ -5,6 +5,8 @@ import android.graphics.BitmapFactory;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Base64;
 import android.util.Log;
 import android.view.View;
@@ -21,6 +23,7 @@ import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.checkbox.MaterialCheckBox;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.materialswitch.MaterialSwitch;
 import com.google.android.material.textfield.TextInputEditText;
 
 import java.io.ByteArrayOutputStream;
@@ -38,8 +41,9 @@ public class EditMyAssistantActivity extends ThemedActivity {
     private ChatSettingsFormModule formModule;
     private ImageView imageAvatarPreview;
     private TextView textAvatarPreview;
+    private TextView textAvatarAddHint;
     private TextInputEditText editName;
-    private TextInputEditText editAvatar;
+    private TextInputEditText editSystemPrompt;
     private TextInputEditText editFirstDialogue;
     private CharacterMemoryService characterMemoryService;
     private Uri pendingCropSourceUri;
@@ -66,25 +70,27 @@ public class EditMyAssistantActivity extends ThemedActivity {
         toolbar.setNavigationOnClickListener(v -> finish());
 
         editName = findViewById(R.id.editAssistantName);
-        TextInputEditText editPrompt = findViewById(R.id.editAssistantPrompt);
+        editSystemPrompt = findViewById(R.id.editAssistantSystemPrompt);
         editFirstDialogue = findViewById(R.id.editAssistantFirstDialogue);
-        editAvatar = findViewById(R.id.editAssistantAvatar);
-        FormInputScrollHelper.enableFor(editPrompt, editFirstDialogue);
+        FormInputScrollHelper.enableFor(editSystemPrompt, editFirstDialogue);
         RadioGroup radioType = findViewById(R.id.radioAssistantType);
         View layoutCharacterOptions = findViewById(R.id.layoutCharacterOptions);
         MaterialCheckBox checkCharacterAutoLife = findViewById(R.id.checkCharacterAutoLife);
         MaterialCheckBox checkCharacterActiveMessage = findViewById(R.id.checkCharacterActiveMessage);
+        MaterialSwitch switchAutoChapterPlanWriter = findViewById(R.id.switchAutoChapterPlanWriter);
         MaterialButton btnSave = findViewById(R.id.btnSaveAssistant);
         MaterialButton btnDelete = findViewById(R.id.btnDeleteAssistant);
-        MaterialButton btnPickAvatar = findViewById(R.id.btnPickAssistantAvatar);
-        MaterialButton btnClearAvatarImage = findViewById(R.id.btnClearAssistantAvatarImage);
+        View avatarPickerContainer = findViewById(R.id.avatarPickerContainer);
+        View btnClearAvatarImage = findViewById(R.id.btnClearAssistantAvatarImage);
         imageAvatarPreview = findViewById(R.id.imageAssistantAvatarPreview);
         textAvatarPreview = findViewById(R.id.textAssistantAvatarPreview);
+        textAvatarAddHint = findViewById(R.id.textAvatarAddHint);
 
         editName.setText(assistant.name);
-        editPrompt.setText(assistant.prompt);
+        if (editSystemPrompt != null && assistant.options != null) {
+            editSystemPrompt.setText(assistant.options.systemPrompt);
+        }
         if (editFirstDialogue != null) editFirstDialogue.setText(assistant.firstDialogue);
-        editAvatar.setText(assistant.avatar);
         if ("writer".equals(assistant.type)) {
             radioType.check(R.id.typeWriter);
         } else if ("character".equals(assistant.type)) {
@@ -98,19 +104,50 @@ public class EditMyAssistantActivity extends ThemedActivity {
         if (checkCharacterActiveMessage != null) {
             checkCharacterActiveMessage.setChecked(assistant.allowProactiveMessage);
         }
+        if (switchAutoChapterPlanWriter != null && assistant.options != null) {
+            switchAutoChapterPlanWriter.setChecked(assistant.options.autoChapterPlan);
+        }
+        updateWriterOnlySettingsVisibility(switchAutoChapterPlanWriter, radioType.getCheckedRadioButtonId());
         updateCharacterOptionsVisibility(layoutCharacterOptions, radioType.getCheckedRadioButtonId());
-        radioType.setOnCheckedChangeListener((group, checkedId) ->
-                updateCharacterOptionsVisibility(layoutCharacterOptions, checkedId));
+        radioType.setOnCheckedChangeListener((group, checkedId) -> {
+            updateWriterOnlySettingsVisibility(switchAutoChapterPlanWriter, checkedId);
+            updateCharacterOptionsVisibility(layoutCharacterOptions, checkedId);
+        });
         refreshAvatarPreview();
+        if (editName != null) {
+            editName.addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {
+                    refreshAvatarPreview();
+                }
+                @Override
+                public void afterTextChanged(Editable s) {}
+            });
+        }
 
         formModule = new ChatSettingsFormModule(this, findViewById(R.id.chatSettingsRoot));
+        if (assistant.options == null) assistant.options = new SessionChatOptions();
+        if ((assistant.options.systemPrompt == null || assistant.options.systemPrompt.trim().isEmpty())
+                && assistant.prompt != null && !assistant.prompt.trim().isEmpty()) {
+            assistant.options.systemPrompt = assistant.prompt.trim();
+        }
         formModule.setOptions(assistant.options != null ? assistant.options : new SessionChatOptions());
+        View layoutSystemPromptInForm = findViewById(R.id.layoutSystemPrompt);
+        if (layoutSystemPromptInForm != null) layoutSystemPromptInForm.setVisibility(View.GONE);
+        View switchAutoPlanInForm = findViewById(R.id.switchAutoChapterPlan);
+        if (switchAutoPlanInForm != null) switchAutoPlanInForm.setVisibility(View.GONE);
 
-        btnPickAvatar.setOnClickListener(v -> imagePickerLauncher.launch("image/*"));
-        btnClearAvatarImage.setOnClickListener(v -> {
-            assistant.avatarImageBase64 = "";
-            refreshAvatarPreview();
-        });
+        if (avatarPickerContainer != null) {
+            avatarPickerContainer.setOnClickListener(v -> imagePickerLauncher.launch("image/*"));
+        }
+        if (btnClearAvatarImage != null) {
+            btnClearAvatarImage.setOnClickListener(v -> {
+                assistant.avatarImageBase64 = "";
+                refreshAvatarPreview();
+            });
+        }
 
         btnSave.setOnClickListener(v -> {
             String name = editName.getText() != null ? editName.getText().toString().trim() : "";
@@ -119,10 +156,10 @@ public class EditMyAssistantActivity extends ThemedActivity {
                 return;
             }
             assistant.name = name;
-            assistant.prompt = editPrompt.getText() != null ? editPrompt.getText().toString().trim() : "";
+            assistant.prompt = "";
             assistant.firstDialogue = editFirstDialogue != null && editFirstDialogue.getText() != null
                     ? editFirstDialogue.getText().toString().trim() : "";
-            assistant.avatar = editAvatar.getText() != null ? editAvatar.getText().toString().trim() : "";
+            assistant.avatar = "";
             int checkedType = radioType.getCheckedRadioButtonId();
             if (checkedType == R.id.typeWriter) {
                 assistant.type = "writer";
@@ -134,6 +171,15 @@ public class EditMyAssistantActivity extends ThemedActivity {
             assistant.allowAutoLife = checkCharacterAutoLife != null && checkCharacterAutoLife.isChecked();
             assistant.allowProactiveMessage = checkCharacterActiveMessage != null && checkCharacterActiveMessage.isChecked();
             assistant.options = formModule.collect();
+            if (assistant.options == null) assistant.options = new SessionChatOptions();
+            assistant.options.systemPrompt = editSystemPrompt != null && editSystemPrompt.getText() != null
+                    ? editSystemPrompt.getText().toString().trim() : "";
+            assistant.options.autoChapterPlan = "writer".equals(assistant.type)
+                    && switchAutoChapterPlanWriter != null
+                    && switchAutoChapterPlanWriter.isChecked();
+            if (!"writer".equals(assistant.type)) {
+                assistant.options.autoChapterPlan = false;
+            }
             assistant.updatedAt = System.currentTimeMillis();
             store.save(assistant);
             if ("character".equals(assistant.type)) {
@@ -265,6 +311,12 @@ public class EditMyAssistantActivity extends ThemedActivity {
     private void refreshAvatarPreview() {
         String previewName = editName != null && editName.getText() != null ? editName.getText().toString().trim() : assistant.name;
         AssistantAvatarHelper.bindAvatar(imageAvatarPreview, textAvatarPreview, assistant, previewName);
+        boolean hasImage = assistant != null
+                && assistant.avatarImageBase64 != null
+                && !assistant.avatarImageBase64.trim().isEmpty();
+        View clearBtn = findViewById(R.id.btnClearAssistantAvatarImage);
+        if (clearBtn != null) clearBtn.setVisibility(hasImage ? View.VISIBLE : View.INVISIBLE);
+        if (textAvatarAddHint != null) textAvatarAddHint.setVisibility(hasImage ? View.GONE : View.VISIBLE);
     }
 
     private String compressImageToBase64(Uri uri, int maxSize, int quality) {
@@ -346,7 +398,14 @@ public class EditMyAssistantActivity extends ThemedActivity {
         if (!characterMemoryService.isEnabled()) return;
         final String assistantId = target.id != null ? target.id.trim() : "";
         final String characterName = target.name != null ? target.name.trim() : "";
-        final String characterBackground = target.prompt != null ? target.prompt.trim() : "";
+        String background = "";
+        if (target.options != null && target.options.systemPrompt != null) {
+            background = target.options.systemPrompt.trim();
+        }
+        if (background.isEmpty() && target.prompt != null) {
+            background = target.prompt.trim();
+        }
+        final String characterBackground = background;
         final boolean allowAutoLife = target.allowAutoLife;
         final boolean allowProactiveMessage = target.allowProactiveMessage;
         if (assistantId.isEmpty() || characterName.isEmpty() || characterBackground.isEmpty()) return;
@@ -367,5 +426,10 @@ public class EditMyAssistantActivity extends ThemedActivity {
     private void updateCharacterOptionsVisibility(View layoutCharacterOptions, int checkedTypeId) {
         if (layoutCharacterOptions == null) return;
         layoutCharacterOptions.setVisibility(checkedTypeId == R.id.typeCharacter ? View.VISIBLE : View.GONE);
+    }
+
+    private void updateWriterOnlySettingsVisibility(View writerSettingView, int checkedTypeId) {
+        if (writerSettingView == null) return;
+        writerSettingView.setVisibility(checkedTypeId == R.id.typeWriter ? View.VISIBLE : View.GONE);
     }
 }

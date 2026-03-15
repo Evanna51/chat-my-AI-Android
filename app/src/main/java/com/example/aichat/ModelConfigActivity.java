@@ -22,8 +22,8 @@ import java.util.List;
 public class ModelConfigActivity extends ThemedActivity {
 
     private ModelConfig modelConfig;
-    private TextView textChatModel, textThreadNamingModel, textSearchModel, textSummaryModel;
-    private String chatPreset, threadNamingPreset, searchPreset, summaryPreset;
+    private TextView textChatModel, textThreadNamingModel, textSearchModel, textSummaryModel, textNovelSharpModel;
+    private String chatPreset, threadNamingPreset, searchPreset, summaryPreset, novelSharpPreset;
     private SwitchMaterial switchHomeMode;
     private boolean editingHomeMode = true;
 
@@ -42,6 +42,7 @@ public class ModelConfigActivity extends ThemedActivity {
         textThreadNamingModel = findViewById(R.id.textThreadNamingModel);
         textSearchModel = findViewById(R.id.textSearchModel);
         textSummaryModel = findViewById(R.id.textSummaryModel);
+        textNovelSharpModel = findViewById(R.id.textNovelSharpModel);
         switchHomeMode = findViewById(R.id.switchHomeMode);
 
         if (switchHomeMode != null) {
@@ -59,6 +60,7 @@ public class ModelConfigActivity extends ThemedActivity {
         findViewById(R.id.cardThreadNamingModel).setOnClickListener(v -> showPicker(1));
         findViewById(R.id.cardSearchModel).setOnClickListener(v -> showPicker(2));
         findViewById(R.id.cardSummaryModel).setOnClickListener(v -> showPicker(3));
+        findViewById(R.id.cardNovelSharpModel).setOnClickListener(v -> showPicker(4));
 
         MaterialButton btnSave = findViewById(R.id.btnSave);
         btnSave.setOnClickListener(v -> {
@@ -67,11 +69,13 @@ public class ModelConfigActivity extends ThemedActivity {
                 modelConfig.setHomeThreadNamingPreset(threadNamingPreset != null ? threadNamingPreset : "");
                 modelConfig.setHomeSearchPreset(searchPreset != null ? searchPreset : "");
                 modelConfig.setHomeSummaryPreset(summaryPreset != null ? summaryPreset : "");
+                modelConfig.setHomeNovelSharpPreset(novelSharpPreset != null ? novelSharpPreset : "");
             } else {
                 modelConfig.setAwayChatPreset(chatPreset != null ? chatPreset : "");
                 modelConfig.setAwayThreadNamingPreset(threadNamingPreset != null ? threadNamingPreset : "");
                 modelConfig.setAwaySearchPreset(searchPreset != null ? searchPreset : "");
                 modelConfig.setAwaySummaryPreset(summaryPreset != null ? summaryPreset : "");
+                modelConfig.setAwayNovelSharpPreset(novelSharpPreset != null ? novelSharpPreset : "");
             }
             modelConfig.setHomeModeEnabled(editingHomeMode);
             syncToConfigManager();
@@ -91,16 +95,19 @@ public class ModelConfigActivity extends ThemedActivity {
             threadNamingPreset = modelConfig.getHomeThreadNamingPreset();
             searchPreset = modelConfig.getHomeSearchPreset();
             summaryPreset = modelConfig.getHomeSummaryPreset();
+            novelSharpPreset = modelConfig.getHomeNovelSharpPreset();
         } else {
             chatPreset = modelConfig.getAwayChatPreset();
             threadNamingPreset = modelConfig.getAwayThreadNamingPreset();
             searchPreset = modelConfig.getAwaySearchPreset();
             summaryPreset = modelConfig.getAwaySummaryPreset();
+            novelSharpPreset = modelConfig.getAwayNovelSharpPreset();
         }
         updateText(textChatModel, chatPreset);
         updateText(textThreadNamingModel, threadNamingPreset);
         updateText(textSearchModel, searchPreset);
         updateText(textSummaryModel, summaryPreset);
+        updateText(textNovelSharpModel, novelSharpPreset);
     }
 
     private void updateText(TextView tv, String storageKey) {
@@ -138,8 +145,12 @@ public class ModelConfigActivity extends ThemedActivity {
         RecyclerView recycler = dialogView.findViewById(R.id.recyclerOptions);
         recycler.setLayoutManager(new LinearLayoutManager(this));
 
-        String[] titles = {"对话选用", "话题命名选用", "搜索选用", "总结选用"};
-        String currentKey = field == 0 ? chatPreset : field == 1 ? threadNamingPreset : field == 2 ? searchPreset : summaryPreset;
+        String[] titles = {"对话选用", "话题命名选用", "搜索选用", "总结选用", "小说敏锐选用"};
+        String currentKey = field == 0 ? chatPreset
+                : field == 1 ? threadNamingPreset
+                : field == 2 ? searchPreset
+                : field == 3 ? summaryPreset
+                : novelSharpPreset;
 
         AlertDialog dialog = new MaterialAlertDialogBuilder(this)
                 .setTitle(titles[field])
@@ -157,9 +168,12 @@ public class ModelConfigActivity extends ThemedActivity {
             } else if (field == 2) {
                 searchPreset = option.getStorageKey();
                 updateText(textSearchModel, searchPreset);
-            } else {
+            } else if (field == 3) {
                 summaryPreset = option.getStorageKey();
                 updateText(textSummaryModel, summaryPreset);
+            } else {
+                novelSharpPreset = option.getStorageKey();
+                updateText(textNovelSharpModel, novelSharpPreset);
             }
             dialog.dismiss();
         });

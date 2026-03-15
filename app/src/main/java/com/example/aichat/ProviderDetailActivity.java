@@ -100,7 +100,7 @@ public class ProviderDetailActivity extends ThemedActivity {
         textAvailableTitle = findViewById(R.id.textAvailableTitle);
         RecyclerView recyclerAvailable = findViewById(R.id.recyclerModelsAvailable);
         recyclerAvailable.setLayoutManager(new LinearLayoutManager(this));
-        recyclerAvailable.setNestedScrollingEnabled(false);
+        recyclerAvailable.setNestedScrollingEnabled(true);
         availableAdapter = new AvailableModelAdapter();
         availableAdapter.setOnAddListener(m -> showAliasDialog(m, false));
         recyclerAvailable.setAdapter(availableAdapter);

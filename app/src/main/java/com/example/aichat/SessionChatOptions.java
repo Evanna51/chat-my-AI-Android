@@ -10,6 +10,7 @@ public class SessionChatOptions {
     public float topP = 1.0f;
     public String stop = "";
     public boolean streamOutput = true;
+    public boolean autoChapterPlan = false;
     public boolean thinking = false;
     public int googleThinkingBudget = 1024;
 }
