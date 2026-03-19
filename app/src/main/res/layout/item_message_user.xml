@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="end"
+    android:paddingVertical="4dp">
+
+    <TextView
+        android:id="@+id/textTimestamp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="3dp"
+        android:textSize="12sp"
+        android:textColor="@color/chat_meta_text_color" />
+
+    <TextView
+        android:id="@+id/textContent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:maxWidth="280dp"
+        android:padding="12dp"
+        android:background="@drawable/bubble_user"
+        android:textColor="@color/chat_user_text_color"
+        android:textSize="16sp" />
+
+    <!-- 用户消息底部操作区：整体间距、显示/隐藏优先改这里 -->
+    <LinearLayout
+        android:id="@+id/layoutActions"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:orientation="horizontal"
+        android:visibility="gone">
+        <!-- 重新生成按钮：尺寸/图标/颜色可单独调 -->
+        <ImageButton
+            android:id="@+id/actionRegenerate"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_action_regenerate"
+            android:tint="@color/action_button_icon_tint"
+            android:contentDescription="重新生成" />
+        <!-- 编辑按钮 -->
+        <ImageButton
+            android:id="@+id/actionEdit"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_action_edit"
+            android:tint="@color/action_button_icon_tint"
+            android:contentDescription="编辑" />
+        <!-- 复制按钮 -->
+        <ImageButton
+            android:id="@+id/actionCopy"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_action_copy"
+            android:tint="@color/action_button_icon_tint"
+            android:contentDescription="复制" />
+        <!-- 提取到大纲按钮：仅写作模式会显示 -->
+        <ImageButton
+            android:id="@+id/actionOutline"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_action_outline"
+            android:tint="@color/action_button_icon_tint"
+            android:contentDescription="提取到大纲"
+            android:visibility="gone" />
+        <!-- 删除按钮：和前面按钮留更大间距，图标为暗红 -->
+        <ImageButton
+            android:id="@+id/actionDelete"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="10dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_action_delete"
+            android:tint="#622100"
+            android:contentDescription="删除" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AIChat Color Preview</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --text: #121722;
+      --muted: #5c6677;
+      --border: #d9dfeb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .wrap { max-width: 1120px; margin: 24px auto 48px; padding: 0 16px; }
+    .toolbar {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px;
+      position: sticky; top: 12px;
+    }
+    .toolbar label { font-size: 13px; color: var(--muted); }
+    select {
+      padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+      background: #fff; color: var(--text);
+    }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; margin-top: 16px; }
+    .swatch {
+      border-radius: 12px; overflow: hidden; border: 1px solid var(--border); background: var(--card);
+    }
+    .sample { height: 72px; border-bottom: 1px solid var(--border); }
+    .meta { padding: 10px; }
+    .name { font-weight: 600; font-size: 13px; }
+    .hex { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .section-title { margin-top: 20px; margin-bottom: 8px; font-size: 14px; color: var(--muted); font-weight: 600; }
+    .demo-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+    .chip {
+      border-radius: 14px;
+      padding: 8px 14px;
+      font-size: 15px;
+      border: 1px solid transparent;
+      line-height: 1;
+    }
+    .chip.selected { color: #fff; }
+    .chip.unselected { color: rgba(0, 0, 0, 0.45); }
+    .note { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="toolbar">
+      <label for="mode">模式</label>
+      <select id="mode">
+        <option value="light">Light (values/colors.xml)</option>
+        <option value="dark">Dark (values-night/colors.xml)</option>
+      </select>
+      <label for="theme">主题</label>
+      <select id="theme">
+        <option value="blue">Blue</option>
+        <option value="green" selected>Green</option>
+        <option value="purple">Purple</option>
+        <option value="orange">Orange</option>
+      </select>
+    </div>
+
+    <div class="section-title">Primary Family</div>
+    <div id="primaryGrid" class="grid"></div>
+
+    <div class="section-title">常用色</div>
+    <div id="miscGrid" class="grid"></div>
+
+    <div class="section-title">标签预览（当前规则）</div>
+    <div class="demo-row" id="chipDemo"></div>
+    <div class="note">规则：选中 = primary + 白字；未选中 = primaryLight + 浅黑字</div>
+  </div>
+
+  <script>
+    const palette = {
+      light: {
+        primary_blue: "#1976D2",
+        primary_blue_subtle: "#F5FAFF",
+        primary_blue_light: "#E3F2FD",
+        primary_blue_deep: "#0D47A1",
+        primary_green: "#2E7D32",
+        primary_green_subtle: "#F3FAF4",
+        primary_green_light: "#E8F5E9",
+        primary_green_deep: "#1B5E20",
+        primary_purple: "#6A1B9A",
+        primary_purple_subtle: "#FBF5FF",
+        primary_purple_light: "#F3E5F5",
+        primary_purple_deep: "#4A148C",
+        primary_orange: "#EF6C00",
+        primary_orange_subtle: "#FFFAF3",
+        primary_orange_light: "#FFF3E0",
+        primary_orange_deep: "#E65100",
+        on_primary: "#FFFFFF",
+        surface: "#FFFFFF",
+        dialog_surface_bg: "#FFFDFEFF",
+        outline_label_text: "#73000000"
+      },
+      dark: {
+        primary_blue: "#4DA3FF",
+        primary_blue_subtle: "#1E2B3A",
+        primary_blue_light: "#2C5D8E",
+        primary_blue_deep: "#9FD0FF",
+        primary_green: "#56B663",
+        primary_green_subtle: "#1E2D22",
+        primary_green_light: "#2D5F35",
+        primary_green_deep: "#AEE3B5",
+        primary_purple: "#A877E6",
+        primary_purple_subtle: "#251F30",
+        primary_purple_light: "#59417A",
+        primary_purple_deep: "#D7B8FF",
+        primary_orange: "#FF9A4A",
+        primary_orange_subtle: "#2E251D",
+        primary_orange_light: "#7A4B26",
+        primary_orange_deep: "#FFD1A8",
+        on_primary: "#0B0E14",
+        surface: "#14161C",
+        dialog_surface_bg: "#FF1A1D25",
+        outline_label_text: "#B3FFFFFF"
+      }
+    };
+
+    const modeEl = document.getElementById("mode");
+    const themeEl = document.getElementById("theme");
+    const primaryGrid = document.getElementById("primaryGrid");
+    const miscGrid = document.getElementById("miscGrid");
+    const chipDemo = document.getElementById("chipDemo");
+
+    function swatch(name, hex) {
+      return `
+        <div class="swatch">
+          <div class="sample" style="background:${hex}"></div>
+          <div class="meta">
+            <div class="name">${name}</div>
+            <div class="hex">${hex}</div>
+          </div>
+        </div>`;
+    }
+
+    function render() {
+      const mode = modeEl.value;
+      const theme = themeEl.value;
+      const p = palette[mode];
+      const primary = p[`primary_${theme}`];
+      const primarySubtle = p[`primary_${theme}_subtle`];
+      const primaryLight = p[`primary_${theme}_light`];
+      const primaryDeep = p[`primary_${theme}_deep`];
+
+      primaryGrid.innerHTML = [
+        swatch("primary", primary),
+        swatch("primarySubtle", primarySubtle),
+        swatch("primaryLight", primaryLight),
+        swatch("primaryDeep", primaryDeep),
+        swatch("onPrimary", p.on_primary),
+      ].join("");
+
+      miscGrid.innerHTML = [
+        swatch("surface", p.surface),
+        swatch("dialog_surface_bg", p.dialog_surface_bg),
+        swatch("outline_label_text", p.outline_label_text),
+      ].join("");
+
+      chipDemo.innerHTML = `
+        <span class="chip selected" style="background:${primary}; border-color:${primary};">章节</span>
+        <span class="chip unselected" style="background:${primaryLight}; border-color:${primaryLight};">资料</span>
+        <span class="chip unselected" style="background:${primaryLight}; border-color:${primaryLight};">人物资料</span>
+      `;
+    }
+
+    modeEl.addEventListener("change", render);
+    themeEl.addEventListener("change", render);
+    render();
+  </script>
+</body>
+</html>

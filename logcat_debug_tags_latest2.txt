@@ -1,0 +1,72 @@
+--------- beginning of main
+03-11 17:00:17.590 12369 12437 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/v1/chat/completions (267-byte body)
+03-11 17:00:17.753 12369 12437 I okhttp.OkHttpClient: <-- 404 https://api.deepseek.com/v1/v1/chat/completions (161ms, 0-byte body)
+03-11 17:03:14.824 12533 12579 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (301-byte body)
+03-11 17:03:14.961 12533 12579 I okhttp.OkHttpClient: <-- 200 https://api.deepseek.com/v1/chat/completions (134ms, unknown-length body)
+03-11 17:36:28.920 13074 13136 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (166-byte body)
+03-11 17:36:29.639 13074 13136 I okhttp.OkHttpClient: <-- 200 https://api.deepseek.com/v1/chat/completions (717ms, unknown-length body)
+03-11 17:37:50.947 13240 13295 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (378-byte body)
+03-11 17:38:50.964 13240 13295 I okhttp.OkHttpClient: <-- HTTP FAILED: java.net.SocketTimeoutException: timeout
+03-11 17:39:09.317 13240 13311 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (434-byte body)
+03-11 17:40:09.329 13240 13311 I okhttp.OkHttpClient: <-- HTTP FAILED: java.net.SocketTimeoutException: timeout
+03-11 17:43:04.312 13240 13340 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (144-byte body)
+03-11 17:43:04.622 13240 13340 I okhttp.OkHttpClient: <-- 200 https://api.deepseek.com/v1/chat/completions (303ms, unknown-length body)
+03-11 17:43:25.124 13240 13361 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (676-byte body)
+03-11 17:44:25.132 13240 13361 I okhttp.OkHttpClient: <-- HTTP FAILED: java.net.SocketTimeoutException: timeout
+03-11 18:00:12.822 13499 13558 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (705-byte body)
+03-11 18:00:20.626 13499 13561 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (705-byte body)
+03-11 18:00:35.285 13499 13566 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (705-byte body)
+03-11 18:01:12.835 13499 13558 I okhttp.OkHttpClient: <-- HTTP FAILED: java.net.SocketTimeoutException: timeout
+03-11 18:01:20.633 13499 13561 I okhttp.OkHttpClient: <-- HTTP FAILED: java.net.SocketTimeoutException: timeout
+03-11 18:01:35.295 13499 13566 I okhttp.OkHttpClient: <-- HTTP FAILED: java.net.SocketTimeoutException: timeout
+03-11 18:02:03.192 13499 13597 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (625-byte body)
+03-11 18:02:03.579 13499 13597 I okhttp.OkHttpClient: <-- 400 https://api.deepseek.com/v1/chat/completions (387ms, 248-byte body)
+03-11 18:02:09.644 13499 13608 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (625-byte body)
+03-11 18:02:09.783 13499 13608 I okhttp.OkHttpClient: <-- 400 https://api.deepseek.com/v1/chat/completions (138ms, 248-byte body)
+03-11 18:02:24.762 13499 13627 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (621-byte body)
+03-11 18:02:24.889 13499 13627 I okhttp.OkHttpClient: <-- 400 https://api.deepseek.com/v1/chat/completions (119ms, 248-byte body)
+03-11 18:02:59.069 13499 13635 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (655-byte body)
+03-11 18:02:59.187 13499 13635 I okhttp.OkHttpClient: <-- 400 https://api.deepseek.com/v1/chat/completions (117ms, 248-byte body)
+03-11 18:15:00.124 13833 13868 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (697-byte body)
+03-11 18:15:01.440 13833 13868 I okhttp.OkHttpClient: <-- 200 https://api.deepseek.com/v1/chat/completions (1313ms, unknown-length body)
+03-11 18:25:35.528 13833 13978 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (1758-byte body)
+03-11 18:25:36.750 13833 13978 I okhttp.OkHttpClient: <-- 200 OK http://10.0.2.2:8090/v1/chat/completions (1219ms, unknown-length body)
+03-11 18:29:55.925 14084 14118 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (296-byte body)
+03-11 18:29:56.150 14084 14118 I okhttp.OkHttpClient: <-- 200 https://api.deepseek.com/v1/chat/completions (224ms, unknown-length body)
+03-11 18:30:13.460 14084 14146 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (319-byte body)
+03-11 18:30:13.743 14084 14146 I okhttp.OkHttpClient: <-- 200 OK http://10.0.2.2:8090/v1/chat/completions (282ms, unknown-length body)
+03-11 18:38:14.803 14084 14220 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (319-byte body)
+03-11 18:38:15.377 14084 14220 I okhttp.OkHttpClient: <-- 200 OK http://10.0.2.2:8090/v1/chat/completions (573ms, unknown-length body)
+03-11 18:45:25.609 14331 14378 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (319-byte body)
+03-11 18:45:26.148 14331 14378 I okhttp.OkHttpClient: <-- 200 OK http://10.0.2.2:8090/v1/chat/completions (538ms, unknown-length body)
+03-11 18:52:00.354 14476 14476 D ChatService: chat request providerId=, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 18:52:00.360 14476 14515 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (193-byte body)
+03-11 18:52:00.681 14476 14515 I okhttp.OkHttpClient: <-- 200 https://api.deepseek.com/v1/chat/completions (320ms, unknown-length body)
+03-11 18:52:12.068 14476 14476 D ChatService: chat request providerId=, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 18:52:12.071 14476 14534 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (193-byte body)
+03-11 18:52:12.202 14476 14534 I okhttp.OkHttpClient: <-- 200 https://api.deepseek.com/v1/chat/completions (131ms, unknown-length body)
+03-11 18:52:35.234 14476 14476 D ChatService: stream request providerId=llama, model=Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-BF16.gguf, thinking=false, reasoning=null, providerOptions=null
+03-11 18:52:35.235 14476 14562 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (319-byte body)
+03-11 18:52:35.751 14476 14562 I okhttp.OkHttpClient: <-- 200 OK http://10.0.2.2:8090/v1/chat/completions (515ms, unknown-length body)
+03-11 19:04:12.020 14720 14782 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (304-byte body)
+03-11 19:04:12.022 14720 14720 D ChatService: stream request providerId=deepseek, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 19:04:12.023 14720 14783 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (129-byte body)
+03-11 19:04:13.128 14720 14783 I okhttp.OkHttpClient: <-- 200 https://api.deepseek.com/v1/chat/completions (1101ms, unknown-length body)
+03-11 19:05:12.048 14720 14782 I okhttp.OkHttpClient: <-- HTTP FAILED: java.net.SocketTimeoutException: timeout
+03-11 19:05:30.791 14720 14720 D ChatService: stream request providerId=deepseek, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 19:05:30.794 14720 14810 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (838-byte body)
+03-11 19:05:32.153 14720 14810 I okhttp.OkHttpClient: <-- 200 https://api.deepseek.com/v1/chat/completions (1358ms, unknown-length body)
+03-11 19:20:47.782 15210 15285 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (291-byte body)
+03-11 19:20:47.786 15210 15210 D ChatService: stream request providerId=llama, model=Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-BF16.gguf, thinking=false, reasoning={"budget":0,"format":"hide"}, providerOptions=null
+03-11 19:20:47.787 15210 15286 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (229-byte body)
+03-11 19:20:48.797 15210 15286 I okhttp.OkHttpClient: <-- 200 OK http://10.0.2.2:8090/v1/chat/completions (1005ms, unknown-length body)
+03-11 19:21:47.833 15210 15285 I okhttp.OkHttpClient: <-- HTTP FAILED: java.net.SocketTimeoutException: timeout
+03-11 19:23:21.023 16019 16019 D ChatSessionActivity: start auto title generation, sessionId=5189dcf4-46c7-4544-8ab6-0879ed41d9fd
+03-11 19:23:21.024 16019 16019 D ChatService: generateThreadTitle model=Qwen3.5-9B-Uncensored-HauhauCS-Aggressive-BF16.gguf, host=http://10.0.2.2:8090/v1
+03-11 19:23:21.070 16019 16019 D ChatService: generateThreadTitle url=http://10.0.2.2:8090/v1/chat/completions, promptLen=30
+03-11 19:23:21.074 16019 16942 I okhttp.OkHttpClient: --> POST http://10.0.2.2:8090/v1/chat/completions (316-byte body)
+03-11 19:23:21.075 16019 16019 D ChatService: stream request providerId=deepseek, model=deepseek-chat, thinking=false, reasoning=null, providerOptions=null
+03-11 19:23:21.076 16019 16943 I okhttp.OkHttpClient: --> POST https://api.deepseek.com/v1/chat/completions (141-byte body)
+03-11 19:23:22.356 16019 16943 I okhttp.OkHttpClient: <-- 200 https://api.deepseek.com/v1/chat/completions (1278ms, unknown-length body)
+03-11 19:24:21.111 16019 16942 I okhttp.OkHttpClient: <-- HTTP FAILED: java.net.SocketTimeoutException: timeout
+03-11 19:24:21.112 16019 16019 E ChatSessionActivity: auto title failed: timeout

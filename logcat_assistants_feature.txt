@@ -1,0 +1,207 @@
+--------- beginning of main
+03-11 16:50:06.460  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd10c58) locale list changing from [] to [en-US]
+03-11 16:50:06.462  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd14df8) locale list changing from [] to [en-US]
+03-11 16:50:06.466  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0ffd8) locale list changing from [] to [en-US]
+03-11 16:50:06.471  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd10f78) locale list changing from [] to [en-US]
+03-11 16:50:06.473  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0e098) locale list changing from [] to [en-US]
+03-11 16:50:06.477  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd10618) locale list changing from [] to [en-US]
+03-11 16:50:06.478  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0f998) locale list changing from [] to [en-US]
+03-11 16:50:06.478 11662 11662 D AppCompatDelegate: Checking for metadata for AppLocalesMetadataHolderService : Service not found
+03-11 16:50:06.478  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd147b8) locale list changing from [] to [en-US]
+03-11 16:50:06.479 11662 11662 I .example.aichat: AssetManager2(0xb400007a1fd04a98) locale list changing from [] to [en-US]
+03-11 16:50:06.482  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0e9f8) locale list changing from [] to [en-US]
+03-11 16:50:06.482  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd11298) locale list changing from [] to [en-US]
+03-11 16:50:06.483  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd12558) locale list changing from [] to [en-US]
+03-11 16:50:06.485  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd131d8) locale list changing from [] to [en-US]
+03-11 16:50:06.485  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd008f8) locale list changing from [] to [en-US]
+03-11 16:50:06.485  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd12878) locale list changing from [] to [en-US]
+03-11 16:50:06.487  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd01ed8) locale list changing from [] to [en-US]
+03-11 16:50:06.489  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd03af8) locale list changing from [] to [en-US]
+03-11 16:50:06.489  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd04778) locale list changing from [] to [en-US]
+03-11 16:50:06.490  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fcfeff8) locale list changing from [] to [en-US]
+03-11 16:50:06.491  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd01bb8) locale list changing from [] to [en-US]
+03-11 16:50:06.493  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd002b8) locale list changing from [] to [en-US]
+03-11 16:50:06.493  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd04458) locale list changing from [] to [en-US]
+03-11 16:50:06.494  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd03198) locale list changing from [] to [en-US]
+03-11 16:50:06.494  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fcfe378) locale list changing from [] to [en-US]
+03-11 16:50:06.495  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd053f8) locale list changing from [] to [en-US]
+03-11 16:50:06.499  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fcff958) locale list changing from [] to [en-US]
+03-11 16:50:06.501  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd021f8) locale list changing from [] to [en-US]
+03-11 16:50:06.502  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fcfe9b8) locale list changing from [] to [en-US]
+03-11 16:50:06.502  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd034b8) locale list changing from [] to [en-US]
+03-11 16:50:06.502  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd01258) locale list changing from [] to [en-US]
+03-11 16:50:06.503  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd005d8) locale list changing from [] to [en-US]
+03-11 16:50:06.503  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd07658) locale list changing from [] to [en-US]
+03-11 16:50:06.504  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fcff318) locale list changing from [] to [en-US]
+03-11 16:50:06.506  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0ab78) locale list changing from [] to [en-US]
+03-11 16:50:06.506  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd09278) locale list changing from [] to [en-US]
+03-11 16:50:06.508  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0a538) locale list changing from [] to [en-US]
+03-11 16:50:06.508  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd09598) locale list changing from [] to [en-US]
+03-11 16:50:06.508  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0bb18) locale list changing from [] to [en-US]
+03-11 16:50:06.510  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd08c38) locale list changing from [] to [en-US]
+03-11 16:50:06.511  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0ae98) locale list changing from [] to [en-US]
+03-11 16:50:06.511  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0be38) locale list changing from [] to [en-US]
+03-11 16:50:06.511  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0cdd8) locale list changing from [] to [en-US]
+03-11 16:50:06.512  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd08f58) locale list changing from [] to [en-US]
+03-11 16:50:06.514  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd14498) locale list changing from [] to [en-US]
+03-11 16:50:06.514  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd05d58) locale list changing from [] to [en-US]
+03-11 16:50:06.515  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd06cf8) locale list changing from [] to [en-US]
+03-11 16:50:06.516  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0a858) locale list changing from [] to [en-US]
+03-11 16:50:06.517  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd05a38) locale list changing from [] to [en-US]
+--------- beginning of system
+03-11 16:50:06.517   897   958 V WindowManagerShell: Transition animation finished (aborted=false), notifying core (#136) android.os.BinderProxy@908f096@0
+03-11 16:50:06.517  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd06398) locale list changing from [] to [en-US]
+03-11 16:50:06.518   578   597 V WindowManager: Finish Transition (#136): created at 03-11 16:50:05.895 collect-started=0.013ms request-sent=13.455ms started=103.299ms ready=144.069ms sent=149.949ms commit=74.261ms finished=623.266ms
+03-11 16:50:06.521   897   958 V WindowManagerShell: Track 0 became idle
+03-11 16:50:06.521   897   958 V WindowManagerShell: All active transition animations finished
+03-11 16:50:06.532  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0b4d8) locale list changing from [] to [en-US]
+03-11 16:50:06.534  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd06078) locale list changing from [] to [en-US]
+03-11 16:50:06.535  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0b1b8) locale list changing from [] to [en-US]
+03-11 16:50:06.539  1134  1134 D VRI[NexusLauncherActivity]: visibilityChanged oldVisibility=true newVisibility=false
+03-11 16:50:06.539  1134  1134 D NexusLauncherModelDelegate: notifySmartspaceEvent: SmartspaceTargetEvent{mSmartspaceTarget=null, mSmartspaceActionId='null', mEventType=7}
+03-11 16:50:06.542  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0a218) locale list changing from [] to [en-US]
+03-11 16:50:06.543  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0cab8) locale list changing from [] to [en-US]
+03-11 16:50:06.543  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd085f8) locale list changing from [] to [en-US]
+03-11 16:50:06.543  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0b7f8) locale list changing from [] to [en-US]
+03-11 16:50:06.543  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0f678) locale list changing from [] to [en-US]
+03-11 16:50:06.543  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd14ad8) locale list changing from [] to [en-US]
+03-11 16:50:06.544  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd15118) locale list changing from [] to [en-US]
+03-11 16:50:06.544  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd115b8) locale list changing from [] to [en-US]
+03-11 16:50:06.544 11662 11662 D DesktopModeFlags: Toggle override initialized to: OVERRIDE_UNSET
+03-11 16:50:06.544  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0f038) locale list changing from [] to [en-US]
+03-11 16:50:06.545  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd098b8) locale list changing from [] to [en-US]
+03-11 16:50:06.545  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd0d418) locale list changing from [] to [en-US]
+03-11 16:50:06.554  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd17698) locale list changing from [] to [en-US]
+03-11 16:50:06.554  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1b518) locale list changing from [] to [en-US]
+03-11 16:50:06.555 11662 11662 I .example.aichat: hiddenapi: Accessing hidden method Landroid/view/View;->computeFitSystemWindows(Landroid/graphics/Rect;Landroid/graphics/Rect;)Z (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/appcompat/widget/ViewUtils; (domain=app) using reflection: allowed
+03-11 16:50:06.555  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1abb8) locale list changing from [] to [en-US]
+03-11 16:50:06.555  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd16d38) locale list changing from [] to [en-US]
+03-11 16:50:06.556 11662 11662 I .example.aichat: hiddenapi: Accessing hidden method Landroid/view/ViewGroup;->makeOptionalFitsSystemWindows()V (runtime_flags=0, domain=platform, api=unsupported) from Landroidx/appcompat/widget/ViewUtils; (domain=app) using reflection: allowed
+03-11 16:50:06.556  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1a898) locale list changing from [] to [en-US]
+03-11 16:50:06.557  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1a578) locale list changing from [] to [en-US]
+03-11 16:50:06.557  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd15758) locale list changing from [] to [en-US]
+03-11 16:50:06.559  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd160b8) locale list changing from [] to [en-US]
+03-11 16:50:06.559  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd17ff8) locale list changing from [] to [en-US]
+03-11 16:50:06.560  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1bb58) locale list changing from [] to [en-US]
+03-11 16:50:06.568   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.570  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd163d8) locale list changing from [] to [en-US]
+03-11 16:50:06.570  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd17058) locale list changing from [] to [en-US]
+03-11 16:50:06.570   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.570   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.570   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.570   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.571  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd198f8) locale list changing from [] to [en-US]
+03-11 16:50:06.572  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd18c78) locale list changing from [] to [en-US]
+03-11 16:50:06.573   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd15d98) locale list changing from [] to [en-US]
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.574   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.576  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd18958) locale list changing from [] to [en-US]
+03-11 16:50:06.576  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd18f98) locale list changing from [] to [en-US]
+03-11 16:50:06.576  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1c7d8) locale list changing from [] to [en-US]
+03-11 16:50:06.576  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1c4b8) locale list changing from [] to [en-US]
+03-11 16:50:06.577  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd19f38) locale list changing from [] to [en-US]
+03-11 16:50:06.577   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.577   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.577   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.577   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.577   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.577   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.577   897   905 W System  : A resource failed to call release. 
+03-11 16:50:06.577  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1be78) locale list changing from [] to [en-US]
+03-11 16:50:06.578  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1b1f8) locale list changing from [] to [en-US]
+03-11 16:50:06.578  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd247f8) locale list changing from [] to [en-US]
+03-11 16:50:06.580  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1f6b8) locale list changing from [] to [en-US]
+03-11 16:50:06.581  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1b838) locale list changing from [] to [en-US]
+03-11 16:50:06.589  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd20018) locale list changing from [] to [en-US]
+03-11 16:50:06.591  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd21f58) locale list changing from [] to [en-US]
+03-11 16:50:06.591  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd20658) locale list changing from [] to [en-US]
+03-11 16:50:06.591  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd23218) locale list changing from [] to [en-US]
+03-11 16:50:06.592  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1ddb8) locale list changing from [] to [en-US]
+03-11 16:50:06.592  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd215f8) locale list changing from [] to [en-US]
+03-11 16:50:06.593  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1ea38) locale list changing from [] to [en-US]
+03-11 16:50:06.594  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd22278) locale list changing from [] to [en-US]
+03-11 16:50:06.594  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd23858) locale list changing from [] to [en-US]
+03-11 16:50:06.594  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1d778) locale list changing from [] to [en-US]
+03-11 16:50:06.594  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd20978) locale list changing from [] to [en-US]
+03-11 16:50:06.595  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1fcf8) locale list changing from [] to [en-US]
+03-11 16:50:06.595  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd244d8) locale list changing from [] to [en-US]
+03-11 16:50:06.595  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1d458) locale list changing from [] to [en-US]
+03-11 16:50:06.596  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1f398) locale list changing from [] to [en-US]
+03-11 16:50:06.597  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd228b8) locale list changing from [] to [en-US]
+03-11 16:50:06.597  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd21c38) locale list changing from [] to [en-US]
+03-11 16:50:06.603  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd24b18) locale list changing from [] to [en-US]
+03-11 16:50:06.603 11662 11662 W HWUI    : Image decoding logging dropped!
+03-11 16:50:06.606  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd241b8) locale list changing from [] to [en-US]
+03-11 16:50:06.607  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd22598) locale list changing from [] to [en-US]
+03-11 16:50:06.611  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd22bd8) locale list changing from [] to [en-US]
+03-11 16:50:06.613  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd1e3f8) locale list changing from [] to [en-US]
+03-11 16:50:06.613  1397  1486 I .apps.wellbeing: AssetManager2(0xb400007a1fd23b78) locale list changing from [] to [en-US]
+03-11 16:50:06.625 11662 11662 W HWUI    : Unknown dataspace 0
+03-11 16:50:06.632 11662 11662 D AutofillManager: view not autofillable - not passing ime action check
+03-11 16:50:06.632 11662 11662 D AutofillManager: view not autofillable - not passing ime action check
+03-11 16:50:06.635   578  1668 D CoreBackPreview: Window{d59cf00 u0 com.example.aichat/com.example.aichat.MainActivity}: Setting back callback OnBackInvokedCallbackInfo{mCallback=android.window.IOnBackInvokedCallback$Stub$Proxy@237fd7e, mPriority=0, mIsAnimationCallback=false, mOverrideBehavior=0}
+03-11 16:50:06.641 11662 11711 I EGL_emulation: Opening libGLESv1_CM_emulation.so
+03-11 16:50:06.641 11662 11711 I EGL_emulation: Opening libGLESv2_emulation.so
+03-11 16:50:06.644 11662 11711 W HWUI    : Failed to choose config with EGL_SWAP_BEHAVIOR_PRESERVED, retrying without...
+03-11 16:50:06.644 11662 11711 W HWUI    : Failed to initialize 101010-2 format, error = EGL_SUCCESS
+03-11 16:50:06.686   578   597 I ActivityTaskManager: Displayed com.example.aichat/.MainActivity for user 0: +794ms
+03-11 16:50:06.719   578   686 I ImeTracker: com.example.aichat:8150aa08: onRequestHide at ORIGIN_SERVER reason HIDE_UNSPECIFIED_WINDOW fromUser false
+03-11 16:50:06.720  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onFinishInput():2589 
+03-11 16:50:06.721  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 0, locked = false
+03-11 16:50:06.721  1400  1400 I GoogleInputMethodService: GoogleInputMethodService.onStartInput():1568 onStartInput(EditorInfo{EditorInfo{packageName=com.example.aichat, inputType=0, inputTypeString=NULL, enableLearning=false, autoCorrection=false, autoComplete=false, imeOptions=0, privateImeOptions=null, actionName=UNSPECIFIED, actionLabel=null, initialSelStart=-1, initialSelEnd=-1, initialCapsMode=0, label=null, fieldId=0, fieldName=null, extras=null, hintText=null, hintLocales=[]}}, false)
+03-11 16:50:06.721  1400  1400 I Module  : DeviceLockedStatusModuleProvider$Module.updateDeviceLockedStatus():100 repeatCheckTimes = 1, locked = false
+03-11 16:50:06.721   578  1668 W PackageConfigPersister: App-specific configuration not found for packageName: com.example.aichat and userId: 0
+03-11 16:50:06.721  1400  1400 I AndroidIME: InputBundleManager.loadActiveInputBundleId():407 loadActiveInputBundleId: und-Latn-x-password, password
+03-11 16:50:06.722 11662 11662 D InsetsController: hide(ime(), fromIme=false)
+03-11 16:50:06.722 11662 11662 I ImeTracker: com.example.aichat:8150aa08: onCancelled at PHASE_CLIENT_ALREADY_HIDDEN
+03-11 16:50:06.754  1134  1134 D BaseDepthController: setSurface:
+03-11 16:50:06.754  1134  1134 D BaseDepthController: 	mWaitingOnSurfaceValidity: false
+03-11 16:50:06.754  1134  1134 D BaseDepthController: 	mSurface: null
+03-11 16:50:06.756  1134  1134 D BaseDepthController: mSurface is null and mCurrentBlur is: 0
+03-11 16:50:06.756  1134  1134 D StateManager: goToState - fromState: Normal, toState: Normal, partial trace:
+03-11 16:50:06.756  1134  1134 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:5)
+03-11 16:50:06.756  1134  1134 D StateManager: 	at com.android.launcher3.statemanager.StateManager.moveToRestState(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:2)
+03-11 16:50:06.756  1134  1134 D StateManager: 	at com.android.launcher3.statemanager.StatefulActivity.onStop(go/retraceme 3b224f24b7011ff2b8f3ec383b256aa6cde54792fadda945a2f0c96bb78b055c:34)
+03-11 16:50:06.756  1134  1134 D StatsLog: LAUNCHER_ONSTOP
+03-11 16:50:06.756  1134  2378 D GmsPlayProvider: Shut down the binder channel
+03-11 16:50:06.756  1134  1134 D StatsLog: LAUNCHER_GOOGLE_SEARCH_RESTORE_LIST_SIZE_AFTER_ACTIVITY_RESTART
+03-11 16:50:06.765   578   860 D BackgroundInstallControlService: Package event received: 0
+03-11 16:50:07.057 11662 11670 I .example.aichat: Compiler allocated 5175KB to compile void android.view.ViewRootImpl.performTraversals()
+03-11 16:50:07.069   897   997 W WindowOnBackDispatcher: sendCancelIfRunning: isInProgress=false callback=android.view.ViewRootImpl$$ExternalSyntheticLambda13@7687107
+03-11 16:50:07.069   578  1668 D CoreBackPreview: Window{6c38de0 u0 Splash Screen com.example.aichat EXITING}: Setting back callback null
+03-11 16:50:07.128  1241  1257 I FontLog : (REDACTED) Received query %s, URI %s
+03-11 16:50:07.128  1241  1257 I FontLog : (REDACTED) Query [%s] resolved to %s
+03-11 16:50:07.133  1241  1257 I FontLog : (REDACTED) Fetch %s end status %s
+03-11 16:50:07.135  1241  1257 I FontLog : (REDACTED) Pulling font file for id = %d, cache size = %d
+03-11 16:50:07.136  1241  1257 I FontLog : (REDACTED) Pulling font file for id = %d, cache size = %d

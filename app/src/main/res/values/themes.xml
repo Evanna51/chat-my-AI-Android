@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.AIChat" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryContainer">?attr/colorPrimaryLight</item>
+        <item name="colorOnPrimary">@color/on_primary</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorPrimarySubtle">@color/primary_blue_subtle</item>
+        <item name="colorPrimaryLight">@color/primary_blue_light</item>
+        <item name="colorPrimaryDeep">@color/primary_blue_deep</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.AIChat.MaterialAlertDialog</item>
+        <item name="alertDialogTheme">@style/ThemeOverlay.AIChat.MaterialAlertDialog</item>
+    </style>
+
+    <style name="Theme.AIChat.Blue" parent="Theme.AIChat">
+        <item name="colorPrimary">@color/primary_blue</item>
+        <item name="colorPrimarySubtle">@color/primary_blue_subtle</item>
+        <item name="colorPrimaryLight">@color/primary_blue_light</item>
+        <item name="colorPrimaryDeep">@color/primary_blue_deep</item>
+    </style>
+
+    <style name="Theme.AIChat.Green" parent="Theme.AIChat">
+        <item name="colorPrimary">@color/primary_green</item>
+        <item name="colorPrimarySubtle">@color/primary_green_subtle</item>
+        <item name="colorPrimaryLight">@color/primary_green_light</item>
+        <item name="colorPrimaryDeep">@color/primary_green_deep</item>
+    </style>
+
+    <style name="Theme.AIChat.Purple" parent="Theme.AIChat">
+        <item name="colorPrimary">@color/primary_purple</item>
+        <item name="colorPrimarySubtle">@color/primary_purple_subtle</item>
+        <item name="colorPrimaryLight">@color/primary_purple_light</item>
+        <item name="colorPrimaryDeep">@color/primary_purple_deep</item>
+    </style>
+
+    <style name="Theme.AIChat.Orange" parent="Theme.AIChat">
+        <item name="colorPrimary">@color/primary_orange</item>
+        <item name="colorPrimarySubtle">@color/primary_orange_subtle</item>
+        <item name="colorPrimaryLight">@color/primary_orange_light</item>
+        <item name="colorPrimaryDeep">@color/primary_orange_deep</item>
+    </style>
+
+    <style name="TextAppearance.AIChat.Toolbar.Title.Small" parent="TextAppearance.Material3.TitleMedium">
+        <item name="android:textSize">18sp</item>
+    </style>
+
+    <style name="TextAppearance.AIChat.Toolbar.Subtitle" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="Widget.AIChat.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
+        <item name="boxCornerRadiusTopStart">14dp</item>
+        <item name="boxCornerRadiusTopEnd">14dp</item>
+        <item name="boxCornerRadiusBottomStart">14dp</item>
+        <item name="boxCornerRadiusBottomEnd">14dp</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="boxStrokeWidthFocused">2dp</item>
+    </style>
+
+    <style name="ThemeOverlay.AIChat.MaterialAlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="backgroundTint">@color/dialog_surface_bg</item>
+        <item name="android:windowBackground">@drawable/bg_material_alert_dialog</item>
+        <item name="colorSurface">@color/dialog_surface_bg</item>
+        <item name="elevationOverlayEnabled">false</item>
+    </style>
+</resources>
