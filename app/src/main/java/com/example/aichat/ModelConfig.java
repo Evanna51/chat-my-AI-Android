@@ -84,7 +84,18 @@ public class ModelConfig {
 
     /** 小说敏锐选用的预设 */
     public String getNovelSharpPreset() {
-        return isHomeModeEnabled() ? getHomeNovelSharpPreset() : getAwayNovelSharpPreset();
+        boolean home = isHomeModeEnabled();
+        String current = home
+                ? prefs.getString(KEY_NOVEL_SHARP, "")
+                : prefs.getString(KEY_NOVEL_SHARP_AWAY, "");
+        if (current != null && !current.isEmpty()) return current;
+
+        // Fallback to the other scene's novel preset first, then primary.
+        String other = home
+                ? prefs.getString(KEY_NOVEL_SHARP_AWAY, "")
+                : prefs.getString(KEY_NOVEL_SHARP, "");
+        if (other != null && !other.isEmpty()) return other;
+        return getPrimaryPreset();
     }
 
     public void setNovelSharpPreset(String modelKey) {

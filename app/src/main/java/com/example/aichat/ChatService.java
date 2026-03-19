@@ -615,8 +615,8 @@ public class ChatService {
             callback.onError("输入为空，无法生成章节计划");
             return;
         }
-        if (contextText.length() > 5000) {
-            contextText = contextText.substring(0, 5000);
+        if (contextText.length() > 2800) {
+            contextText = contextText.substring(0, 2800);
         }
 
         AiModelConfig.ResolvedConfig config;
@@ -642,7 +642,7 @@ public class ChatService {
         if (!baseUrl.endsWith("/")) baseUrl += "/";
 
         boolean localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId);
-        int timeoutSec = localOpenAiCompat ? 60 : 20;
+        int timeoutSec = localOpenAiCompat ? 60 : 45;
 
         OkHttpClient client = new OkHttpClient.Builder()
                 .connectTimeout(timeoutSec, TimeUnit.SECONDS)
@@ -661,7 +661,7 @@ public class ChatService {
                 "你是小说章节规划助手。请为“本轮写作”生成可执行计划，并严格输出 JSON 对象。\n"
                         + "仅输出一个JSON对象，不要任何额外文本。\n"
                         + "严格键集合:\n"
-                        + "{\"chapterGoal\":\"\",\"startState\":\"\",\"endState\":\"\",\"characterDrives\":[],\"knowledgeBoundary\":[],\"eventChain\":[],\"foreshadow\":[],\"payoff\":[],\"forbidden\":[],\"styleGuide\":\"\",\"targetLength\":\"\"}\n"
+                        + "{\"chapterGoal\":\"\",\"startState\":\"\",\"endState\":\"\",\"characterDrives\":[],\"knowledgeBoundary\":[],\"eventChain\":[],\"foreshadow\":[],\"payoff\":[],\"forbidden\":[],\"styleGuide\":\"\"}\n"
                         + "约束:\n"
                         + "1) 输出必须以 { 开始、以 } 结束。\n"
                         + "2) 必须保留全部键，禁止新增或删除键。\n"
@@ -676,24 +676,35 @@ public class ChatService {
         request.messages = requestMessages;
         request.stream = false;
         request.n = 1;
-        request.maxTokens = 900;
-        request.temperature = 0.2;
-        request.topP = 0.8;
+        request.maxTokens = 800;
+        request.temperature = 0.15;
+        request.topP = 0.6;
         request.stop = null;
-        request.thinking = localOpenAiCompat ? Boolean.FALSE : null;
-        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat);
-        if (!localOpenAiCompat) {
-            JsonObject responseFormat = new JsonObject();
-            responseFormat.addProperty("type", "json_object");
-            request.responseFormat = responseFormat;
-        } else {
-            request.responseFormat = null;
-        }
+        // Keep chapter-plan request minimal for broad compatibility and lower latency.
+        request.thinking = null;
+        request.reasoning = null;
+        request.responseFormat = null;
         request.providerOptions = null;
 
         String auth = (config.apiKey != null && !config.apiKey.trim().isEmpty())
                 ? ("Bearer " + config.apiKey.trim()) : null;
         String chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath);
+        Log.d(TAG, "generateChapterPlanJson providerId=" + providerId
+                + ", model=" + config.modelId
+                + ", localOpenAiCompat=" + localOpenAiCompat
+                + ", thinking=" + request.thinking
+                + ", reasoning=" + (request.reasoning != null ? request.reasoning.toString() : "null")
+                + ", responseFormat=" + (request.responseFormat != null ? request.responseFormat.toString() : "null"));
+        callback.onPartial("正在请求章节计划模型…");
+        requestChapterPlanWithFallback(api, chatUrl, auth, request, callback, true);
+    }
+
+    private void requestChapterPlanWithFallback(ChatApi api,
+                                                String chatUrl,
+                                                String auth,
+                                                ChatApi.ChatRequest request,
+                                                ChatCallback callback,
+                                                boolean allowFallback) {
         api.chatWithUrl(chatUrl, auth, "application/json", request)
                 .enqueue(new retrofit2.Callback<ChatApi.ChatResponse>() {
                     @Override
@@ -707,30 +718,309 @@ public class ChatService {
                                     detail = response.errorBody().string();
                                 }
                             } catch (Exception ignored) {}
+                            if (allowFallback && shouldRetryWithoutAdvancedParams(detail)) {
+                                callback.onPartial("参数兼容中，正在重试…");
+                                Log.w(TAG, "chapter plan retry without advanced params, detail=" + detail);
+                                requestChapterPlanWithFallback(
+                                        api,
+                                        chatUrl,
+                                        auth,
+                                        buildChapterPlanFallbackRequest(request),
+                                        callback,
+                                        false);
+                                return;
+                            }
                             callback.onError("章节计划生成失败: " + (response != null ? response.code() : "无响应")
                                     + (detail.isEmpty() ? "" : ("\n" + detail)));
                             return;
                         }
+                        callback.onPartial("模型已返回，正在解析计划…");
                         String raw = extractAssistantContent(response.body());
-                        raw = stripThinkTags(raw).trim();
-                        String jsonSlice = extractJsonObjectSlice(raw);
-                        if (jsonSlice.isEmpty()) {
-                            callback.onError("章节计划生成失败");
+                        Log.d(TAG, "chapter plan raw length=" + (raw != null ? raw.length() : 0)
+                                + ", preview=" + previewForLog(raw, 180));
+                        JsonObject obj = parseFirstJsonObject(raw);
+                        if (obj == null) {
+                            String preview = raw != null ? raw.trim() : "";
+                            String head = preview;
+                            String tail = "";
+                            if (head.length() > 120) {
+                                head = head.substring(0, 120) + "...";
+                                int start = Math.max(0, preview.length() - 120);
+                                tail = "...\n末尾片段: " + preview.substring(start);
+                            }
+                            callback.onError("章节计划解析失败"
+                                    + (preview.isEmpty() ? "" : ("\n返回长度: " + preview.length()
+                                    + "\n开头片段: " + head + tail)));
                             return;
                         }
-                        try {
-                            JsonObject obj = new JsonParser().parse(jsonSlice).getAsJsonObject();
-                            callback.onSuccess(normalizeChapterPlanJson(obj).toString());
-                        } catch (Exception e) {
-                            callback.onError("章节计划解析失败");
-                        }
+                        callback.onPartial("章节计划已生成");
+                        JsonObject normalized = normalizeChapterPlanJson(obj);
+                        Log.d(TAG, "chapter plan normalized nonEmptyFields=" + countNonEmptyPlanFields(normalized)
+                                + ", payload=" + previewForLog(normalized.toString(), 220));
+                        callback.onSuccess(normalized.toString());
                     }
 
                     @Override
                     public void onFailure(retrofit2.Call<ChatApi.ChatResponse> call, Throwable t) {
-                        callback.onError(t != null ? t.getMessage() : "章节计划生成失败");
+                        String reason = t != null ? t.getMessage() : "章节计划生成失败";
+                        callback.onError("章节计划生成失败(" + request.model + "): " + reason);
                     }
                 });
+    }
+
+    private ChatApi.ChatRequest buildChapterPlanFallbackRequest(ChatApi.ChatRequest source) {
+        ChatApi.ChatRequest request = new ChatApi.ChatRequest();
+        request.model = source != null ? source.model : null;
+        request.messages = source != null ? source.messages : null;
+        request.stream = false;
+        request.n = null;
+        request.maxTokens = source != null ? source.maxTokens : null;
+        request.temperature = null;
+        request.topP = null;
+        request.stop = null;
+        request.thinking = null;
+        request.reasoning = null;
+        request.responseFormat = null;
+        request.providerOptions = null;
+        return request;
+    }
+
+    private boolean shouldRetryWithoutAdvancedParams(String detail) {
+        if (detail == null || detail.trim().isEmpty()) return false;
+        String lower = detail.toLowerCase(java.util.Locale.ROOT);
+        if (lower.contains("invalid_request_error")) return true;
+        if (lower.contains("unknown parameter")) return true;
+        if (lower.contains("invalid parameter")) return true;
+        if (lower.contains("unsupported parameter")) return true;
+        if (lower.contains("response_format")) return true;
+        if (lower.contains("reasoning")) return true;
+        if (lower.contains("thinking")) return true;
+        if (lower.contains("temperature")) return true;
+        return lower.contains("top_p");
+    }
+
+    private JsonObject parseFirstJsonObject(String raw) {
+        String text = sanitizeJsonLikeText(stripThinkTags(raw));
+        if (text.isEmpty()) return null;
+        // 1) Full parse first: parse the whole payload as a JSON object.
+        JsonObject direct = tryParseObject(text);
+        if (direct != null) return direct;
+
+        // 2) Full-slice parse: from first '{' to last '}' as one complete object.
+        String fullSlice = extractJsonObjectSlice(text);
+        JsonObject fullObj = tryParseObject(fullSlice);
+        if (fullObj != null) return fullObj;
+
+        // 3) Only if likely truncated/non-normal ending, run fallback extraction.
+        if (looksLikeTruncatedJson(text)) {
+            String repaired = repairTruncatedJsonObject(text);
+            JsonObject repairedObj = tryParseObject(repaired);
+            if (repairedObj != null) return repairedObj;
+            JsonObject keywordObj = extractChapterPlanByKeywords(text);
+            if (keywordObj != null) return keywordObj;
+        }
+        return null;
+    }
+
+    private JsonObject tryParseObject(String text) {
+        if (text == null || text.trim().isEmpty()) return null;
+        try {
+            return new JsonParser().parse(text).getAsJsonObject();
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private boolean looksLikeTruncatedJson(String text) {
+        if (text == null || text.isEmpty()) return false;
+        int first = text.indexOf('{');
+        if (first < 0) return false;
+        int objDepth = 0;
+        int arrDepth = 0;
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = first; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (c == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (c == '"') {
+                inString = !inString;
+                continue;
+            }
+            if (inString) continue;
+            if (c == '{') objDepth++;
+            else if (c == '}') objDepth = Math.max(0, objDepth - 1);
+            else if (c == '[') arrDepth++;
+            else if (c == ']') arrDepth = Math.max(0, arrDepth - 1);
+        }
+        return inString || objDepth > 0 || arrDepth > 0;
+    }
+
+    private JsonObject extractChapterPlanByKeywords(String text) {
+        if (text == null || text.isEmpty()) return null;
+        JsonObject out = new JsonObject();
+
+        putIfNotEmpty(out, "chapterGoal", extractStringByKeys(text,
+                "chapterGoal", "chapter_goal", "goal", "章节目标", "本章目标", "目标"));
+        putIfNotEmpty(out, "startState", extractStringByKeys(text,
+                "startState", "start_state", "起始状态", "开场状态", "开局状态"));
+        putIfNotEmpty(out, "endState", extractStringByKeys(text,
+                "endState", "end_state", "结束状态", "结尾状态", "收束状态"));
+        putIfNotEmpty(out, "styleGuide", extractStringByKeys(text,
+                "styleGuide", "style_guide", "style", "writingStyle", "文风", "文风与节奏"));
+
+        putArrayIfNotEmpty(out, "knowledgeBoundary", extractArrayByKeys(text,
+                "knowledgeBoundary", "knowledge_boundary", "knowledge", "知情边界", "知情约束"));
+        putArrayIfNotEmpty(out, "eventChain", extractArrayByKeys(text,
+                "eventChain", "event_chain", "events", "事件链", "关键事件"));
+        putArrayIfNotEmpty(out, "foreshadow", extractArrayByKeys(text,
+                "foreshadow", "foreshadows", "伏笔"));
+        putArrayIfNotEmpty(out, "payoff", extractArrayByKeys(text,
+                "payoff", "payoffs", "回收"));
+        putArrayIfNotEmpty(out, "forbidden", extractArrayByKeys(text,
+                "forbidden", "forbiddenList", "禁写清单", "禁写", "禁忌"));
+        putCharacterDrivesIfNotEmpty(out, extractArrayByKeys(text,
+                "characterDrives", "character_drives", "characters", "角色驱动", "角色动机"));
+
+        return out.entrySet().isEmpty() ? null : out;
+    }
+
+    private void putIfNotEmpty(JsonObject obj, String key, String value) {
+        if (obj == null || key == null) return;
+        if (value == null || value.trim().isEmpty()) return;
+        obj.addProperty(key, value.trim());
+    }
+
+    private void putArrayIfNotEmpty(JsonObject obj, String key, java.util.List<String> values) {
+        if (obj == null || key == null || values == null || values.isEmpty()) return;
+        JsonArray arr = new JsonArray();
+        for (String v : values) {
+            if (v == null || v.trim().isEmpty()) continue;
+            arr.add(v.trim());
+        }
+        if (arr.size() > 0) obj.add(key, arr);
+    }
+
+    private void putCharacterDrivesIfNotEmpty(JsonObject obj, java.util.List<String> drives) {
+        if (obj == null || drives == null || drives.isEmpty()) return;
+        JsonArray arr = new JsonArray();
+        for (String v : drives) {
+            if (v == null || v.trim().isEmpty()) continue;
+            JsonObject one = new JsonObject();
+            one.addProperty("name", "");
+            one.addProperty("goal", v.trim());
+            one.addProperty("misbelief", "");
+            one.addProperty("emotion", "");
+            arr.add(one);
+        }
+        if (arr.size() > 0) obj.add("characterDrives", arr);
+    }
+
+    private String extractStringByKeys(String text, String... keys) {
+        if (text == null || keys == null) return "";
+        for (String key : keys) {
+            if (key == null || key.isEmpty()) continue;
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                    "\""+ java.util.regex.Pattern.quote(key) + "\"\\s*:\\s*\"([^\"]*)\"",
+                    java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.DOTALL);
+            java.util.regex.Matcher m = p.matcher(text);
+            if (m.find()) {
+                String v = m.group(1);
+                if (v != null && !v.trim().isEmpty()) return v.trim();
+            }
+        }
+        return "";
+    }
+
+    private java.util.List<String> extractArrayByKeys(String text, String... keys) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        if (text == null || keys == null) return out;
+        for (String key : keys) {
+            if (key == null || key.isEmpty()) continue;
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile(
+                    "\""+ java.util.regex.Pattern.quote(key) + "\"\\s*:\\s*\\[(.*?)\\]",
+                    java.util.regex.Pattern.CASE_INSENSITIVE | java.util.regex.Pattern.DOTALL);
+            java.util.regex.Matcher m = p.matcher(text);
+            if (!m.find()) continue;
+            String body = m.group(1);
+            if (body == null || body.trim().isEmpty()) continue;
+            java.util.regex.Matcher item = java.util.regex.Pattern
+                    .compile("\"([^\"]*)\"")
+                    .matcher(body);
+            while (item.find()) {
+                String v = item.group(1);
+                if (v != null && !v.trim().isEmpty()) out.add(v.trim());
+            }
+            if (!out.isEmpty()) return out;
+        }
+        return out;
+    }
+
+    private String sanitizeJsonLikeText(String text) {
+        String out = text != null ? text.trim() : "";
+        if (out.isEmpty()) return "";
+        // Remove fenced code markers.
+        out = out.replaceAll("(?is)^```(?:json)?\\s*", "");
+        out = out.replaceAll("(?is)\\s*```$", "");
+        // Normalize full-width punctuation often seen in CJK outputs.
+        out = out.replace('“', '"').replace('”', '"')
+                .replace('‘', '\'').replace('’', '\'')
+                .replace('：', ':')
+                .replace('，', ',');
+        return out.trim();
+    }
+
+    private String repairJsonCandidate(String candidate) {
+        String out = sanitizeJsonLikeText(candidate);
+        if (out.isEmpty()) return "";
+        // Try converting single-quoted JSON-like text to valid double-quoted JSON.
+        out = out.replaceAll("(?<!\\\\)'", "\"");
+        // Remove trailing commas before closing braces/brackets.
+        out = out.replaceAll(",\\s*([}\\]])", "$1");
+        return out;
+    }
+
+    private String repairTruncatedJsonObject(String raw) {
+        if (raw == null || raw.isEmpty()) return "";
+        int start = raw.indexOf('{');
+        if (start < 0) return "";
+        String text = raw.substring(start);
+        StringBuilder out = new StringBuilder(text);
+        java.util.ArrayDeque<Character> closers = new java.util.ArrayDeque<>();
+        boolean inString = false;
+        boolean escaped = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (escaped) {
+                escaped = false;
+                continue;
+            }
+            if (c == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (c == '"') {
+                inString = !inString;
+                continue;
+            }
+            if (inString) continue;
+            if (c == '{') closers.push('}');
+            else if (c == '[') closers.push(']');
+            else if (c == '}' || c == ']') {
+                if (!closers.isEmpty() && closers.peek() == c) closers.pop();
+                else return "";
+            }
+        }
+        if (inString) return "";
+        while (!closers.isEmpty()) out.append(closers.pop());
+        String fixed = out.toString().replaceAll(",\\s*([}\\]])", "$1");
+        return fixed;
     }
 
     public void auditNovelLeakage(String knowledgeConstraints, String assistantContent, ChatCallback callback) {
@@ -1308,18 +1598,72 @@ public class ChatService {
 
     private JsonObject normalizeChapterPlanJson(JsonObject source) {
         JsonObject out = new JsonObject();
-        out.addProperty("chapterGoal", getStringFlexible(source, "chapterGoal"));
-        out.addProperty("startState", getStringFlexible(source, "startState"));
-        out.addProperty("endState", getStringFlexible(source, "endState"));
-        out.add("characterDrives", normalizeCharacterDrives(source != null ? source.get("characterDrives") : null));
-        out.add("knowledgeBoundary", normalizeStringArray(source != null ? source.get("knowledgeBoundary") : null));
-        out.add("eventChain", normalizeStringArray(source != null ? source.get("eventChain") : null));
-        out.add("foreshadow", normalizeStringArray(source != null ? source.get("foreshadow") : null));
-        out.add("payoff", normalizeStringArray(source != null ? source.get("payoff") : null));
-        out.add("forbidden", normalizeStringArray(source != null ? source.get("forbidden") : null));
-        out.addProperty("styleGuide", getStringFlexible(source, "styleGuide"));
-        out.addProperty("targetLength", getStringFlexible(source, "targetLength"));
+        out.addProperty("chapterGoal", pickString(source, "chapterGoal", "chapter_goal", "goal", "章节目标", "本章目标", "目标"));
+        out.addProperty("startState", pickString(source, "startState", "start_state", "起始状态", "开场状态", "开局状态"));
+        out.addProperty("endState", pickString(source, "endState", "end_state", "结束状态", "结尾状态", "收束状态"));
+        out.add("characterDrives", normalizeCharacterDrives(pickElement(source,
+                "characterDrives", "character_drives", "characters", "角色驱动", "角色动机")));
+        out.add("knowledgeBoundary", normalizeStringArray(pickElement(source,
+                "knowledgeBoundary", "knowledge_boundary", "knowledge", "知情边界", "知情约束")));
+        out.add("eventChain", normalizeStringArray(pickElement(source,
+                "eventChain", "event_chain", "events", "事件链", "关键事件")));
+        out.add("foreshadow", normalizeStringArray(pickElement(source,
+                "foreshadow", "foreshadows", "伏笔")));
+        out.add("payoff", normalizeStringArray(pickElement(source,
+                "payoff", "payoffs", "回收")));
+        out.add("forbidden", normalizeStringArray(pickElement(source,
+                "forbidden", "forbiddenList", "禁写清单", "禁写", "禁忌")));
+        out.addProperty("styleGuide", pickString(source, "styleGuide", "style_guide", "style", "writingStyle", "文风", "文风与节奏"));
+        // Keep target length blank so user can decide it manually in dialog.
+        out.addProperty("targetLength", "");
         return out;
+    }
+
+    private JsonElement pickElement(JsonObject source, String... keys) {
+        if (source == null || keys == null) return null;
+        for (String key : keys) {
+            if (key == null || key.isEmpty()) continue;
+            JsonElement e = source.get(key);
+            if (e != null && !e.isJsonNull()) return e;
+        }
+        return null;
+    }
+
+    private String pickString(JsonObject source, String... keys) {
+        if (source == null || keys == null) return "";
+        for (String key : keys) {
+            String v = getStringFlexible(source, key);
+            if (v != null && !v.trim().isEmpty()) return v.trim();
+        }
+        return "";
+    }
+
+    private int countNonEmptyPlanFields(JsonObject plan) {
+        if (plan == null) return 0;
+        int count = 0;
+        if (!getStringFlexible(plan, "chapterGoal").trim().isEmpty()) count++;
+        if (!getStringFlexible(plan, "startState").trim().isEmpty()) count++;
+        if (!getStringFlexible(plan, "endState").trim().isEmpty()) count++;
+        if (!getStringFlexible(plan, "styleGuide").trim().isEmpty()) count++;
+        if (plan.has("characterDrives") && plan.get("characterDrives").isJsonArray()
+                && plan.getAsJsonArray("characterDrives").size() > 0) count++;
+        if (plan.has("knowledgeBoundary") && plan.get("knowledgeBoundary").isJsonArray()
+                && plan.getAsJsonArray("knowledgeBoundary").size() > 0) count++;
+        if (plan.has("eventChain") && plan.get("eventChain").isJsonArray()
+                && plan.getAsJsonArray("eventChain").size() > 0) count++;
+        if (plan.has("foreshadow") && plan.get("foreshadow").isJsonArray()
+                && plan.getAsJsonArray("foreshadow").size() > 0) count++;
+        if (plan.has("payoff") && plan.get("payoff").isJsonArray()
+                && plan.getAsJsonArray("payoff").size() > 0) count++;
+        if (plan.has("forbidden") && plan.get("forbidden").isJsonArray()
+                && plan.getAsJsonArray("forbidden").size() > 0) count++;
+        return count;
+    }
+
+    private String previewForLog(String text, int maxLen) {
+        String v = text != null ? text.replace("\n", "\\n").trim() : "";
+        if (v.length() <= Math.max(32, maxLen)) return v;
+        return v.substring(0, Math.max(32, maxLen)) + "...";
     }
 
     private JsonArray normalizeStringArray(JsonElement element) {

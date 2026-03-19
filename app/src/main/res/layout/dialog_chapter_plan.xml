@@ -9,6 +9,17 @@
         android:orientation="vertical"
         android:padding="16dp">
 
+        <TextView
+            android:id="@+id/textPlanGenerationStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="10dp"
+            android:padding="10dp"
+            android:background="@android:color/transparent"
+            android:text="正在生成章节计划…"
+            android:textColor="#616161"
+            android:textSize="13sp" />
+
         <com.google.android.material.textfield.TextInputLayout
             style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
             android:layout_width="match_parent"
@@ -20,7 +31,9 @@
                 android:layout_height="wrap_content"
                 android:inputType="textMultiLine"
                 android:minLines="2"
-                android:maxLines="4" />
+                android:maxLines="4"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -35,7 +48,9 @@
                 android:layout_height="wrap_content"
                 android:inputType="textMultiLine"
                 android:minLines="2"
-                android:maxLines="4" />
+                android:maxLines="4"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -50,7 +65,9 @@
                 android:layout_height="wrap_content"
                 android:inputType="textMultiLine"
                 android:minLines="2"
-                android:maxLines="4" />
+                android:maxLines="4"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -65,7 +82,9 @@
                 android:layout_height="wrap_content"
                 android:inputType="textMultiLine"
                 android:minLines="3"
-                android:maxLines="6" />
+                android:maxLines="6"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -80,7 +99,9 @@
                 android:layout_height="wrap_content"
                 android:inputType="textMultiLine"
                 android:minLines="2"
-                android:maxLines="5" />
+                android:maxLines="5"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -95,7 +116,9 @@
                 android:layout_height="wrap_content"
                 android:inputType="textMultiLine"
                 android:minLines="3"
-                android:maxLines="6" />
+                android:maxLines="6"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -110,7 +133,9 @@
                 android:layout_height="wrap_content"
                 android:inputType="textMultiLine"
                 android:minLines="2"
-                android:maxLines="4" />
+                android:maxLines="4"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -125,7 +150,9 @@
                 android:layout_height="wrap_content"
                 android:inputType="textMultiLine"
                 android:minLines="2"
-                android:maxLines="4" />
+                android:maxLines="4"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -140,7 +167,9 @@
                 android:layout_height="wrap_content"
                 android:inputType="textMultiLine"
                 android:minLines="2"
-                android:maxLines="4" />
+                android:maxLines="4"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -155,7 +184,9 @@
                 android:layout_height="wrap_content"
                 android:inputType="textMultiLine"
                 android:minLines="2"
-                android:maxLines="4" />
+                android:maxLines="4"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
         <com.google.android.material.textfield.TextInputLayout
@@ -163,12 +194,14 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:hint="目标篇幅（例如 1800-2600字）">
+            android:hint="目标篇幅">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/editPlanTargetLength"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="text" />
+                android:inputType="text"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp" />
         </com.google.android.material.textfield.TextInputLayout>
 
     </LinearLayout>
