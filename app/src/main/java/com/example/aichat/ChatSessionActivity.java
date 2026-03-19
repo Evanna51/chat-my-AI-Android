@@ -3,6 +3,7 @@ package com.example.aichat;
 import android.content.Intent;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.SharedPreferences;
 import android.graphics.Rect;
 import android.os.Bundle;
 import android.os.Handler;
@@ -39,6 +40,9 @@ import java.util.concurrent.Executors;
 
 public class ChatSessionActivity extends ThemedActivity {
     private static final String TAG = "ChatSessionActivity";
+    private static final String PREFS_CHAPTER_PLAN = "chapter_plan_prefs";
+    private static final String KEY_LAST_TARGET_LENGTH = "last_target_length";
+    private static final String DEFAULT_TARGET_LENGTH = "3000";
 
     public static final String EXTRA_SESSION_ID = "session_id";
     public static final String EXTRA_INITIAL_MESSAGE = "initial_message";
@@ -503,54 +507,88 @@ public class ChatSessionActivity extends ThemedActivity {
                                       long responseToken,
                                       boolean shouldUseCharacterMemory) {
         if (isFinishing() || isDestroyed()) return;
-        Toast.makeText(this, "正在生成章节计划…", Toast.LENGTH_SHORT).show();
+        final boolean[] resolved = new boolean[] {false};
+        ChapterPlanDialogController dialogController = showChapterPlanDialog(
+                new ChapterPlanDraft(),
+                "正在生成章节计划…",
+                new ChapterPlanDialogCallback() {
+                    @Override
+                    public void onCancel() {
+                        resolved[0] = true;
+                        if (responseToken != activeResponseToken) return;
+                        setAssistantResponseInProgress(false);
+                        activeChatHandle = null;
+                        activeStreamingMessage = null;
+                        removeCharacterMemoryLoadingPlaceholder();
+                    }
+
+                    @Override
+                    public void onConfirm(ChapterPlanDraft edited, boolean addOutline) {
+                        resolved[0] = true;
+                        if (responseToken != activeResponseToken) return;
+                        if (edited == null || !edited.hasAnyContent()) {
+                            dispatchChatRequestWithOptionalMemory(historyForApi, plainApiUserMessage, options, responseToken, shouldUseCharacterMemory);
+                            return;
+                        }
+                        persistLastTargetLength(edited.targetLength);
+                        if (addOutline) {
+                            addChapterPlanToOutline(edited);
+                        }
+                        String finalUserMessage = composeUserMessageWithChapterPlan(plainApiUserMessage, edited);
+                        dispatchChatRequestWithOptionalMemory(historyForApi, finalUserMessage, options, responseToken, shouldUseCharacterMemory);
+                    }
+                });
         chatService.generateChapterPlanJson(originalInput, plainApiUserMessage, new ChatService.ChatCallback() {
+            @Override
+            public void onPartial(String delta) {
+                mainHandler.post(() -> {
+                    if (resolved[0]) return;
+                    if (responseToken != activeResponseToken) return;
+                    if (isFinishing() || isDestroyed()) return;
+                    if (dialogController != null) {
+                        dialogController.setStatus(delta != null && !delta.trim().isEmpty()
+                                ? delta.trim()
+                                : "正在生成章节计划…");
+                    }
+                });
+            }
+
             @Override
             public void onSuccess(String content) {
                 mainHandler.post(() -> {
+                    if (resolved[0]) return;
                     if (responseToken != activeResponseToken) return;
                     if (isFinishing() || isDestroyed()) return;
                     ChapterPlanDraft draft = parseChapterPlanDraft(content);
                     if (draft == null) {
-                        dispatchChatRequestWithOptionalMemory(historyForApi, plainApiUserMessage, options, responseToken, shouldUseCharacterMemory);
+                        if (dialogController != null) {
+                            dialogController.setStatus("计划解析失败，可手动填写后确认继续");
+                        }
                         return;
                     }
-                    showChapterPlanDialog(draft, new ChapterPlanDialogCallback() {
-                        @Override
-                        public void onCancel() {
-                            if (responseToken != activeResponseToken) return;
-                            setAssistantResponseInProgress(false);
-                            activeChatHandle = null;
-                            activeStreamingMessage = null;
-                            removeCharacterMemoryLoadingPlaceholder();
+                    if (dialogController != null) {
+                        dialogController.applyGeneratedDraft(draft);
+                        if (draft.hasAnyContent()) {
+                            dialogController.setStatus("章节计划已生成，可编辑后确认");
+                        } else {
+                            dialogController.setStatus("已解析到结构，但字段为空；可手动填写后确认");
                         }
-
-                        @Override
-                        public void onConfirm(ChapterPlanDraft edited, boolean addOutline) {
-                            if (responseToken != activeResponseToken) return;
-                            if (edited == null) {
-                                dispatchChatRequestWithOptionalMemory(historyForApi, plainApiUserMessage, options, responseToken, shouldUseCharacterMemory);
-                                return;
-                            }
-                            if (addOutline) {
-                                addChapterPlanToOutline(edited);
-                            }
-                            String finalUserMessage = composeUserMessageWithChapterPlan(plainApiUserMessage, edited);
-                            dispatchChatRequestWithOptionalMemory(historyForApi, finalUserMessage, options, responseToken, shouldUseCharacterMemory);
-                        }
-                    });
+                    }
                 });
             }
 
             @Override
             public void onError(String message) {
                 mainHandler.post(() -> {
+                    if (resolved[0]) return;
                     if (responseToken != activeResponseToken) return;
                     if (isFinishing() || isDestroyed()) return;
-                    if (message != null && !message.trim().isEmpty()) {
-                        Toast.makeText(ChatSessionActivity.this, message + "，已回退直接生成正文", Toast.LENGTH_SHORT).show();
+                    if (dialogController != null) {
+                        String msg = (message != null && !message.trim().isEmpty())
+                                ? message.trim()
+                                : "章节计划生成失败";
+                        dialogController.setStatus(msg + "。可手动填写后确认，或直接确认跳过计划。");
                     }
-                    dispatchChatRequestWithOptionalMemory(historyForApi, plainApiUserMessage, options, responseToken, shouldUseCharacterMemory);
                 });
             }
         });
@@ -1328,9 +1366,15 @@ public class ChatSessionActivity extends ThemedActivity {
         });
     }
 
-    private void showChapterPlanDialog(ChapterPlanDraft draft, ChapterPlanDialogCallback callback) {
-        if (draft == null || callback == null) return;
+    private ChapterPlanDialogController showChapterPlanDialog(ChapterPlanDraft draft,
+                                                              String initialStatus,
+                                                              ChapterPlanDialogCallback callback) {
+        if (draft == null || callback == null) return null;
+        if (draft.targetLength == null || draft.targetLength.trim().isEmpty()) {
+            draft.targetLength = getDefaultTargetLength();
+        }
         View view = getLayoutInflater().inflate(R.layout.dialog_chapter_plan, null);
+        TextView textStatus = view.findViewById(R.id.textPlanGenerationStatus);
         TextInputEditText editGoal = view.findViewById(R.id.editPlanChapterGoal);
         TextInputEditText editStart = view.findViewById(R.id.editPlanStartState);
         TextInputEditText editEnd = view.findViewById(R.id.editPlanEndState);
@@ -1343,31 +1387,42 @@ public class ChatSessionActivity extends ThemedActivity {
         TextInputEditText editStyle = view.findViewById(R.id.editPlanStyleGuide);
         TextInputEditText editLength = view.findViewById(R.id.editPlanTargetLength);
 
-        if (editGoal != null) editGoal.setText(draft.chapterGoal);
-        if (editStart != null) editStart.setText(draft.startState);
-        if (editEnd != null) editEnd.setText(draft.endState);
-        if (editDrives != null) editDrives.setText(draft.characterDrivesToMultiline());
-        if (editKnowledge != null) editKnowledge.setText(joinLines(draft.knowledgeBoundary));
-        if (editEvents != null) editEvents.setText(joinLines(draft.eventChain));
-        if (editForeshadow != null) editForeshadow.setText(joinLines(draft.foreshadow));
-        if (editPayoff != null) editPayoff.setText(joinLines(draft.payoff));
-        if (editForbidden != null) editForbidden.setText(joinLines(draft.forbidden));
-        if (editStyle != null) editStyle.setText(draft.styleGuide);
-        if (editLength != null) editLength.setText(draft.targetLength);
+        ChapterPlanDialogController controller = new ChapterPlanDialogController(
+                null,
+                textStatus,
+                editGoal,
+                editStart,
+                editEnd,
+                editDrives,
+                editKnowledge,
+                editEvents,
+                editForeshadow,
+                editPayoff,
+                editForbidden,
+                editStyle,
+                editLength);
+        controller.applyDraft(draft, false);
+        controller.setStatus(initialStatus);
 
-        new MaterialAlertDialogBuilder(this)
+        AlertDialog dialog = new MaterialAlertDialogBuilder(this)
                 .setTitle("本轮写作计划")
                 .setView(view)
                 .setNegativeButton("取消", (d, w) -> callback.onCancel())
                 .setNeutralButton("确认并加入大纲", (d, w) -> callback.onConfirm(
-                        collectChapterPlanDraft(editGoal, editStart, editEnd, editDrives, editKnowledge,
-                                editEvents, editForeshadow, editPayoff, editForbidden, editStyle, editLength),
+                        collectChapterPlanDraft(controller.editGoal, controller.editStart, controller.editEnd,
+                                controller.editDrives, controller.editKnowledge, controller.editEvents,
+                                controller.editForeshadow, controller.editPayoff, controller.editForbidden,
+                                controller.editStyle, controller.editLength),
                         true))
                 .setPositiveButton("确认", (d, w) -> callback.onConfirm(
-                        collectChapterPlanDraft(editGoal, editStart, editEnd, editDrives, editKnowledge,
-                                editEvents, editForeshadow, editPayoff, editForbidden, editStyle, editLength),
+                        collectChapterPlanDraft(controller.editGoal, controller.editStart, controller.editEnd,
+                                controller.editDrives, controller.editKnowledge, controller.editEvents,
+                                controller.editForeshadow, controller.editPayoff, controller.editForbidden,
+                                controller.editStyle, controller.editLength),
                         false))
                 .show();
+        controller.dialog = dialog;
+        return controller;
     }
 
     private ChapterPlanDraft collectChapterPlanDraft(TextInputEditText editGoal,
@@ -1458,6 +1513,22 @@ public class ChatSessionActivity extends ThemedActivity {
             sb.append(one.trim());
         }
         return sb.toString();
+    }
+
+    private String getDefaultTargetLength() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_CHAPTER_PLAN, MODE_PRIVATE);
+        String saved = prefs.getString(KEY_LAST_TARGET_LENGTH, "");
+        if (saved != null && !saved.trim().isEmpty()) return saved.trim();
+        return DEFAULT_TARGET_LENGTH;
+    }
+
+    private void persistLastTargetLength(String targetLength) {
+        String value = targetLength != null ? targetLength.trim() : "";
+        if (value.isEmpty()) return;
+        getSharedPreferences(PREFS_CHAPTER_PLAN, MODE_PRIVATE)
+                .edit()
+                .putString(KEY_LAST_TARGET_LENGTH, value)
+                .apply();
     }
 
     private String buildUserMessageForApi(String text) {
@@ -1579,6 +1650,96 @@ public class ChatSessionActivity extends ThemedActivity {
         void onConfirm(ChapterPlanDraft edited, boolean addOutline);
     }
 
+    private static class ChapterPlanDialogController {
+        AlertDialog dialog;
+        final TextView textStatus;
+        final TextInputEditText editGoal;
+        final TextInputEditText editStart;
+        final TextInputEditText editEnd;
+        final TextInputEditText editDrives;
+        final TextInputEditText editKnowledge;
+        final TextInputEditText editEvents;
+        final TextInputEditText editForeshadow;
+        final TextInputEditText editPayoff;
+        final TextInputEditText editForbidden;
+        final TextInputEditText editStyle;
+        final TextInputEditText editLength;
+
+        ChapterPlanDialogController(AlertDialog dialog,
+                                    TextView textStatus,
+                                    TextInputEditText editGoal,
+                                    TextInputEditText editStart,
+                                    TextInputEditText editEnd,
+                                    TextInputEditText editDrives,
+                                    TextInputEditText editKnowledge,
+                                    TextInputEditText editEvents,
+                                    TextInputEditText editForeshadow,
+                                    TextInputEditText editPayoff,
+                                    TextInputEditText editForbidden,
+                                    TextInputEditText editStyle,
+                                    TextInputEditText editLength) {
+            this.dialog = dialog;
+            this.textStatus = textStatus;
+            this.editGoal = editGoal;
+            this.editStart = editStart;
+            this.editEnd = editEnd;
+            this.editDrives = editDrives;
+            this.editKnowledge = editKnowledge;
+            this.editEvents = editEvents;
+            this.editForeshadow = editForeshadow;
+            this.editPayoff = editPayoff;
+            this.editForbidden = editForbidden;
+            this.editStyle = editStyle;
+            this.editLength = editLength;
+        }
+
+        void setStatus(String status) {
+            if (textStatus == null) return;
+            String text = status != null ? status.trim() : "";
+            textStatus.setText(text.isEmpty() ? "正在生成章节计划…" : text);
+        }
+
+        void applyGeneratedDraft(ChapterPlanDraft draft) {
+            applyDraft(draft, true);
+        }
+
+        void applyDraft(ChapterPlanDraft draft, boolean fillOnlyEmpty) {
+            if (draft == null) return;
+            applyText(editGoal, draft.chapterGoal, fillOnlyEmpty);
+            applyText(editStart, draft.startState, fillOnlyEmpty);
+            applyText(editEnd, draft.endState, fillOnlyEmpty);
+            applyText(editDrives, draft.characterDrivesToMultiline(), fillOnlyEmpty);
+            applyText(editKnowledge, joinLinesStatic(draft.knowledgeBoundary), fillOnlyEmpty);
+            applyText(editEvents, joinLinesStatic(draft.eventChain), fillOnlyEmpty);
+            applyText(editForeshadow, joinLinesStatic(draft.foreshadow), fillOnlyEmpty);
+            applyText(editPayoff, joinLinesStatic(draft.payoff), fillOnlyEmpty);
+            applyText(editForbidden, joinLinesStatic(draft.forbidden), fillOnlyEmpty);
+            applyText(editStyle, draft.styleGuide, fillOnlyEmpty);
+            applyText(editLength, draft.targetLength, fillOnlyEmpty);
+        }
+
+        private void applyText(TextInputEditText edit, String value, boolean fillOnlyEmpty) {
+            if (edit == null) return;
+            String incoming = value != null ? value : "";
+            if (fillOnlyEmpty) {
+                String current = edit.getText() != null ? edit.getText().toString().trim() : "";
+                if (!current.isEmpty()) return;
+            }
+            edit.setText(incoming);
+        }
+
+        private static String joinLinesStatic(List<String> items) {
+            if (items == null || items.isEmpty()) return "";
+            StringBuilder sb = new StringBuilder();
+            for (String one : items) {
+                if (one == null || one.trim().isEmpty()) continue;
+                if (sb.length() > 0) sb.append("\n");
+                sb.append(one.trim());
+            }
+            return sb.toString();
+        }
+    }
+
     private static class ChapterPlanDraft {
         String chapterGoal = "";
         String startState = "";
@@ -1633,8 +1794,25 @@ public class ChatSessionActivity extends ThemedActivity {
             out.add("payoff", toJsonArray(payoff));
             out.add("forbidden", toJsonArray(forbidden));
             out.addProperty("styleGuide", styleGuide != null ? styleGuide : "");
-            out.addProperty("targetLength", targetLength != null ? targetLength : "");
+            String length = targetLength != null ? targetLength.trim() : "";
+            if (!length.isEmpty()) {
+                out.addProperty("targetLength", length);
+            }
             return out;
+        }
+
+        boolean hasAnyContent() {
+            if (chapterGoal != null && !chapterGoal.trim().isEmpty()) return true;
+            if (startState != null && !startState.trim().isEmpty()) return true;
+            if (endState != null && !endState.trim().isEmpty()) return true;
+            if (styleGuide != null && !styleGuide.trim().isEmpty()) return true;
+            if (targetLength != null && !targetLength.trim().isEmpty()) return true;
+            if (characterDrives != null && !characterDrives.isEmpty()) return true;
+            if (knowledgeBoundary != null && !knowledgeBoundary.isEmpty()) return true;
+            if (eventChain != null && !eventChain.isEmpty()) return true;
+            if (foreshadow != null && !foreshadow.isEmpty()) return true;
+            if (payoff != null && !payoff.isEmpty()) return true;
+            return forbidden != null && !forbidden.isEmpty();
         }
 
         String toOutlineText() {
