@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="?attr/colorSurface">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="12dp"
+        android:paddingTop="10dp"
+        android:paddingEnd="8dp"
+        android:paddingBottom="8dp"
+        android:background="?attr/selectableItemBackground">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/textConversationTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textAppearance="?attr/textAppearanceTitleSmall"
+                android:textColor="@color/list_title_color"
+                android:maxLines="2"
+                android:ellipsize="end" />
+
+            <TextView
+                android:id="@+id/textConversationTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="@color/list_subtitle_color" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/textConversationOutline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="@color/list_subtitle_color"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:visibility="gone" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="6dp">
+
+            <ImageButton
+                android:id="@+id/btnOutline"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/generate_outline"
+                android:padding="8dp"
+                android:src="@drawable/ic_action_regenerate"
+                app:tint="@color/list_icon_color" />
+
+            <ImageButton
+                android:id="@+id/btnCategory"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="2dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/set_category"
+                android:padding="8dp"
+                android:src="@drawable/ic_action_category"
+                app:tint="@color/list_icon_color" />
+
+            <ImageButton
+                android:id="@+id/btnPin"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/toggle_pin"
+                android:padding="8dp"
+                android:src="@drawable/ic_action_pin"
+                app:tint="@color/list_icon_color" />
+
+            <ImageButton
+                android:id="@+id/btnFavorite"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/toggle_favorite"
+                android:padding="8dp"
+                android:src="@drawable/ic_action_favorite"
+                app:tint="@color/list_icon_color" />
+
+            <ImageButton
+                android:id="@+id/btnDelete"
+                android:layout_width="34dp"
+                android:layout_height="34dp"
+                android:layout_marginStart="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/delete_conversation"
+                android:padding="8dp"
+                android:src="@drawable/ic_action_delete"
+                app:tint="@color/list_icon_color" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginStart="12dp"
+        android:background="?attr/colorOutline"
+        android:alpha="0.32" />
+
+</LinearLayout>
