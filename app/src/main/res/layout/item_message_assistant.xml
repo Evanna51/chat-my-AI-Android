@@ -34,7 +34,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:paddingHorizontal="6dp"
             android:paddingVertical="2dp" />
-        <!-- Thinking 内容：默认折叠时显示一行，展开显示全文 -->
+        <!-- Thinking 内容：默认折叠时显示两行，展开显示全文 -->
         <TextView
             android:id="@+id/textReasoningContent"
             android:layout_width="wrap_content"
@@ -45,8 +45,7 @@
             android:textSize="13sp"
             android:textColor="@color/chat_reasoning_text_color"
             android:background="@drawable/bubble_reasoning"
-            android:visibility="gone"
-            android:textIsSelectable="true" />
+            android:visibility="gone" />
     </LinearLayout>
 
     <!-- 助手消息气泡容器 -->
