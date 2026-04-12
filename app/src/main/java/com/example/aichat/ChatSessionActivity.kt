@@ -88,6 +88,19 @@ class ChatSessionActivity : ThemedActivity() {
         }
     }
 
+    // Single reusable Runnable — posted via scroll.post() and cancelled via scroll.removeCallbacks().
+    // Using a named field (instead of anonymous lambdas) lets removeCallbacks reliably dequeue it,
+    // preventing stale scrollTo calls after activity destruction.
+    private val autoScrollRunnable = Runnable {
+        val scroll = scrollMessagesView ?: return@Runnable
+        if (isFinishing || isDestroyed) return@Runnable
+        val child = scroll.getChildAt(0) ?: return@Runnable
+        val y = maxOf(0, child.measuredHeight - scroll.height)
+        scroll.scrollTo(0, y)
+        updateAutoScrollStateFromPosition()
+        updateLoadEarlierEntryVisibility()
+    }
+
     private var historyExpanded = false
     private var addActionsExpanded = false
     private var allMessages: MutableList<Message> = ArrayList()
@@ -109,7 +122,6 @@ class ChatSessionActivity : ThemedActivity() {
     private var activeStreamingMessage: Message? = null
     private var activeResponseToken = 0L
     private var lastStreamAutoScrollAt = 0L
-    private var pendingScrollRunnable: Runnable? = null
     private var streamingTargetMessage: Message? = null
     private val pendingStreamChars = StringBuilder()
     private var streamTypewriterRunning = false
@@ -839,6 +851,7 @@ class ChatSessionActivity : ThemedActivity() {
         mainHandler.removeCallbacks(streamRenderRunnable)
         streamRenderPending = false
         mainHandler.removeCallbacks(thinkingTicker)
+        scrollMessagesView?.removeCallbacks(autoScrollRunnable)
         stopProactivePolling()
         activeThinkingMessage = null
         super.onDestroy()
@@ -2077,19 +2090,8 @@ class ChatSessionActivity : ThemedActivity() {
             if (!assistantResponseInProgress) return
             if (!autoScrollToBottomEnabled) return
         }
-        // Cancel any already-queued scroll runnable to avoid queuing multiple
-        // smoothScrollTo calls that corrupt NestedScrollView's animation state.
-        pendingScrollRunnable?.let { scroll.removeCallbacks(it) }
-        val r = Runnable {
-            if (isFinishing || isDestroyed || scrollMessagesView == null) return@Runnable
-            val child = scrollMessagesView?.getChildAt(0) ?: return@Runnable
-            val y = maxOf(0, child.measuredHeight - scroll.height)
-            scroll.scrollTo(0, y)
-            updateAutoScrollStateFromPosition()
-            updateLoadEarlierEntryVisibility()
-        }
-        pendingScrollRunnable = r
-        scroll.post(r)
+        scroll.removeCallbacks(autoScrollRunnable)
+        scroll.post(autoScrollRunnable)
     }
 
     private fun updateAutoScrollStateFromPosition() {
