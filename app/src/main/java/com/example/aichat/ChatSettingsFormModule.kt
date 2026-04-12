@@ -11,7 +11,6 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
 
 /**
  * 可复用的聊天设置表单模块。
@@ -54,9 +53,6 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
     private val sliderContextCount: Slider? = root.findViewById(R.id.sliderContextCount)
     private val textContextCountValue: TextView? = root.findViewById(R.id.textContextCountValue)
     private val switchAutoChapterPlan: MaterialSwitch? = root.findViewById(R.id.switchAutoChapterPlan)
-    private val switchThinking: MaterialSwitch? = root.findViewById(R.id.switchThinking)
-    private val layoutGoogleThinkingBudget: TextInputLayout? = root.findViewById(R.id.layoutGoogleThinkingBudget)
-    private val editGoogleThinkingBudget: TextInputEditText? = root.findViewById(R.id.editGoogleThinkingBudget)
 
     private var current = SessionChatOptions()
 
@@ -83,9 +79,6 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         }
 
         btnPickModel?.setOnClickListener { showModelPicker() }
-        switchThinking?.setOnCheckedChangeListener { _, isChecked ->
-            layoutGoogleThinkingBudget?.visibility = if (isChecked) View.VISIBLE else View.GONE
-        }
     }
 
     fun setOptions(options: SessionChatOptions?) {
@@ -100,12 +93,7 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
             slider.value = position
             updateContextCountValue(mapSliderPositionToContextValue(position))
         }
-        switchThinking?.isChecked = current.thinking
         switchAutoChapterPlan?.isChecked = current.autoChapterPlan
-        editGoogleThinkingBudget?.setText(
-            (if (current.googleThinkingBudget > 0) current.googleThinkingBudget else 1024).toString()
-        )
-        layoutGoogleThinkingBudget?.visibility = if (current.thinking) View.VISIBLE else View.GONE
     }
 
     fun collect(): SessionChatOptions {
@@ -119,8 +107,10 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         out.contextMessageCount = getContextCount()
         out.streamOutput = true
         out.autoChapterPlan = switchAutoChapterPlan?.isChecked == true
-        out.thinking = switchThinking?.isChecked == true
-        out.googleThinkingBudget = parseInt(editGoogleThinkingBudget, 1024)
+        // Thinking is now a model capability (set in provider config), not a session toggle.
+        // Preserve the stored value so existing sessions with thinking=true keep working.
+        out.thinking = current.thinking
+        out.googleThinkingBudget = current.googleThinkingBudget
         return out
     }
 

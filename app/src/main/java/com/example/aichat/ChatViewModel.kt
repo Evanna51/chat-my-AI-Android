@@ -151,6 +151,8 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     if (m == null) continue
                     val item = Message(sid, m.role, if (m.content != null) m.content else "")
                     item.createdAt = if (m.createdAt > 0) m.createdAt else System.currentTimeMillis()
+                    item.reasoning = m.reasoning ?: ""
+                    item.thinkingElapsedMs = m.thinkingElapsedMs
                     db.messageDao().insert(item)
                 }
             } catch (ignored: Exception) {}

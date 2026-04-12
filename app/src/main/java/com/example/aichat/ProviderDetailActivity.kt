@@ -157,24 +157,29 @@ class ProviderDetailActivity : ThemedActivity() {
     private fun showAliasDialog(model: ProviderInfo.ProviderModelInfo, isEdit: Boolean) {
         val view = layoutInflater.inflate(R.layout.dialog_model_alias, null)
         val editAlias: TextInputEditText = view.findViewById(R.id.editAlias)
+        val switchThinking = view.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchModelThinking)
         view.findViewById<android.widget.TextView>(R.id.textModelId).text = "模型: ${model.modelId}"
         if (isEdit && model.nickname.isNotEmpty()) {
             editAlias.setText(model.nickname)
         }
+        switchThinking?.isChecked = if (isEdit) model.thinkingEnabled else false
         MaterialAlertDialogBuilder(this)
             .setView(view)
             .setTitle(if (isEdit) "编辑别名" else "添加模型")
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val alias = editAlias.text?.toString()?.trim() ?: ""
+                val thinkingOn = switchThinking?.isChecked == true
                 if (!isEdit) {
                     val added = ProviderInfo.ProviderModelInfo(model.modelId)
                     added.nickname = alias
+                    added.thinkingEnabled = thinkingOn
                     provider.models.add(added)
                     addedAdapter.setModels(provider.models)
                     refreshAvailableAdapter()
                     Toast.makeText(this, "已添加 ${model.modelId}", Toast.LENGTH_SHORT).show()
                 } else {
                     model.nickname = alias
+                    model.thinkingEnabled = thinkingOn
                     addedAdapter.setModels(provider.models)
                 }
             }

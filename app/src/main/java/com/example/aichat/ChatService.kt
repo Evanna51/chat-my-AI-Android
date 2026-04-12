@@ -90,7 +90,7 @@ class ChatService(context: Context) {
             return handle
         }
 
-        val using = options ?: SessionChatOptions()
+        var using = options ?: SessionChatOptions()
         var selectedProviderId = ""
         if (using.modelKey != null && using.modelKey.contains(":")) {
             try {
@@ -107,6 +107,13 @@ class ChatService(context: Context) {
                     val selModelId = selected.modelId
                     if (selModelId != null && selModelId.isNotEmpty()) {
                         config.modelId = selModelId
+                    }
+                    // Thinking is a model capability: override from per-model config.
+                    if (!using.thinking && p != null && !selModelId.isNullOrEmpty()) {
+                        val modelInfo = p.models.firstOrNull { it.modelId == selModelId }
+                        if (modelInfo?.thinkingEnabled == true) {
+                            using = using.copy(thinking = true)
+                        }
                     }
                 }
             } catch (ignored: Exception) {}
@@ -1471,9 +1478,10 @@ class ChatService(context: Context) {
         return ""
     }
 
-    private fun shouldNormalizeInlineThink(providerId: String?): Boolean {
-        val pid = providerId?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
-        return "lmstudio" == pid || "ollama" == pid || isLlamaProviderId(pid)
+    private fun shouldNormalizeInlineThink(@Suppress("UNUSED_PARAMETER") providerId: String?): Boolean {
+        // Always normalize: models like Qwen3 emit <think>…</think> tags inline regardless of provider.
+        // splitInlineThink() is a no-op when no tags appear, so enabling for all providers is safe.
+        return true
     }
 
     private fun isLocalOpenAiCompatibleProvider(providerId: String?): Boolean {
