@@ -270,11 +270,12 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             val content = target.content ?: ""
             val hasVisibleContent = content.trim().isNotEmpty()
             h.textContent.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
-            h.layoutAssistantBubble.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
             if (hasVisibleContent) {
                 bindAssistantContentStreaming(h, target, content)
             }
             if (h.lastHasVisibleContent != hasVisibleContent) {
+                // Batch visibility-state transitions together to avoid extra layout passes per tick.
+                h.layoutAssistantBubble.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
                 h.textCollapseToggle.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
                 h.lastHasVisibleContent = hasVisibleContent
             }
