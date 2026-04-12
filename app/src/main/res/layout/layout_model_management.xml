@@ -4,29 +4,48 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    app:cardElevation="2dp"
-    app:cardCornerRadius="12dp">
+    app:cardElevation="0dp"
+    app:cardBackgroundColor="@color/ios_cell_bg"
+    app:cardCornerRadius="16dp"
+    app:strokeWidth="0dp">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="14dp">
+        android:orientation="vertical">
 
-        <com.google.android.material.button.MaterialButton
+        <!-- 添加厂商: iOS-style add row -->
+        <LinearLayout
             android:id="@+id/btnAddProvider"
-            style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/add_provider"
-            android:layout_marginBottom="12dp" />
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:minHeight="56dp"
+            android:background="?attr/selectableItemBackground">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@drawable/ic_add"
+                android:layout_marginEnd="12dp"
+                app:tint="?attr/colorPrimary" />
+            <TextView
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/add_provider"
+                android:textAppearance="?attr/textAppearanceBodyLarge"
+                android:textColor="?attr/colorPrimary" />
+        </LinearLayout>
 
+        <!-- Providers list -->
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerProviders"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minHeight="80dp"
             android:nestedScrollingEnabled="false" />
+
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>
