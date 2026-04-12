@@ -109,6 +109,7 @@ class ChatSessionActivity : ThemedActivity() {
     private var activeStreamingMessage: Message? = null
     private var activeResponseToken = 0L
     private var lastStreamAutoScrollAt = 0L
+    private var pendingScrollRunnable: Runnable? = null
     private var streamingTargetMessage: Message? = null
     private val pendingStreamChars = StringBuilder()
     private var streamTypewriterRunning = false
@@ -2076,18 +2077,19 @@ class ChatSessionActivity : ThemedActivity() {
             if (!assistantResponseInProgress) return
             if (!autoScrollToBottomEnabled) return
         }
-        scroll.post {
-            if (isFinishing || isDestroyed || scrollMessagesView == null) return@post
-            val child = scrollMessagesView?.getChildAt(0) ?: return@post
+        // Cancel any already-queued scroll runnable to avoid queuing multiple
+        // smoothScrollTo calls that corrupt NestedScrollView's animation state.
+        pendingScrollRunnable?.let { scroll.removeCallbacks(it) }
+        val r = Runnable {
+            if (isFinishing || isDestroyed || scrollMessagesView == null) return@Runnable
+            val child = scrollMessagesView?.getChildAt(0) ?: return@Runnable
             val y = maxOf(0, child.measuredHeight - scroll.height)
-            if (force) {
-                scroll.scrollTo(0, y)
-            } else {
-                scroll.smoothScrollTo(0, y)
-            }
+            scroll.scrollTo(0, y)
             updateAutoScrollStateFromPosition()
             updateLoadEarlierEntryVisibility()
         }
+        pendingScrollRunnable = r
+        scroll.post(r)
     }
 
     private fun updateAutoScrollStateFromPosition() {

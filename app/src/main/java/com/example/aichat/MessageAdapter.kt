@@ -270,6 +270,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             val content = target.content ?: ""
             val hasVisibleContent = content.trim().isNotEmpty()
             h.textContent.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
+            h.layoutAssistantBubble.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
             if (hasVisibleContent) {
                 bindAssistantContentStreaming(h, target, content)
             }
@@ -413,6 +414,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 holder.textCollapseToggle.setOnClickListener(null)
             }
             holder.textContent.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
+            holder.layoutAssistantBubble.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
             if (hasVisibleContent) bindAssistantContent(holder, m, content, expanded)
             holder.actionOutline.visibility = if (writerMode && showActions) View.VISIBLE else View.INVISIBLE
             holder.actionEdit.visibility = if (showActions) View.VISIBLE else View.INVISIBLE
@@ -532,8 +534,8 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 h.textReasoningContent.maxLines = Int.MAX_VALUE
                 h.textReasoningContent.ellipsize = null
             } else {
-                // Collapsed preview: render only the first visible line.
-                h.textReasoningContent.maxLines = 1
+                // Collapsed preview: show up to two lines.
+                h.textReasoningContent.maxLines = 2
                 h.textReasoningContent.ellipsize = TextUtils.TruncateAt.END
             }
             h.textReasoningHeader.setOnClickListener {
