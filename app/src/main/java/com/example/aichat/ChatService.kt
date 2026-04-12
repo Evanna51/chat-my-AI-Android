@@ -185,9 +185,10 @@ class ChatService(context: Context) {
                 }
                 try {
                     if (response.isSuccessful && response.body() != null) {
-                        val body = response.body()
-                        if (body!!.choices != null && body.choices.isNotEmpty()) {
-                            val choice = body.choices[0]
+                        val body = response.body()!!
+                        val choices = body.choices
+                        if (choices != null && choices.isNotEmpty()) {
+                            val choice = choices[0]
                             if (choice != null && choice.message != null) {
                                 val content = extractAssistantContent(body)
                                 callback.onUsage(0, 0, 0, System.currentTimeMillis() - start)
@@ -310,9 +311,11 @@ class ChatService(context: Context) {
                 call: retrofit2.Call<ChatApi.ChatResponse>,
                 response: retrofit2.Response<ChatApi.ChatResponse>
             ) {
-                if (!response.isSuccessful || response.body() == null || response.body()!!.choices == null
-                    || response.body()!!.choices.isEmpty() || response.body()!!.choices[0] == null
-                    || response.body()!!.choices[0].message == null) {
+                val body314 = response.body()
+                val choices314 = body314?.choices
+                if (!response.isSuccessful || body314 == null || choices314 == null
+                    || choices314.isEmpty() || choices314[0] == null
+                    || choices314[0].message == null) {
                     var detail = ""
                     try {
                         if (response.errorBody() != null) {
@@ -327,7 +330,7 @@ class ChatService(context: Context) {
                     )
                     return
                 }
-                val raw = extractAssistantContent(response.body()!!)
+                val raw = extractAssistantContent(body314)
                 var title = extractTitleFromJsonOrText(raw)
                 title = cleanTitleResult(title)
                 if (title.length > 12) title = title.substring(0, 12)
@@ -444,9 +447,11 @@ class ChatService(context: Context) {
                     call: retrofit2.Call<ChatApi.ChatResponse>,
                     response: retrofit2.Response<ChatApi.ChatResponse>
                 ) {
-                    if (!response.isSuccessful || response.body() == null || response.body()!!.choices == null
-                        || response.body()!!.choices.isEmpty() || response.body()!!.choices[0] == null
-                        || response.body()!!.choices[0].message == null) {
+                    val body450 = response.body()
+                    val choices450 = body450?.choices
+                    if (!response.isSuccessful || body450 == null || choices450 == null
+                        || choices450.isEmpty() || choices450[0] == null
+                        || choices450[0].message == null) {
                         var detail = ""
                         try {
                             if (response.errorBody() != null) {
@@ -457,7 +462,7 @@ class ChatService(context: Context) {
                                 + if (detail.isEmpty()) "" else ("\n" + detail))
                         return
                     }
-                    var outline = extractAssistantContent(response.body()!!)
+                    var outline = extractAssistantContent(body450)
                     outline = extractTextFieldFromJsonOrText(outline, "outline", "summary", "content", "result")
                     outline = stripThinkTags(outline).replace("\n", " ").trim()
                     if (outline.isEmpty()) {
@@ -563,9 +568,11 @@ class ChatService(context: Context) {
                     call: retrofit2.Call<ChatApi.ChatResponse>,
                     response: retrofit2.Response<ChatApi.ChatResponse>
                 ) {
-                    if (!response.isSuccessful || response.body() == null || response.body()!!.choices == null
-                        || response.body()!!.choices.isEmpty() || response.body()!!.choices[0] == null
-                        || response.body()!!.choices[0].message == null) {
+                    val body571 = response.body()
+                    val choices571 = body571?.choices
+                    if (!response.isSuccessful || body571 == null || choices571 == null
+                        || choices571.isEmpty() || choices571[0] == null
+                        || choices571[0].message == null) {
                         var detail = ""
                         try {
                             if (response.errorBody() != null) {
@@ -576,7 +583,7 @@ class ChatService(context: Context) {
                                 + if (detail.isEmpty()) "" else ("\n" + detail))
                         return
                     }
-                    var summary = extractAssistantContent(response.body()!!)
+                    var summary = extractAssistantContent(body571)
                     summary = extractTextFieldFromJsonOrText(summary, "summary", "outline", "content", "result")
                     summary = stripThinkTags(summary).replace("\n", " ").trim()
                     if (summary.isEmpty()) {
@@ -697,9 +704,11 @@ class ChatService(context: Context) {
                     call: retrofit2.Call<ChatApi.ChatResponse>,
                     response: retrofit2.Response<ChatApi.ChatResponse>
                 ) {
-                    if (!response.isSuccessful || response.body() == null || response.body()!!.choices == null
-                        || response.body()!!.choices.isEmpty() || response.body()!!.choices[0] == null
-                        || response.body()!!.choices[0].message == null) {
+                    val body707 = response.body()
+                    val choices707 = body707?.choices
+                    if (!response.isSuccessful || body707 == null || choices707 == null
+                        || choices707.isEmpty() || choices707[0] == null
+                        || choices707[0].message == null) {
                         var detail = ""
                         try {
                             if (response.errorBody() != null) {
@@ -724,7 +733,7 @@ class ChatService(context: Context) {
                         return
                     }
                     callback.onPartial("模型已返回，正在解析计划…")
-                    val raw = extractAssistantContent(response.body()!!)
+                    val raw = extractAssistantContent(body707)
                     Log.d(TAG, "chapter plan raw length=${raw?.length ?: 0}"
                             + ", preview=${previewForLog(raw, 180)}")
                     val obj = parseFirstJsonObject(raw)
@@ -1110,9 +1119,11 @@ class ChatService(context: Context) {
                     call: retrofit2.Call<ChatApi.ChatResponse>,
                     response: retrofit2.Response<ChatApi.ChatResponse>
                 ) {
-                    if (!response.isSuccessful || response.body() == null || response.body()!!.choices == null
-                        || response.body()!!.choices.isEmpty() || response.body()!!.choices[0] == null
-                        || response.body()!!.choices[0].message == null) {
+                    val body1122 = response.body()
+                    val choices1122 = body1122?.choices
+                    if (!response.isSuccessful || body1122 == null || choices1122 == null
+                        || choices1122.isEmpty() || choices1122[0] == null
+                        || choices1122[0].message == null) {
                         var detail = ""
                         try {
                             if (response.errorBody() != null) {
@@ -1123,7 +1134,7 @@ class ChatService(context: Context) {
                                 + if (detail.isEmpty()) "" else ("\n" + detail))
                         return
                     }
-                    var report = extractAssistantContent(response.body()!!)
+                    var report = extractAssistantContent(body1122)
                     report = extractTextFieldFromJsonOrText(report, "report", "summary", "content", "result")
                     report = stripThinkTags(report).trim()
                     if (report.isEmpty()) {
@@ -1481,10 +1492,11 @@ class ChatService(context: Context) {
     }
 
     private fun extractAssistantContent(body: ChatApi.ChatResponse): String {
-        if (body.choices == null || body.choices.isEmpty()) return ""
-        val first = body.choices[0] ?: return ""
-        if (first.message == null) return ""
-        val content: JsonElement = first.message.content ?: return ""
+        val choices = body.choices
+        if (choices == null || choices.isEmpty()) return ""
+        val first = choices[0] ?: return ""
+        val message = first.message ?: return ""
+        val content: JsonElement = message.content ?: return ""
         if (content.isJsonNull) return ""
         try {
             if (content.isJsonPrimitive) return content.asString
