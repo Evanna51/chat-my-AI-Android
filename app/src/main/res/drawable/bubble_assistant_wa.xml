@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- WhatsApp-style assistant bubble: white, left-aligned, bottom-left corner small, subtle stroke -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/whatsapp_bubble_assistant" />
+            <corners
+                android:radius="18dp"
+                android:bottomLeftRadius="4dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="0.5dp" android:color="@color/bubble_assistant_stroke" />
+            <corners
+                android:radius="18dp"
+                android:bottomLeftRadius="4dp" />
+        </shape>
+    </item>
+</layer-list>

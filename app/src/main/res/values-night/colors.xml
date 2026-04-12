@@ -35,4 +35,18 @@
     <color name="home_background">#D914161C</color>
     <color name="dialog_surface_bg">#FF1A1D25</color>
     <color name="outline_label_text">#B3FFFFFF</color>
+    <!-- iOS system colors (dark) -->
+    <color name="ios_grouped_bg">#1C1C1E</color>
+    <color name="ios_section_label">#8E8E93</color>
+    <color name="ios_separator">#38383A</color>
+    <color name="ios_cell_bg">#2C2C2E</color>
+    <!-- WhatsApp bubble colors (dark) -->
+    <color name="whatsapp_bubble_user">#1E3A2A</color>
+    <color name="whatsapp_bubble_assistant">#1C1F26</color>
+    <color name="bubble_assistant_stroke">#2A2D35</color>
+    <!-- Liquid glass (dark) -->
+    <color name="glass_surface">#CC1C1C1E</color>
+    <color name="glass_stroke">#30FFFFFF</color>
+    <!-- iOS destructive (dark) -->
+    <color name="ios_destructive">#FF453A</color>
 </resources>

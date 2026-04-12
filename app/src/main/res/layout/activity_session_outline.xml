@@ -1,41 +1,52 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@color/ios_grouped_bg">
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
+        android:background="@color/ios_grouped_bg"
+        app:elevation="0dp"
         app:navigationIcon="?attr/homeAsUpIndicator"
-        xmlns:app="http://schemas.android.com/apk/res-auto"
         app:title="作家大纲" />
 
     <TextView
         android:id="@+id/textOutlineEmpty"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:padding="16dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="32dp"
+        android:paddingBottom="16dp"
         android:text="暂无大纲，点击下方按钮开始添加"
-        android:textColor="?attr/colorOnSurfaceVariant" />
+        android:textSize="14sp"
+        android:textColor="@color/ios_section_label"
+        android:gravity="center" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerOutline"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:paddingHorizontal="12dp"
-        android:paddingTop="4dp"
-        android:paddingBottom="8dp" />
+        android:paddingBottom="8dp"
+        android:clipToPadding="false" />
 
+    <!-- Glass bottom button bar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingHorizontal="12dp"
-        android:paddingTop="4dp"
-        android:paddingBottom="12dp">
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="16dp"
+        android:background="@drawable/bg_glass_bottom_bar"
+        android:elevation="4dp">
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAddOutline"
@@ -43,9 +54,9 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:layout_marginEnd="8dp"
-            android:text="新增大纲"
-            app:icon="@drawable/ic_add"
-            xmlns:app="http://schemas.android.com/apk/res-auto" />
+            app:cornerRadius="16dp"
+            android:text="@string/outline_add_title"
+            app:icon="@drawable/ic_add" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnLeakAudit"
@@ -53,6 +64,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
+            app:cornerRadius="16dp"
             android:text="泄密审计" />
     </LinearLayout>
 

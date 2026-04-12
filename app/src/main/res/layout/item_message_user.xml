@@ -18,9 +18,9 @@
         android:id="@+id/textContent"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:maxWidth="280dp"
+        android:maxWidth="300dp"
         android:padding="12dp"
-        android:background="@drawable/bubble_user"
+        android:background="@drawable/bubble_user_wa"
         android:textColor="@color/chat_user_text_color"
         android:textSize="16sp"
         android:textIsSelectable="true" />
@@ -114,7 +114,7 @@
             android:background="@drawable/bg_action_button"
             android:scaleType="centerInside"
             android:src="@drawable/ic_action_delete"
-            android:tint="#622100"
+            android:tint="@color/ios_destructive"
             android:contentDescription="删除" />
     </LinearLayout>
 </LinearLayout>

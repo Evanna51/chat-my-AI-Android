@@ -54,7 +54,7 @@
         android:id="@+id/layoutAssistantBubble"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/bubble_assistant">
+        android:background="@drawable/bubble_assistant_wa">
         <!-- 正文内容：长文折叠/展开逻辑由 MessageAdapter 控制 -->
         <TextView
             android:id="@+id/textContent"
@@ -173,7 +173,7 @@
             android:background="@drawable/bg_action_button"
             android:scaleType="centerInside"
             android:src="@drawable/ic_action_delete"
-            android:tint="#8B2E2E"
+            android:tint="@color/ios_destructive"
             android:contentDescription="删除" />
         <!-- 占位弹簧：把操作按钮整体顶到左侧 -->
         <Space

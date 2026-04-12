@@ -3,19 +3,28 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@color/ios_grouped_bg">
 
+    <!-- WhatsApp-style toolbar: primary color bg, white icons -->
     <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="68dp">
+        android:layout_height="wrap_content"
+        android:background="?attr/colorPrimary"
+        android:elevation="4dp">
+
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
+            android:background="@android:color/transparent"
             android:paddingEnd="144dp"
             app:title="@string/current_conversation"
+            app:titleTextColor="@color/on_primary"
+            app:subtitleTextColor="#CCffffff"
             app:titleTextAppearance="@style/TextAppearance.AIChat.Toolbar.Title.Small"
             app:subtitleTextAppearance="@style/TextAppearance.AIChat.Toolbar.Subtitle"
+            app:navigationIconTint="@color/on_primary"
             app:navigationIcon="?attr/homeAsUpIndicator" />
 
         <TextView
@@ -24,12 +33,11 @@
             android:layout_height="wrap_content"
             android:layout_gravity="start|bottom"
             android:paddingStart="60dp"
-            android:paddingTop="0dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="4dp"
+            android:paddingEnd="160dp"
+            android:paddingBottom="6dp"
             android:text="@string/quick_model_switch_placeholder"
             android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="@color/list_subtitle_color" />
+            android:textColor="#CCffffff" />
 
         <ImageButton
             android:id="@+id/btnWriterOutline"
@@ -37,12 +45,12 @@
             android:layout_height="40dp"
             android:layout_gravity="end|top"
             android:layout_marginTop="8dp"
-            android:layout_marginEnd="96dp"
+            android:layout_marginEnd="100dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="作家大纲"
             android:src="@drawable/ic_action_outline"
             android:visibility="gone"
-            app:tint="?attr/colorOnSurface" />
+            app:tint="@color/on_primary" />
 
         <ImageButton
             android:id="@+id/btnSessionSettings"
@@ -50,11 +58,11 @@
             android:layout_height="40dp"
             android:layout_gravity="end|top"
             android:layout_marginTop="8dp"
-            android:layout_marginEnd="52dp"
+            android:layout_marginEnd="56dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/session_chat_settings"
             android:src="@drawable/ic_action_settings"
-            app:tint="?attr/colorOnSurface" />
+            app:tint="@color/on_primary" />
 
         <ImageButton
             android:id="@+id/btnSessionMore"
@@ -66,26 +74,16 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/more_options"
             android:src="@drawable/ic_action_more"
-            app:tint="?attr/colorOnSurface" />
-
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:layout_gravity="bottom"
-            android:background="#0D808080" />
+            app:tint="@color/on_primary" />
     </FrameLayout>
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="2dp"
-        android:background="@drawable/bg_header_bottom_shadow" />
 
     <androidx.core.widget.NestedScrollView
         android:id="@+id/scrollMessages"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:fillViewport="false">
+        android:fillViewport="false"
+        android:background="@color/ios_grouped_bg">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -97,37 +95,44 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:paddingStart="16dp"
-                android:paddingTop="0dp"
                 android:paddingEnd="16dp"
                 android:paddingBottom="8dp"
                 android:textAppearance="?attr/textAppearanceBodySmall"
-                android:textColor="@color/list_subtitle_color"
+                android:textColor="@color/ios_section_label"
                 android:visibility="gone" />
 
+            <!-- Load earlier messages pill -->
             <TextView
                 android:id="@+id/textLoadEarlierMessages"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="center_horizontal"
-                android:layout_marginTop="8dp"
-                android:background="@drawable/input_background"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_glass_toolbar"
                 android:clickable="true"
                 android:focusable="true"
-                android:paddingLeft="12dp"
+                android:paddingStart="16dp"
                 android:paddingTop="8dp"
-                android:paddingRight="12dp"
+                android:paddingEnd="16dp"
                 android:paddingBottom="8dp"
+                android:elevation="2dp"
                 android:text="@string/load_earlier_messages"
-                android:textAppearance="?attr/textAppearanceBodyMedium"
+                android:textSize="13sp"
+                android:textColor="?attr/colorPrimary"
                 android:visibility="gone" />
 
+            <!-- History conversation: iOS flat card -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardHistory"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_margin="8dp"
-                app:cardElevation="2dp"
-                app:cardCornerRadius="8dp">
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:layout_marginTop="12dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/ios_cell_bg"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="0dp">
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
@@ -138,22 +143,25 @@
                         android:layout_height="wrap_content"
                         android:orientation="horizontal"
                         android:gravity="center_vertical"
-                        android:padding="12dp"
-                        android:minHeight="48dp">
+                        android:paddingStart="16dp"
+                        android:paddingEnd="16dp"
+                        android:minHeight="52dp"
+                        android:background="?attr/selectableItemBackground">
                         <ImageView
                             android:id="@+id/iconHistoryExpand"
-                            android:layout_width="24dp"
-                            android:layout_height="24dp"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
                             android:src="@drawable/ic_chevron_right"
-                            app:tint="#757575" />
+                            app:tint="@color/ios_section_label" />
                         <TextView
                             android:id="@+id/textHistoryTitle"
                             android:layout_width="0dp"
                             android:layout_weight="1"
                             android:layout_height="wrap_content"
-                            android:layout_marginStart="8dp"
+                            android:layout_marginStart="10dp"
                             android:text="@string/history_conversation"
-                            android:textAppearance="?attr/textAppearanceTitleSmall" />
+                            android:textAppearance="?attr/textAppearanceBodyLarge"
+                            android:textColor="?attr/colorOnSurface" />
                     </LinearLayout>
                     <LinearLayout
                         android:id="@+id/expandHistory"
@@ -161,6 +169,11 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
                         android:visibility="gone">
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="0.5dp"
+                            android:layout_marginStart="16dp"
+                            android:background="@color/ios_separator" />
                         <androidx.recyclerview.widget.RecyclerView
                             android:id="@+id/recyclerHistory"
                             android:layout_width="match_parent"
@@ -172,20 +185,25 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Current conversation section label -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/current_conversation"
-                android:textAppearance="?attr/textAppearanceTitleSmall"
-                android:padding="12dp"
-                android:paddingBottom="4dp" />
+                android:textSize="13sp"
+                android:textColor="@color/ios_section_label"
+                android:paddingStart="20dp"
+                android:paddingTop="16dp"
+                android:paddingBottom="6dp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/recyclerCurrent"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:minHeight="200dp"
-                android:padding="8dp"
+                android:paddingHorizontal="12dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
                 android:nestedScrollingEnabled="false" />
 
             <View
@@ -195,13 +213,16 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
+    <!-- Glass input bar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="8dp"
-        android:background="?attr/colorSurface"
-        android:elevation="4dp">
+        android:paddingHorizontal="10dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp"
+        android:background="@drawable/bg_glass_bottom_bar"
+        android:elevation="6dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -216,61 +237,76 @@
                 android:hint="@string/chat_hint"
                 android:inputType="textMultiLine|textCapSentences"
                 android:maxLines="5"
-                android:minHeight="64dp"
-                android:background="@drawable/input_background"
-                android:padding="14dp"
+                android:minHeight="48dp"
+                android:background="@drawable/bg_glass_toolbar"
+                android:padding="12dp"
                 android:layout_marginEnd="8dp"
-                android:layout_marginStart="4dp" />
+                android:textSize="15sp"
+                android:textColor="?attr/colorOnSurface"
+                android:textColorHint="@color/ios_section_label" />
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/sendButton"
-                android:layout_width="wrap_content"
-                android:layout_height="56dp"
-                android:text="@string/send"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="0dp"
+                android:minWidth="0dp"
+                android:minHeight="0dp"
                 app:icon="@android:drawable/ic_menu_send"
-                app:iconGravity="textEnd"
-                app:iconPadding="4dp" />
+                app:iconGravity="textStart"
+                app:iconPadding="0dp"
+                app:iconSize="22dp"
+                app:cornerRadius="24dp" />
         </LinearLayout>
 
-        <ImageButton
-            android:id="@+id/btnAdd"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_marginTop="6dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/add"
-            android:src="@drawable/ic_add"
-            app:tint="?attr/colorOnSurface" />
-
         <LinearLayout
-            android:id="@+id/layoutAddActions"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:visibility="gone">
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnAddFile"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
+            android:gravity="center_vertical"
+            android:layout_marginTop="4dp">
+
+            <ImageButton
+                android:id="@+id/btnAdd"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/add"
+                android:src="@drawable/ic_add"
+                android:padding="6dp"
+                app:tint="?attr/colorPrimary" />
+
+            <LinearLayout
+                android:id="@+id/layoutAddActions"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/add_file" />
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnAddLocation"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/add_location" />
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnAddTime"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/add_time" />
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnAddMore"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/add_more" />
+                android:orientation="horizontal"
+                android:visibility="gone">
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnAddFile"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/add_file" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnAddLocation"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/add_location" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnAddTime"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/add_time" />
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnAddMore"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/add_more" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
+
 </LinearLayout>
