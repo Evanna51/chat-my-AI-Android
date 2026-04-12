@@ -3,12 +3,15 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical">
+    android:orientation="vertical"
+    android:background="@color/ios_grouped_bg">
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
+        android:background="@color/ios_grouped_bg"
+        app:elevation="0dp"
         app:title="@string/session_chat_settings"
         app:navigationIcon="?attr/homeAsUpIndicator" />
 
@@ -16,47 +19,73 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1">
+
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
-            <LinearLayout
+            android:orientation="vertical"
+            android:paddingBottom="8dp">
+
+            <!-- Section: 对话信息 -->
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
+                android:text="对话信息"
+                android:textSize="13sp"
+                android:textColor="@color/ios_section_label"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
                 android:paddingTop="16dp"
-                android:paddingBottom="8dp">
-                <com.google.android.material.textfield.TextInputLayout
+                android:paddingBottom="8dp" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/ios_cell_bg"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="0dp">
+
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="@string/session_title"
-                    style="@style/Widget.AIChat.TextInputLayout">
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/editSessionTitle"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <com.google.android.material.textfield.TextInputLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:inputType="text" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        android:hint="@string/session_title"
+                        style="@style/Widget.AIChat.TextInputLayout">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/editSessionTitle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="text" />
+                    </com.google.android.material.textfield.TextInputLayout>
 
-                <com.google.android.material.textfield.TextInputLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="12dp"
-                    android:hint="@string/session_avatar_optional"
-                    style="@style/Widget.AIChat.TextInputLayout">
-                    <com.google.android.material.textfield.TextInputEditText
-                        android:id="@+id/editSessionAvatar"
-                        android:layout_width="120dp"
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:inputType="text"
-                        android:maxLength="6" />
-                </com.google.android.material.textfield.TextInputLayout>
+                        android:layout_marginTop="12dp"
+                        android:hint="@string/session_avatar_optional"
+                        style="@style/Widget.AIChat.TextInputLayout">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/editSessionAvatar"
+                            android:layout_width="120dp"
+                            android:layout_height="wrap_content"
+                            android:inputType="text"
+                            android:maxLength="6" />
+                    </com.google.android.material.textfield.TextInputLayout>
 
-            </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
+            <!-- Chat settings form (model, params, switches) -->
             <include layout="@layout/view_chat_settings_form" />
+
         </LinearLayout>
     </ScrollView>
 
@@ -68,5 +97,6 @@
         android:layout_marginEnd="16dp"
         android:layout_marginTop="8dp"
         android:layout_marginBottom="16dp"
+        app:cornerRadius="16dp"
         android:text="@string/save" />
 </LinearLayout>

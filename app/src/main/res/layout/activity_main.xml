@@ -5,29 +5,53 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:fitsSystemWindows="true"
-    android:background="@color/home_background">
+    android:background="@color/ios_grouped_bg">
 
+    <!-- Glass search / toolbar area -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingHorizontal="12dp"
-        android:paddingVertical="8dp"
-        android:background="?attr/colorSurface"
-        android:elevation="4dp">
-        <EditText
-            android:id="@+id/searchEdit"
+        android:paddingStart="16dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="8dp"
+        android:background="@color/ios_grouped_bg">
+
+        <!-- Glass search bar pill -->
+        <LinearLayout
             android:layout_width="0dp"
             android:layout_weight="1"
-            android:layout_height="40dp"
-            android:hint="@string/search_hint"
-            android:inputType="text"
-            android:imeOptions="actionSearch"
-            android:background="@drawable/input_background"
-            android:paddingHorizontal="12dp"
-            android:layout_marginEnd="8dp" />
-        <!-- 首页按钮：设置入口 -->
+            android:layout_height="44dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="8dp"
+            android:layout_marginEnd="8dp"
+            android:background="@drawable/bg_glass_toolbar"
+            android:elevation="3dp">
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_search"
+                android:layout_marginEnd="8dp"
+                app:tint="@color/ios_section_label" />
+            <EditText
+                android:id="@+id/searchEdit"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:hint="@string/search_hint"
+                android:inputType="text"
+                android:imeOptions="actionSearch"
+                android:background="@android:color/transparent"
+                android:textSize="15sp"
+                android:textColor="?attr/colorOnSurface"
+                android:textColorHint="@color/ios_section_label" />
+        </LinearLayout>
+
+        <!-- Settings button -->
         <ImageButton
             android:id="@+id/btnSettings"
             android:layout_width="40dp"
@@ -35,30 +59,33 @@
             android:contentDescription="@string/settings"
             android:src="@drawable/ic_action_menu"
             android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="?attr/colorOnSurface" />
+            app:tint="?attr/colorPrimary" />
     </LinearLayout>
 
+    <!-- Section header: 对话 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingHorizontal="12dp"
+        android:paddingStart="20dp"
+        android:paddingEnd="12dp"
         android:paddingTop="12dp"
-        android:paddingBottom="4dp">
+        android:paddingBottom="6dp">
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="对话"
-            android:textAppearance="?attr/textAppearanceTitleMedium" />
-        <!-- 首页按钮：进入全部对话 -->
+            android:textSize="13sp"
+            android:textColor="@color/ios_section_label" />
         <TextView
             android:id="@+id/btnAllConversations"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="全部"
-            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:textSize="13sp"
+            android:textColor="?attr/colorPrimary"
             android:paddingHorizontal="8dp"
             android:paddingVertical="4dp"
             android:background="?attr/selectableItemBackground"
@@ -66,57 +93,59 @@
             android:focusable="true" />
     </LinearLayout>
 
+    <!-- Session list -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/sessionList"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:paddingHorizontal="8dp"
         android:paddingBottom="8dp"
         android:clipToPadding="false" />
 
+    <!-- Section header: 我的助手 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/my_assistants"
+        android:textSize="13sp"
+        android:textColor="@color/ios_section_label"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="6dp" />
+
+    <!-- Assistants glass card (collapsible) -->
     <LinearLayout
         android:id="@+id/headerMyAssistants"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="52dp"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingHorizontal="12dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="8dp"
-        android:background="?attr/colorSurface"
+        android:orientation="vertical"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/bg_glass_toolbar"
+        android:elevation="3dp"
         android:clickable="true"
         android:focusable="true">
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/my_assistants"
-            android:textAppearance="?attr/textAppearanceTitleMedium" />
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:src="@drawable/ic_chevron_right"
-            app:tint="?attr/colorOnSurface" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerHomeAssistants"
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="4dp"
+            android:nestedScrollingEnabled="false" />
     </LinearLayout>
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerHomeAssistants"
-        android:layout_width="match_parent"
-        android:layout_height="70dp"
-        android:paddingHorizontal="8dp"
-        android:paddingBottom="4dp"
-        android:background="?attr/colorSurface" />
-
+    <!-- Glass bottom input bar -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:paddingHorizontal="8dp"
-        android:paddingVertical="12dp"
-        android:background="?attr/colorSurface"
-        android:elevation="4dp">
+        android:paddingHorizontal="12dp"
+        android:paddingVertical="10dp"
+        android:background="@drawable/bg_glass_bottom_bar"
+        android:elevation="6dp"
+        android:gravity="center_vertical">
         <EditText
             android:id="@+id/inputEdit"
             android:layout_width="0dp"
@@ -125,18 +154,25 @@
             android:hint="@string/chat_hint"
             android:inputType="textMultiLine|textCapSentences"
             android:maxLines="4"
-            android:minHeight="48dp"
-            android:background="@drawable/input_background"
+            android:minHeight="44dp"
+            android:background="@drawable/bg_glass_toolbar"
             android:padding="12dp"
-            android:layout_marginEnd="8dp" />
-        <!-- 首页按钮：发送消息 -->
+            android:layout_marginEnd="10dp"
+            android:textSize="15sp"
+            android:textColor="?attr/colorOnSurface"
+            android:textColorHint="@color/ios_section_label" />
         <com.google.android.material.button.MaterialButton
             android:id="@+id/sendButton"
-            android:layout_width="wrap_content"
+            android:layout_width="48dp"
             android:layout_height="48dp"
-            android:text="@string/send"
+            android:padding="0dp"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
             app:icon="@android:drawable/ic_menu_send"
-            app:iconGravity="textEnd"
-            app:iconPadding="4dp" />
+            app:iconGravity="textStart"
+            app:iconPadding="0dp"
+            app:iconSize="22dp"
+            app:cornerRadius="24dp" />
     </LinearLayout>
+
 </LinearLayout>

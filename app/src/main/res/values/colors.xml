@@ -39,4 +39,13 @@
     <color name="ios_section_label">#6C6C70</color>
     <color name="ios_separator">#C8C7CC</color>
     <color name="ios_cell_bg">#FFFFFF</color>
+    <!-- WhatsApp bubble colors -->
+    <color name="whatsapp_bubble_user">#DCF8C6</color>
+    <color name="whatsapp_bubble_assistant">#FFFFFF</color>
+    <color name="bubble_assistant_stroke">#E0E0E0</color>
+    <!-- Liquid glass -->
+    <color name="glass_surface">#CCF2F2F7</color>
+    <color name="glass_stroke">#40FFFFFF</color>
+    <!-- iOS destructive -->
+    <color name="ios_destructive">#FF3B30</color>
 </resources>
