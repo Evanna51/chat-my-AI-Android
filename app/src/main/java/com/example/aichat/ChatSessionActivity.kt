@@ -1868,19 +1868,26 @@ class ChatSessionActivity : ThemedActivity() {
 
     private fun showEditDialog(message: Message) {
         val view = layoutInflater.inflate(R.layout.dialog_edit_message, null)
-        val edit: TextInputEditText? = view.findViewById(R.id.editMessageContent)
+        val edit = view.findViewById<android.widget.EditText>(R.id.editMessageContent)
         edit?.setText(message.content ?: "")
-        MaterialAlertDialogBuilder(this)
-            .setTitle("编辑消息")
+        edit?.setSelection(edit.text?.length ?: 0)
+
+        val dialog = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_NoActionBar)
             .setView(view)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                if (edit == null || edit.text == null) return@setPositiveButton
-                message.content = edit.text.toString().trim()
-                applyMessagesAndTitle()
-                persistSessionMessagesAsync()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            .create()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        view.findViewById<android.view.View>(R.id.btnCancel)?.setOnClickListener {
+            dialog.dismiss()
+        }
+        view.findViewById<android.view.View>(R.id.btnConfirm)?.setOnClickListener {
+            val content = edit?.text?.toString()?.trim() ?: ""
+            message.content = content
+            applyMessagesAndTitle()
+            persistSessionMessagesAsync()
+            dialog.dismiss()
+        }
+        dialog.show()
     }
 
     private fun persistSessionMessagesAsync() {

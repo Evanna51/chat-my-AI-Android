@@ -1,49 +1,48 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- iOS grouped list row style for assistant items -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_margin="6dp"
     android:orientation="vertical"
-    android:background="@color/ios_cell_bg">
+    android:background="@drawable/bg_glass_toolbar"
+    android:clickable="true"
+    android:focusable="true"
+    android:foreground="?attr/selectableItemBackground">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="10dp"
-        android:paddingBottom="10dp"
-        android:minHeight="64dp"
-        android:background="?attr/selectableItemBackground">
+        android:padding="12dp"
+        android:minHeight="64dp">
 
-        <!-- Avatar -->
+        <!-- 圆形头像 -->
         <FrameLayout
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_marginEnd="14dp">
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="10dp">
 
             <ImageView
                 android:id="@+id/imageAssistantAvatar"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:background="@drawable/bg_avatar_circle"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:clipToOutline="true"
                 android:scaleType="centerCrop"
                 android:visibility="gone" />
 
             <TextView
                 android:id="@+id/textAssistantAvatar"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:background="@drawable/bg_avatar_circle"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
                 android:gravity="center"
-                android:textAppearance="?attr/textAppearanceTitleMedium" />
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:textColor="?attr/colorPrimary" />
+
         </FrameLayout>
 
-        <!-- Name + type + prompt -->
+        <!-- 名称 + 类型 + 设定预览 -->
         <LinearLayout
             android:layout_width="0dp"
             android:layout_weight="1"
@@ -57,7 +56,7 @@
                 android:maxLines="1"
                 android:ellipsize="end"
                 android:textAppearance="?attr/textAppearanceTitleSmall"
-                android:textColor="?attr/colorOnSurface"
+                android:textColor="@color/list_title_color"
                 android:textStyle="bold" />
 
             <LinearLayout
@@ -65,20 +64,20 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
                 android:gravity="center_vertical"
-                android:layout_marginTop="2dp">
+                android:layout_marginTop="3dp">
 
                 <TextView
                     android:id="@+id/textAssistantType"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:textSize="11sp"
+                    android:textSize="10sp"
                     android:textColor="?attr/colorPrimary"
                     android:background="@drawable/bg_pill_outline_type"
-                    android:paddingStart="8dp"
-                    android:paddingEnd="8dp"
+                    android:paddingStart="6dp"
+                    android:paddingEnd="6dp"
                     android:paddingTop="2dp"
                     android:paddingBottom="2dp"
-                    android:layout_marginEnd="8dp" />
+                    android:layout_marginEnd="6dp" />
 
                 <TextView
                     android:id="@+id/textAssistantPromptPreview"
@@ -87,24 +86,12 @@
                     android:layout_height="wrap_content"
                     android:ellipsize="end"
                     android:maxLines="1"
-                    android:textSize="13sp"
-                    android:textColor="@color/ios_section_label" />
+                    android:textSize="12sp"
+                    android:textColor="@color/list_subtitle_color" />
+
             </LinearLayout>
         </LinearLayout>
 
-        <ImageView
-            android:layout_width="20dp"
-            android:layout_height="20dp"
-            android:layout_marginStart="8dp"
-            android:src="@drawable/ic_chevron_right"
-            app:tint="@color/ios_section_label" />
     </LinearLayout>
-
-    <!-- iOS separator -->
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="0.5dp"
-        android:layout_marginStart="74dp"
-        android:background="@color/ios_separator" />
 
 </LinearLayout>

@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
@@ -95,13 +96,16 @@ class MainActivity : ThemedActivity() {
         findViewById<android.view.View>(R.id.headerMyAssistants).setOnClickListener {
             startActivity(Intent(this, MyAssistantsActivity::class.java))
         }
+        findViewById<android.view.View>(R.id.btnMyAssistants).setOnClickListener {
+            startActivity(Intent(this, MyAssistantsActivity::class.java))
+        }
         findViewById<android.view.View>(R.id.btnAllConversations).setOnClickListener {
             startActivity(Intent(this, AllConversationsActivity::class.java))
         }
 
         val recyclerHomeAssistants: RecyclerView = findViewById(R.id.recyclerHomeAssistants)
         recyclerHomeAssistants.layoutManager =
-            LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+            GridLayoutManager(this, 2, GridLayoutManager.HORIZONTAL, false)
         homeAssistantAdapter = HomeAssistantAdapter()
         homeAssistantAdapter.setOnAssistantClickListener { a ->
             val sessionId = UUID.randomUUID().toString()
