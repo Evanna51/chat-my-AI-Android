@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MyAssistantEntity::class,
         SessionAssistantBindingEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -30,6 +30,31 @@ abstract class AppDatabase : RoomDatabase() {
 
         @Volatile
         private var INSTANCE: AppDatabase? = null
+
+        /**
+         * v2 → v3: Kotlin entities declare sessionId/content as TEXT NOT NULL, but the Java-era
+         * `message` table (created by Room from nullable Java String fields) has TEXT (nullable).
+         * Recreate the table with proper NOT NULL constraints so Room's schema validation passes.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `message_v3` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`sessionId` TEXT NOT NULL, " +
+                    "`role` INTEGER NOT NULL, " +
+                    "`content` TEXT NOT NULL, " +
+                    "`createdAt` INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "INSERT INTO `message_v3` " +
+                    "SELECT `id`, COALESCE(`sessionId`,''), `role`, COALESCE(`content`,''), `createdAt` " +
+                    "FROM `message`"
+                )
+                db.execSQL("DROP TABLE `message`")
+                db.execSQL("ALTER TABLE `message_v3` RENAME TO `message`")
+            }
+        }
 
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -99,7 +124,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "ai_chat_db"
                 )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .allowMainThreadQueries() // 临时：待优化2(ViewModel)完成后移除
                 .build()
                 .also { INSTANCE = it }
