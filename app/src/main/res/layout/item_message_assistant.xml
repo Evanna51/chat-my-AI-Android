@@ -49,7 +49,7 @@
             android:textIsSelectable="true" />
     </LinearLayout>
 
-    <!-- 助手消息气泡容器：正文 + affix 折叠按钮 -->
+    <!-- 助手消息气泡容器 -->
     <FrameLayout
         android:id="@+id/layoutAssistantBubble"
         android:layout_width="match_parent"
@@ -67,22 +67,6 @@
             android:textColor="@color/chat_assistant_text_color"
             android:textSize="16sp"
             android:textIsSelectable="true" />
-        <!-- affix 折叠按钮：相对该条消息悬浮，不是全局悬浮 -->
-        <TextView
-            android:id="@+id/textCollapseToggle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="end|center_vertical"
-            android:layout_marginEnd="6dp"
-            android:paddingHorizontal="8dp"
-            android:paddingVertical="3dp"
-            android:text="展开"
-            android:textSize="12sp"
-            android:textColor="@color/chat_meta_text_color"
-            android:drawablePadding="2dp"
-            android:drawableEnd="@drawable/ic_collapse_expand_more"
-            android:drawableTint="@color/chat_meta_text_color"
-            android:background="@drawable/bg_affix_toggle" />
     </FrameLayout>
 
     <TextView
@@ -180,5 +164,18 @@
             android:layout_width="0dp"
             android:layout_height="1dp"
             android:layout_weight="1" />
+        <!-- 折叠/展开正文内容按钮：放在操作栏右侧 -->
+        <ImageButton
+            android:id="@+id/textCollapseToggle"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_collapse_expand_more"
+            android:tint="@color/action_button_icon_tint"
+            android:contentDescription="展开/收起"
+            android:visibility="gone" />
     </LinearLayout>
 </LinearLayout>
