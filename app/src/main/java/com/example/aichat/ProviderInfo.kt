@@ -17,9 +17,10 @@ class ProviderInfo {
 
     data class ProviderModelInfo(
         @JvmField var modelId: String = "",
-        @JvmField var nickname: String = ""
+        @JvmField var nickname: String = "",
+        @JvmField var thinkingEnabled: Boolean = false
     ) {
-        constructor(modelId: String) : this(modelId = modelId, nickname = "")
+        constructor(modelId: String) : this(modelId = modelId, nickname = "", thinkingEnabled = false)
     }
 
     companion object {

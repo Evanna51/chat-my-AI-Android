@@ -28,9 +28,11 @@ class Message {
     @JvmField
     var createdAt: Long = 0
 
-    @Ignore
     @JvmField
     var reasoning: String = ""
+
+    @JvmField
+    var thinkingElapsedMs: Long = 0
 
     @Ignore
     @JvmField
@@ -55,10 +57,6 @@ class Message {
     @Ignore
     @JvmField
     var thinkingStartedAt: Long = 0
-
-    @Ignore
-    @JvmField
-    var thinkingElapsedMs: Long = 0
 
     constructor()
 
