@@ -35,4 +35,8 @@
     <color name="home_background">#FFFFFFFF</color>
     <color name="dialog_surface_bg">#FFFDFEFF</color>
     <color name="outline_label_text">#73000000</color>
+    <color name="ios_grouped_bg">#F2F2F7</color>
+    <color name="ios_section_label">#6C6C70</color>
+    <color name="ios_separator">#C8C7CC</color>
+    <color name="ios_cell_bg">#FFFFFF</color>
 </resources>

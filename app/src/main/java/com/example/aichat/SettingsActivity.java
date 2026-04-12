@@ -151,7 +151,7 @@ public class SettingsActivity extends ThemedActivity {
     private void setupModelManagement(View root) {
         providerManager = new ProviderManager(this);
 
-        MaterialButton btnAdd = root.findViewById(R.id.btnAddProvider);
+        View btnAdd = root.findViewById(R.id.btnAddProvider);
         if (btnAdd != null) {
             btnAdd.setOnClickListener(v -> showAddProviderDialog());
         }
