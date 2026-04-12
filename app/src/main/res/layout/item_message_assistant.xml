@@ -78,28 +78,35 @@
         android:textColor="@color/chat_meta_text_color"
         android:visibility="gone" />
 
-    <ImageButton
-        android:id="@+id/actionExpand"
-        android:layout_width="30dp"
-        android:layout_height="30dp"
-        android:layout_marginTop="2dp"
-        android:padding="6dp"
-        android:background="@drawable/bg_action_button"
-        android:scaleType="centerInside"
-        android:src="@drawable/ic_action_expand_left"
-        android:tint="@color/action_button_icon_tint"
-        android:contentDescription="展开操作" />
-
-    <!-- 助手消息底部操作区：点击消息后显示 -->
+    <!-- 助手消息底部操作区：展开/折叠按钮与操作按钮同行 -->
     <LinearLayout
-        android:id="@+id/layoutActions"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minHeight="32dp"
-        android:layout_marginTop="6dp"
+        android:layout_marginTop="2dp"
         android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:visibility="gone">
+        android:gravity="center_vertical">
+
+        <ImageButton
+            android:id="@+id/actionExpand"
+            android:layout_width="30dp"
+            android:layout_height="30dp"
+            android:padding="6dp"
+            android:background="@drawable/bg_action_button"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_action_expand_left"
+            android:tint="@color/action_button_icon_tint"
+            android:contentDescription="展开操作" />
+
+        <LinearLayout
+            android:id="@+id/layoutActions"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="4dp"
+            android:minHeight="32dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:visibility="gone">
         <!-- 编辑按钮 -->
         <ImageButton
             android:id="@+id/actionEdit"
@@ -177,5 +184,7 @@
             android:tint="@color/action_button_icon_tint"
             android:contentDescription="展开/收起"
             android:visibility="gone" />
+        </LinearLayout>
+
     </LinearLayout>
 </LinearLayout>

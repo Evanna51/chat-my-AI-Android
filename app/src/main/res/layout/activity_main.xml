@@ -103,16 +103,32 @@
         android:clipToPadding="false" />
 
     <!-- Section header: 我的助手 -->
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/my_assistants"
-        android:textSize="13sp"
-        android:textColor="@color/ios_section_label"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:paddingStart="20dp"
-        android:paddingEnd="20dp"
+        android:paddingEnd="12dp"
         android:paddingTop="12dp"
-        android:paddingBottom="6dp" />
+        android:paddingBottom="6dp">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/my_assistants"
+            android:textSize="13sp"
+            android:textColor="@color/ios_section_label" />
+        <ImageButton
+            android:id="@+id/btnMyAssistants"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:src="@drawable/ic_action_expand_left"
+            android:rotation="180"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="管理助手"
+            app:tint="@color/ios_section_label" />
+    </LinearLayout>
 
     <!-- Assistants glass card (collapsible) -->
     <LinearLayout
@@ -120,19 +136,16 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:layout_marginStart="16dp"
-        android:layout_marginEnd="16dp"
         android:layout_marginBottom="8dp"
-        android:background="@drawable/bg_glass_toolbar"
-        android:elevation="3dp"
         android:clickable="true"
         android:focusable="true">
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerHomeAssistants"
             android:layout_width="match_parent"
-            android:layout_height="80dp"
-            android:paddingHorizontal="8dp"
-            android:paddingVertical="4dp"
+            android:layout_height="112dp"
+            android:paddingHorizontal="4dp"
+            android:paddingVertical="6dp"
+            android:clipToPadding="false"
             android:nestedScrollingEnabled="false" />
     </LinearLayout>
 

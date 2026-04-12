@@ -353,13 +353,20 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             holder.textContent.text = content
             holder.layoutActions.visibility = if (showActions) View.VISIBLE else View.GONE
             holder.actionExpand.alpha = if (showActions) 0.55f else 1f
+            holder.actionExpand.rotation = if (showActions) 180f else 0f
+            // 每次重新绑定时收起次级菜单
+            holder.layoutMoreActions.visibility = View.GONE
+            // 小说大纲仅在写作模式下显示（在 layoutMoreActions 内）
             holder.actionOutline.visibility = if (writerMode) View.VISIBLE else View.GONE
             holder.actionExpand.setOnClickListener { expandActionPanel(m) }
             holder.itemView.setOnClickListener(null)
             holder.actionRegenerate.setOnClickListener { actionListener?.onRegenerate(m) }
-            holder.actionEdit.setOnClickListener { actionListener?.onEdit(m) }
             holder.actionCopy.setOnClickListener { actionListener?.onCopy(m) }
-            holder.actionOpen.setOnClickListener { actionListener?.onOpen(m) }
+            holder.actionMore.setOnClickListener {
+                holder.layoutMoreActions.visibility =
+                    if (holder.layoutMoreActions.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            }
+            holder.actionEdit.setOnClickListener { actionListener?.onEdit(m) }
             holder.actionOutline.setOnClickListener { actionListener?.onOutline(m) }
             holder.actionDelete.setOnClickListener { actionListener?.onDelete(m) }
         } else if (holder is AssistantHolder) {
@@ -389,6 +396,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             holder.layoutActions.visibility = if (showActions) View.VISIBLE else View.GONE
             holder.actionExpand.visibility = View.VISIBLE
             holder.actionExpand.alpha = if (showActions) 0.55f else 1f
+            holder.actionExpand.rotation = if (showActions) 180f else 0f
             if (fullBind || holder.lastHasVisibleContent != hasVisibleContent) {
                 if (disableAssistantCollapseToggle) {
                     holder.textCollapseToggle.visibility = View.GONE
@@ -460,9 +468,10 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         val layoutActions: View = itemView.findViewById(R.id.layoutActions)
         val actionExpand: View = itemView.findViewById(R.id.actionExpand)
         val actionRegenerate: View = itemView.findViewById(R.id.actionRegenerate)
-        val actionEdit: View = itemView.findViewById(R.id.actionEdit)
         val actionCopy: View = itemView.findViewById(R.id.actionCopy)
-        val actionOpen: View = itemView.findViewById(R.id.actionOpen)
+        val actionMore: View = itemView.findViewById(R.id.actionMore)
+        val layoutMoreActions: View = itemView.findViewById(R.id.layoutMoreActions)
+        val actionEdit: View = itemView.findViewById(R.id.actionEdit)
         val actionOutline: View = itemView.findViewById(R.id.actionOutline)
         val actionDelete: View = itemView.findViewById(R.id.actionDelete)
     }
