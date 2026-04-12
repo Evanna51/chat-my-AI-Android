@@ -635,7 +635,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     private fun applyCollapseToggleAffix(h: AssistantHolder) {
-        // Toggle is now in the action bar row; no affix positioning needed.
+        // Toggle floats inside the bubble (FrameLayout bottom|end); no extra positioning needed.
     }
 
     private fun setCollapseToggleLabel(toggle: ImageView?, expanded: Boolean) {
