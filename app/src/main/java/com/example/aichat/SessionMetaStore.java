@@ -1,122 +1,117 @@
 package com.example.aichat;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-
-import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class SessionMetaStore {
-    private static final String PREFS = "aichat_session_meta";
-    private static final String KEY_MAP = "session_meta_map";
-    private static final Gson GSON = new Gson();
-    private static final Type MAP_TYPE = new TypeToken<Map<String, SessionMeta>>() {}.getType();
 
-    private final SharedPreferences prefs;
+    private final SessionMetaDao dao;
 
     public SessionMetaStore(Context context) {
-        prefs = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-    }
-
-    private Map<String, SessionMeta> getMap() {
-        String json = prefs.getString(KEY_MAP, "{}");
-        Map<String, SessionMeta> map = GSON.fromJson(json, MAP_TYPE);
-        return map != null ? map : new HashMap<>();
-    }
-
-    private void saveMap(Map<String, SessionMeta> map) {
-        prefs.edit().putString(KEY_MAP, GSON.toJson(map)).apply();
+        dao = AppDatabase.getInstance(context).sessionMetaDao();
     }
 
     public SessionMeta get(String sessionId) {
         if (sessionId == null || sessionId.isEmpty()) return new SessionMeta();
-        Map<String, SessionMeta> map = getMap();
-        SessionMeta meta = map.get(sessionId);
-        return meta != null ? meta : new SessionMeta();
+        SessionMetaEntity entity = dao.get(sessionId);
+        return entity != null ? fromEntity(entity) : new SessionMeta();
     }
 
     public Map<String, SessionMeta> getAll() {
-        return getMap();
+        List<SessionMetaEntity> entities = dao.getAll();
+        Map<String, SessionMeta> map = new java.util.HashMap<>();
+        if (entities != null) {
+            for (SessionMetaEntity e : entities) {
+                if (e != null) map.put(e.sessionId, fromEntity(e));
+            }
+        }
+        return map;
     }
 
     public void save(String sessionId, SessionMeta meta) {
         if (sessionId == null || sessionId.isEmpty() || meta == null) return;
-        Map<String, SessionMeta> map = getMap();
-        map.put(sessionId, meta);
-        saveMap(map);
+        dao.upsert(toEntity(sessionId, meta));
     }
 
     public void remove(String sessionId) {
         if (sessionId == null || sessionId.isEmpty()) return;
-        Map<String, SessionMeta> map = getMap();
-        if (map.remove(sessionId) != null) {
-            saveMap(map);
-        }
+        dao.delete(sessionId);
     }
 
     public void updateTitle(String sessionId, String title) {
-        SessionMeta meta = get(sessionId);
-        meta.title = title != null ? title.trim() : "";
-        save(sessionId, meta);
+        dao.updateTitle(sessionId, title != null ? title.trim() : "");
     }
 
     public void updateCategory(String sessionId, String category) {
-        SessionMeta meta = get(sessionId);
-        meta.category = (category != null && !category.trim().isEmpty()) ? category.trim() : "默认";
-        save(sessionId, meta);
+        String safe = (category != null && !category.trim().isEmpty()) ? category.trim() : "默认";
+        dao.updateCategory(sessionId, safe);
     }
 
     public void setFavorite(String sessionId, boolean favorite) {
-        SessionMeta meta = get(sessionId);
-        meta.favorite = favorite;
-        if (favorite) meta.category = "收藏";
-        save(sessionId, meta);
+        dao.setFavorite(sessionId, favorite);
+        if (favorite) dao.updateCategory(sessionId, "收藏");
     }
 
     public void setPinned(String sessionId, boolean pinned) {
-        SessionMeta meta = get(sessionId);
-        meta.pinned = pinned;
-        save(sessionId, meta);
+        dao.setPinned(sessionId, pinned);
     }
 
     public void setDeleted(String sessionId, boolean deleted) {
-        SessionMeta meta = get(sessionId);
-        meta.deleted = deleted;
-        save(sessionId, meta);
+        dao.setDeleted(sessionId, deleted);
     }
 
     public void setHidden(String sessionId, boolean hidden) {
-        SessionMeta meta = get(sessionId);
-        meta.hidden = hidden;
-        save(sessionId, meta);
+        dao.setHidden(sessionId, hidden);
     }
 
     public void updateOutline(String sessionId, String outline) {
-        SessionMeta meta = get(sessionId);
-        meta.outline = outline != null ? outline.trim() : "";
-        save(sessionId, meta);
+        dao.updateOutline(sessionId, outline != null ? outline.trim() : "");
     }
 
     public List<String> getAllCategories() {
-        Set<String> categories = new LinkedHashSet<>();
+        LinkedHashSet<String> categories = new LinkedHashSet<>();
         categories.add("默认");
         categories.add("工作");
         categories.add("生活");
         categories.add("收藏");
         categories.add("学习");
-        Map<String, SessionMeta> map = getMap();
-        for (SessionMeta meta : map.values()) {
-            if (meta == null) continue;
-            String category = meta.category != null ? meta.category.trim() : "";
-            if (!category.isEmpty()) categories.add(category);
-        }
-        return new java.util.ArrayList<>(categories);
+        List<String> fromDb = dao.getAllCategories();
+        if (fromDb != null) categories.addAll(fromDb);
+        return new ArrayList<>(categories);
+    }
+
+    // --- Conversion helpers ---
+
+    private static SessionMetaEntity toEntity(String sessionId, SessionMeta meta) {
+        SessionMetaEntity entity = new SessionMetaEntity();
+        entity.sessionId = sessionId;
+        entity.title = meta.title != null ? meta.title : "";
+        entity.outline = meta.outline != null ? meta.outline : "";
+        entity.avatar = meta.avatar != null ? meta.avatar : "";
+        entity.category = (meta.category != null && !meta.category.trim().isEmpty())
+                ? meta.category.trim() : "默认";
+        entity.favorite = meta.favorite;
+        entity.pinned = meta.pinned;
+        entity.hidden = meta.hidden;
+        entity.deleted = meta.deleted;
+        return entity;
+    }
+
+    private static SessionMeta fromEntity(SessionMetaEntity entity) {
+        SessionMeta meta = new SessionMeta();
+        meta.title = entity.title != null ? entity.title : "";
+        meta.outline = entity.outline != null ? entity.outline : "";
+        meta.avatar = entity.avatar != null ? entity.avatar : "";
+        meta.category = (entity.category != null && !entity.category.trim().isEmpty())
+                ? entity.category.trim() : "默认";
+        meta.favorite = entity.favorite;
+        meta.pinned = entity.pinned;
+        meta.hidden = entity.hidden;
+        meta.deleted = entity.deleted;
+        return meta;
     }
 }

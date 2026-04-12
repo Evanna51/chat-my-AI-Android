@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">AI Chat</string>
+    <string name="app_name">WiChat</string>
     <string name="chat_hint">输入消息…</string>
     <string name="send">发送</string>
     <string name="stop">Stop</string>
@@ -101,4 +101,70 @@
     <string name="quick_model_switch_placeholder">选择模型 ▾</string>
     <string name="quick_model_switch_value">%1$s ▾</string>
     <string name="system_prompt_preview_value">系统提示：%1$s</string>
+
+    <!-- 通用操作 -->
+    <string name="cancel">取消</string>
+    <string name="confirm">确认</string>
+    <string name="delete">删除</string>
+    <string name="error_input_empty">请输入消息</string>
+    <string name="delete_conversation_confirm">删除后不可恢复，确认删除？</string>
+    <string name="conversation_deleted">对话已删除</string>
+    <string name="conversation_hidden">已隐藏对话</string>
+    <string name="copied_to_clipboard">已复制</string>
+
+    <!-- ChatSessionActivity -->
+    <string name="history_conversation_count">历史对话（%1$d条）</string>
+    <string name="chapter_plan_generating">正在生成章节计划…</string>
+    <string name="chapter_plan_parse_failed">计划解析失败，可手动填写后确认继续</string>
+    <string name="chapter_plan_generated">章节计划已生成，可编辑后确认</string>
+    <string name="chapter_plan_empty_fields">已解析到结构，但字段为空；可手动填写后确认</string>
+    <string name="chapter_plan_error_suffix">。可手动填写后确认，或直接确认跳过计划。</string>
+    <string name="chapter_plan_dialog_title">本轮写作计划</string>
+    <string name="chapter_plan_confirm_with_outline">确认并加入大纲</string>
+    <string name="error_request_failed">请求失败</string>
+    <string name="error_send_failed">发送失败: %1$s</string>
+    <string name="error_no_models_configured">请先在「模型管理」中添加厂商并添加模型</string>
+    <string name="quick_model_switch_title">快速切换模型</string>
+    <string name="extracting_to_outline">正在提取到大纲…</string>
+    <string name="outline_item_added">已添加到大纲：%1$s</string>
+    <string name="error_extract_empty">消息为空，无法提取</string>
+    <string name="error_extract_failed">提取失败</string>
+    <string name="error_message_empty_cannot_open">消息为空，无法打开</string>
+    <string name="chooser_browser">选择浏览器</string>
+    <string name="error_open_failed">打开失败: %1$s</string>
+    <string name="edit_message_title">编辑消息</string>
+
+    <!-- AllConversationsActivity -->
+    <string name="generating_outline">正在生成大纲…</string>
+    <string name="outline_updated">大纲已更新</string>
+    <string name="error_generate_outline_failed">生成大纲失败</string>
+    <string name="category_custom_ellipsis">自定义…</string>
+    <string name="select_category_title">选择分类</string>
+    <string name="custom_category_title">自定义分类</string>
+    <string name="category_input_hint">输入分类名</string>
+    <string name="error_category_name_empty">分类名不能为空</string>
+
+    <!-- SessionOutlineActivity -->
+    <string name="outline_chapter_default_title">章节%1$d</string>
+    <string name="outline_add_title">新增大纲</string>
+    <string name="outline_edit_title">编辑大纲</string>
+    <string name="error_no_chapters_for_knowledge">请先添加章节，再为该章节添加知情约束</string>
+    <string name="error_outline_title_empty">请填写标题</string>
+    <string name="select_related_chapter_title">选择关联章节</string>
+    <string name="error_select_chapter">请选择章节</string>
+    <string name="error_no_knowledge_outline">请先添加知情约束类型的大纲</string>
+    <string name="auditing_ai_response">正在审计最近AI回复…</string>
+    <string name="leak_audit_result_title">泄密审计结果</string>
+
+    <!-- ChatService 错误信息 -->
+    <string name="error_no_chat_model_selected">请先在「模型配置」中选用对话模型</string>
+    <string name="error_no_naming_model_selected">请先在「模型配置」中选用话题命名模型</string>
+    <string name="error_api_url_invalid">API 地址配置无效</string>
+    <string name="error_message_empty">消息为空</string>
+    <string name="error_parse_response_failed">解析响应失败: %1$s</string>
+    <string name="error_request_failed_detail">请求失败: %1$d\nURL: %2$s\n%3$s</string>
+    <string name="error_no_summary_model_selected">请先在「模型配置」中选用总结模型</string>
+    <string name="error_no_novel_model_selected">请先在「模型配置」中选用小说敏锐模型</string>
+    <string name="error_naming_failed">命名失败: %1$s</string>
+    <string name="error_config_parse_failed">配置解析失败: %1$s</string>
 </resources>

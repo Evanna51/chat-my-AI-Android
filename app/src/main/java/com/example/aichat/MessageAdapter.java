@@ -26,6 +26,7 @@ import java.util.TimeZone;
 public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private static final int VIEW_USER = 0;
     private static final int VIEW_ASSISTANT = 1;
+    private static final int MAX_EXPANDED_ASSISTANT_ACTIONS = 3;
     private static final int DEFAULT_EXPANDED_RECENT_AI = 3;
     private static final int MAX_MARKDOWN_EXPANDED = 4;
     private static final long MARKDOWN_RENDER_THROTTLE_MS = 80L;
@@ -33,7 +34,6 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private static final String CHARACTER_MEMORY_LOADING_TEXT = "[...正在输入中]";
 
     private final List<Message> messages = new ArrayList<>();
-    private int focusedPosition = -1;
     private final Set<Message> expandedReasoningMessages =
             Collections.newSetFromMap(new IdentityHashMap<>());
     private Message pinnedUserMessage;
@@ -42,6 +42,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private OnMessageActionListener actionListener;
     private final SimpleDateFormat timestampFormat;
     private final AssistantMarkdownStateStore assistantStateStore;
+    private final ActionPanelStateStore actionPanelStateStore;
     private OnAssistantStateChangedListener assistantStateChangedListener;
     private Markwon markwon;
     private final Map<Message, String> markdownRenderedSource = new IdentityHashMap<>();
@@ -55,11 +56,16 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private int affixViewportBottom = Integer.MIN_VALUE;
 
     public MessageAdapter() {
-        this(new AssistantMarkdownStateStore());
+        this(new AssistantMarkdownStateStore(), new ActionPanelStateStore());
     }
 
     public MessageAdapter(AssistantMarkdownStateStore stateStore) {
+        this(stateStore, new ActionPanelStateStore());
+    }
+
+    public MessageAdapter(AssistantMarkdownStateStore stateStore, ActionPanelStateStore actionStore) {
         this.assistantStateStore = stateStore != null ? stateStore : new AssistantMarkdownStateStore();
+        this.actionPanelStateStore = actionStore != null ? actionStore : new ActionPanelStateStore();
         timestampFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
         timestampFormat.setTimeZone(TimeZone.getDefault());
     }
@@ -68,6 +74,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         void onRegenerate(Message message);
         void onEdit(Message message);
         void onCopy(Message message);
+        void onOpen(Message message);
         void onOutline(Message message);
         void onDelete(Message message);
     }
@@ -162,6 +169,47 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
     }
 
+    public static class ActionPanelStateStore {
+        private final Set<Message> expanded = Collections.newSetFromMap(new IdentityHashMap<>());
+        private final Deque<Message> assistantExpandStack = new ArrayDeque<>();
+        private final Set<Message> activeMessages = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        public void onAllMessagesChanged(List<Message> allMessages) {
+            activeMessages.clear();
+            if (allMessages != null) activeMessages.addAll(allMessages);
+            expanded.retainAll(activeMessages);
+            assistantExpandStack.removeIf(item -> item == null || !expanded.contains(item));
+        }
+
+        public boolean isExpanded(Message message) {
+            return message != null && expanded.contains(message);
+        }
+
+        public List<Message> expand(Message message) {
+            List<Message> changed = new ArrayList<>();
+            if (message == null) return changed;
+            if (expanded.contains(message)) return changed;
+            expanded.add(message);
+            changed.add(message);
+            // Only assistant messages participate in "max 3 expanded" eviction.
+            if (message.role == Message.ROLE_ASSISTANT) {
+                removeFromAssistantStack(message);
+                assistantExpandStack.addFirst(message);
+                while (assistantExpandStack.size() > MAX_EXPANDED_ASSISTANT_ACTIONS) {
+                    Message removed = assistantExpandStack.removeLast();
+                    if (removed == null) continue;
+                    expanded.remove(removed);
+                    changed.add(removed);
+                }
+            }
+            return changed;
+        }
+
+        private void removeFromAssistantStack(Message message) {
+            assistantExpandStack.removeIf(item -> item == message);
+        }
+    }
+
     public void setOnMessageActionListener(OnMessageActionListener listener) {
         this.actionListener = listener;
     }
@@ -196,11 +244,9 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             messages.addAll(list);
         }
         expandedReasoningMessages.retainAll(messages);
+        actionPanelStateStore.onAllMessagesChanged(messages);
         markdownRenderedSource.keySet().retainAll(messages);
         markdownLastRenderAt.keySet().retainAll(messages);
-        focusedPosition = messages.isEmpty()
-                ? -1
-                : (autoFocusLatestOnSetMessages ? messages.size() - 1 : -1);
         notifyDataSetChanged();
     }
 
@@ -254,10 +300,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     public void clearFocus() {
-        if (focusedPosition < 0) return;
-        int prev = focusedPosition;
-        focusedPosition = -1;
-        notifyItemChanged(prev);
+        // Action panel visibility is controlled by explicit expand button.
     }
 
     @Override
@@ -305,20 +348,23 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         if (position < 0 || position >= messages.size()) return;
         Message m = messages.get(position);
         String content = (m != null && m.content != null) ? m.content : "";
-        boolean focused = position == focusedPosition;
+        boolean expandedByUser = m != null && actionPanelStateStore.isExpanded(m);
         boolean pinnedUser = m != null && m == pinnedUserMessage;
         boolean pinnedAssistant = m != null && m == pinnedAssistantMessage;
-        boolean showActions = focused || pinnedUser || (pinnedAssistant && !hidePinnedAssistantActions);
+        boolean showActions = expandedByUser || pinnedUser || (pinnedAssistant && !hidePinnedAssistantActions);
         if (holder instanceof UserHolder) {
             UserHolder h = (UserHolder) holder;
             h.textTimestamp.setText(formatTimestamp(m != null ? m.createdAt : 0));
             h.textContent.setText(content);
             h.layoutActions.setVisibility(showActions ? View.VISIBLE : View.GONE);
+            h.actionExpand.setAlpha(showActions ? 0.55f : 1f);
             h.actionOutline.setVisibility(writerMode ? View.VISIBLE : View.GONE);
-            h.itemView.setOnClickListener(v -> focus(position));
+            h.actionExpand.setOnClickListener(v -> expandActionPanel(m));
+            h.itemView.setOnClickListener(null);
             h.actionRegenerate.setOnClickListener(v -> { if (actionListener != null) actionListener.onRegenerate(m); });
             h.actionEdit.setOnClickListener(v -> { if (actionListener != null) actionListener.onEdit(m); });
             h.actionCopy.setOnClickListener(v -> { if (actionListener != null) actionListener.onCopy(m); });
+            h.actionOpen.setOnClickListener(v -> { if (actionListener != null) actionListener.onOpen(m); });
             h.actionOutline.setOnClickListener(v -> { if (actionListener != null) actionListener.onOutline(m); });
             h.actionDelete.setOnClickListener(v -> { if (actionListener != null) actionListener.onDelete(m); });
         } else if (holder instanceof AssistantHolder) {
@@ -337,6 +383,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 h.textContent.setAlpha(0.72f);
                 h.layoutReasoning.setVisibility(View.GONE);
                 h.textUsage.setVisibility(View.GONE);
+                h.actionExpand.setVisibility(View.GONE);
                 h.layoutActions.setVisibility(View.GONE);
                 h.textCollapseToggle.setVisibility(View.GONE);
                 if (fullBind) h.itemView.setOnClickListener(null);
@@ -346,6 +393,8 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             if (disableAssistantCollapseToggle) expanded = true;
             boolean hasVisibleContent = !content.trim().isEmpty();
             h.layoutActions.setVisibility(showActions ? View.VISIBLE : View.GONE);
+            h.actionExpand.setVisibility(View.VISIBLE);
+            h.actionExpand.setAlpha(showActions ? 0.55f : 1f);
             if (fullBind || h.lastHasVisibleContent != hasVisibleContent) {
                 if (disableAssistantCollapseToggle) {
                     h.textCollapseToggle.setVisibility(View.GONE);
@@ -366,13 +415,16 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             h.actionOutline.setVisibility(writerMode && showActions ? View.VISIBLE : View.INVISIBLE);
             h.actionEdit.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
             h.actionCopy.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
+            h.actionOpen.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
             h.actionDelete.setVisibility(showActions ? View.VISIBLE : View.INVISIBLE);
             bindReasoning(h, m, position);
             applyCollapseToggleAffix(h);
             if (fullBind) {
-                h.itemView.setOnClickListener(v -> focus(position));
+                h.itemView.setOnClickListener(null);
+                h.actionExpand.setOnClickListener(v -> expandActionPanel(m));
                 h.actionEdit.setOnClickListener(v -> { if (actionListener != null) actionListener.onEdit(m); });
                 h.actionCopy.setOnClickListener(v -> { if (actionListener != null) actionListener.onCopy(m); });
+                h.actionOpen.setOnClickListener(v -> { if (actionListener != null) actionListener.onOpen(m); });
                 h.actionOutline.setOnClickListener(v -> { if (actionListener != null) actionListener.onOutline(m); });
                 h.actionDelete.setOnClickListener(v -> { if (actionListener != null) actionListener.onDelete(m); });
                 if (disableAssistantCollapseToggle) {
@@ -418,9 +470,11 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         TextView textTimestamp;
         TextView textContent;
         View layoutActions;
+        View actionExpand;
         View actionRegenerate;
         View actionEdit;
         View actionCopy;
+        View actionOpen;
         View actionOutline;
         View actionDelete;
 
@@ -429,9 +483,11 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             textTimestamp = itemView.findViewById(R.id.textTimestamp);
             textContent = itemView.findViewById(R.id.textContent);
             layoutActions = itemView.findViewById(R.id.layoutActions);
+            actionExpand = itemView.findViewById(R.id.actionExpand);
             actionRegenerate = itemView.findViewById(R.id.actionRegenerate);
             actionEdit = itemView.findViewById(R.id.actionEdit);
             actionCopy = itemView.findViewById(R.id.actionCopy);
+            actionOpen = itemView.findViewById(R.id.actionOpen);
             actionOutline = itemView.findViewById(R.id.actionOutline);
             actionDelete = itemView.findViewById(R.id.actionDelete);
         }
@@ -443,12 +499,14 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         TextView textCollapseToggle;
         View layoutAssistantBubble;
         View layoutActions;
+        View actionExpand;
         View layoutReasoning;
         TextView textReasoningHeader;
         TextView textReasoningContent;
         TextView textUsage;
         View actionEdit;
         View actionCopy;
+        View actionOpen;
         View actionOutline;
         View actionDelete;
         boolean lastHasVisibleContent;
@@ -461,12 +519,14 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             textCollapseToggle = itemView.findViewById(R.id.textCollapseToggle);
             layoutAssistantBubble = itemView.findViewById(R.id.layoutAssistantBubble);
             layoutActions = itemView.findViewById(R.id.layoutActions);
+            actionExpand = itemView.findViewById(R.id.actionExpand);
             layoutReasoning = itemView.findViewById(R.id.layoutReasoning);
             textReasoningHeader = itemView.findViewById(R.id.textReasoningHeader);
             textReasoningContent = itemView.findViewById(R.id.textReasoningContent);
             textUsage = itemView.findViewById(R.id.textUsage);
             actionEdit = itemView.findViewById(R.id.actionEdit);
             actionCopy = itemView.findViewById(R.id.actionCopy);
+            actionOpen = itemView.findViewById(R.id.actionOpen);
             actionOutline = itemView.findViewById(R.id.actionOutline);
             actionDelete = itemView.findViewById(R.id.actionDelete);
             lastHasVisibleContent = false;
@@ -474,13 +534,22 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
     }
 
-    private void focus(int position) {
-        if (position < 0 || position >= messages.size()) return;
-        if (focusedPosition == position) return;
-        int prev = focusedPosition;
-        focusedPosition = position;
-        if (prev >= 0) notifyItemChanged(prev);
-        notifyItemChanged(position);
+    private void expandActionPanel(Message message) {
+        if (message == null) return;
+        List<Message> changed = actionPanelStateStore.expand(message);
+        if (changed.isEmpty()) return;
+        for (Message one : changed) {
+            int idx = indexOfMessage(one);
+            if (idx >= 0) notifyItemChanged(idx);
+        }
+    }
+
+    private int indexOfMessage(Message target) {
+        if (target == null) return -1;
+        for (int i = 0; i < messages.size(); i++) {
+            if (messages.get(i) == target) return i;
+        }
+        return -1;
     }
 
     private void bindReasoning(AssistantHolder h, Message m, int position) {

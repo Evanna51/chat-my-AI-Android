@@ -101,11 +101,11 @@ public class ChatService {
         try {
             config = new AiModelConfig(context).getConfigForChat();
         } catch (Exception e) {
-            callback.onError("配置解析失败: " + (e != null ? e.getMessage() : ""));
+            callback.onError(context.getString(R.string.error_config_parse_failed, e != null ? e.getMessage() : ""));
             return handle;
         }
         if (config == null || !config.isValid()) {
-            callback.onError("请先在「模型配置」中选用对话模型");
+            callback.onError(context.getString(R.string.error_no_chat_model_selected));
             return handle;
         }
 
@@ -132,7 +132,7 @@ public class ChatService {
         selectedProviderId = resolveProviderId(selectedProviderId, config.apiHost);
         String baseUrl = config.toRetrofitBaseUrl();
         if (baseUrl == null || baseUrl.isEmpty()) {
-            callback.onError("API 地址配置无效");
+            callback.onError(context.getString(R.string.error_api_url_invalid));
             return handle;
         }
 
@@ -223,7 +223,7 @@ public class ChatService {
                             + "\nURL: " + chatUrl
                             + (detail.isEmpty() ? "" : ("\n" + detail)));
                 } catch (Exception e) {
-                    callback.onError("解析响应失败: " + (e != null ? e.getMessage() : ""));
+                    callback.onError(context.getString(R.string.error_parse_response_failed, e != null ? e.getMessage() : ""));
                 }
             }
 
@@ -243,18 +243,18 @@ public class ChatService {
         if (callback == null) return;
         String source = firstUserMessage != null ? firstUserMessage.trim() : "";
         if (source.isEmpty()) {
-            callback.onError("消息为空");
+            callback.onError(context.getString(R.string.error_message_empty));
             return;
         }
         AiModelConfig.ResolvedConfig config;
         try {
             config = new AiModelConfig(context).getConfigForThreadNaming();
         } catch (Exception e) {
-            callback.onError("配置解析失败");
+            callback.onError(context.getString(R.string.error_config_parse_failed, ""));
             return;
         }
         if (config == null || !config.isValid()) {
-            callback.onError("请先在「模型配置」中选用话题命名模型");
+            callback.onError(context.getString(R.string.error_no_naming_model_selected));
             return;
         }
 
@@ -336,7 +336,7 @@ public class ChatService {
                             detail = response.errorBody().string();
                         }
                     } catch (Exception ignored) {}
-                    callback.onError("命名失败: " + (response != null ? response.code() : "无响应")
+                    callback.onError(context.getString(R.string.error_naming_failed, String.valueOf(response != null ? response.code() : "无响应"))
                             + (detail.isEmpty() ? "" : ("\n" + detail)));
                     return;
                 }
@@ -383,11 +383,11 @@ public class ChatService {
         try {
             config = new AiModelConfig(context).getConfigForSummary();
         } catch (Exception e) {
-            callback.onError("配置解析失败");
+            callback.onError(context.getString(R.string.error_config_parse_failed, ""));
             return;
         }
         if (config == null || !config.isValid()) {
-            callback.onError("请先在「模型配置」中选用总结模型");
+            callback.onError(context.getString(R.string.error_no_summary_model_selected));
             return;
         }
 
@@ -492,7 +492,7 @@ public class ChatService {
         if (callback == null) return;
         String source = content != null ? content.trim() : "";
         if (source.isEmpty()) {
-            callback.onError("消息为空");
+            callback.onError(context.getString(R.string.error_message_empty));
             return;
         }
         if (source.length() > 2500) {
@@ -502,11 +502,11 @@ public class ChatService {
         try {
             config = new AiModelConfig(context).getConfigForSummary();
         } catch (Exception e) {
-            callback.onError("配置解析失败");
+            callback.onError(context.getString(R.string.error_config_parse_failed, ""));
             return;
         }
         if (config == null || !config.isValid()) {
-            callback.onError("请先在「模型配置」中选用总结模型");
+            callback.onError(context.getString(R.string.error_no_summary_model_selected));
             return;
         }
 
@@ -627,7 +627,7 @@ public class ChatService {
             return;
         }
         if (config == null || !config.isValid()) {
-            callback.onError("请先在「模型配置」中选用小说敏锐模型");
+            callback.onError(context.getString(R.string.error_no_novel_model_selected));
             return;
         }
 
@@ -1042,11 +1042,11 @@ public class ChatService {
         try {
             config = new AiModelConfig(context).getConfigForSummary();
         } catch (Exception e) {
-            callback.onError("配置解析失败");
+            callback.onError(context.getString(R.string.error_config_parse_failed, ""));
             return;
         }
         if (config == null || !config.isValid()) {
-            callback.onError("请先在「模型配置」中选用总结模型");
+            callback.onError(context.getString(R.string.error_no_summary_model_selected));
             return;
         }
 

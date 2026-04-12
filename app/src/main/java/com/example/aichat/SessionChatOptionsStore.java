@@ -1,65 +1,79 @@
 package com.example.aichat;
 
 import android.content.Context;
-import android.content.SharedPreferences;
-
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-
-import java.lang.reflect.Type;
-import java.util.HashMap;
-import java.util.Map;
 
 public class SessionChatOptionsStore {
-    private static final String PREFS = "aichat_session_chat_options";
-    private static final String KEY_MAP = "session_options_map";
-    private static final Gson GSON = new Gson();
-    private static final Type MAP_TYPE = new TypeToken<Map<String, SessionChatOptions>>(){}.getType();
 
-    private final SharedPreferences prefs;
+    private final SessionChatOptionsDao dao;
 
     public SessionChatOptionsStore(Context context) {
-        prefs = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-    }
-
-    private Map<String, SessionChatOptions> getMap() {
-        String json = prefs.getString(KEY_MAP, "{}");
-        Map<String, SessionChatOptions> map = GSON.fromJson(json, MAP_TYPE);
-        return map != null ? map : new HashMap<>();
-    }
-
-    private void saveMap(Map<String, SessionChatOptions> map) {
-        prefs.edit().putString(KEY_MAP, GSON.toJson(map)).apply();
+        dao = AppDatabase.getInstance(context).sessionChatOptionsDao();
     }
 
     public SessionChatOptions get(String sessionId) {
-        if (sessionId == null || sessionId.isEmpty()) return new SessionChatOptions();
-        Map<String, SessionChatOptions> map = getMap();
-        SessionChatOptions options = map.get(sessionId);
-        SessionChatOptions out = options != null ? options : new SessionChatOptions();
-        out.streamOutput = true;
+        if (sessionId == null || sessionId.isEmpty()) return defaultOptions();
+        SessionChatOptionsEntity entity = dao.get(sessionId);
+        SessionChatOptions out = entity != null ? fromEntity(entity) : new SessionChatOptions();
+        out.streamOutput = true; // always force true per existing contract
         return out;
     }
 
     public boolean has(String sessionId) {
         if (sessionId == null || sessionId.isEmpty()) return false;
-        Map<String, SessionChatOptions> map = getMap();
-        return map.containsKey(sessionId);
+        return dao.has(sessionId) > 0;
     }
 
     public void save(String sessionId, SessionChatOptions options) {
         if (sessionId == null || sessionId.isEmpty() || options == null) return;
         options.streamOutput = true;
-        Map<String, SessionChatOptions> map = getMap();
-        map.put(sessionId, options);
-        saveMap(map);
+        dao.upsert(toEntity(sessionId, options));
     }
 
     public void remove(String sessionId) {
         if (sessionId == null || sessionId.isEmpty()) return;
-        Map<String, SessionChatOptions> map = getMap();
-        if (map.remove(sessionId) != null) {
-            saveMap(map);
-        }
+        dao.delete(sessionId);
+    }
+
+    // --- Conversion helpers ---
+
+    private static SessionChatOptions defaultOptions() {
+        SessionChatOptions opts = new SessionChatOptions();
+        opts.streamOutput = true;
+        return opts;
+    }
+
+    private static SessionChatOptionsEntity toEntity(String sessionId, SessionChatOptions opts) {
+        SessionChatOptionsEntity entity = new SessionChatOptionsEntity();
+        entity.sessionId = sessionId;
+        entity.sessionTitle = opts.sessionTitle != null ? opts.sessionTitle : "";
+        entity.sessionAvatar = opts.sessionAvatar != null ? opts.sessionAvatar : "";
+        entity.modelKey = opts.modelKey != null ? opts.modelKey : "";
+        entity.systemPrompt = opts.systemPrompt != null ? opts.systemPrompt : "";
+        entity.stop = opts.stop != null ? opts.stop : "";
+        entity.contextMessageCount = opts.contextMessageCount;
+        entity.googleThinkingBudget = opts.googleThinkingBudget;
+        entity.temperature = opts.temperature;
+        entity.topP = opts.topP;
+        entity.streamOutput = true;
+        entity.autoChapterPlan = opts.autoChapterPlan;
+        entity.thinking = opts.thinking;
+        return entity;
+    }
+
+    private static SessionChatOptions fromEntity(SessionChatOptionsEntity entity) {
+        SessionChatOptions opts = new SessionChatOptions();
+        opts.sessionTitle = entity.sessionTitle != null ? entity.sessionTitle : "";
+        opts.sessionAvatar = entity.sessionAvatar != null ? entity.sessionAvatar : "";
+        opts.modelKey = entity.modelKey != null ? entity.modelKey : "";
+        opts.systemPrompt = entity.systemPrompt != null ? entity.systemPrompt : "";
+        opts.stop = entity.stop != null ? entity.stop : "";
+        opts.contextMessageCount = entity.contextMessageCount;
+        opts.googleThinkingBudget = entity.googleThinkingBudget;
+        opts.temperature = entity.temperature;
+        opts.topP = entity.topP;
+        opts.streamOutput = true;
+        opts.autoChapterPlan = entity.autoChapterPlan;
+        opts.thinking = entity.thinking;
+        return opts;
     }
 }

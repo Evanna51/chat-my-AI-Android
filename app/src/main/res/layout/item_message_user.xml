@@ -22,7 +22,20 @@
         android:padding="12dp"
         android:background="@drawable/bubble_user"
         android:textColor="@color/chat_user_text_color"
-        android:textSize="16sp" />
+        android:textSize="16sp"
+        android:textIsSelectable="true" />
+
+    <ImageButton
+        android:id="@+id/actionExpand"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_marginTop="2dp"
+        android:padding="6dp"
+        android:background="@drawable/bg_action_button"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_action_expand_left"
+        android:tint="@color/action_button_icon_tint"
+        android:contentDescription="展开操作" />
 
     <!-- 用户消息底部操作区：整体间距、显示/隐藏优先改这里 -->
     <LinearLayout
@@ -67,6 +80,17 @@
             android:src="@drawable/ic_action_copy"
             android:tint="@color/action_button_icon_tint"
             android:contentDescription="复制" />
+        <ImageButton
+            android:id="@+id/actionOpen"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_action_open"
+            android:tint="@color/action_button_icon_tint"
+            android:contentDescription="打开" />
         <!-- 提取到大纲按钮：仅写作模式会显示 -->
         <ImageButton
             android:id="@+id/actionOutline"
