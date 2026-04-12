@@ -1,48 +1,46 @@
-package com.example.aichat;
+package com.example.aichat
 
-import androidx.room.Dao;
-import androidx.room.Insert;
-import androidx.room.OnConflictStrategy;
-import androidx.room.Query;
-
-import java.util.List;
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
 
 @Dao
-public interface SessionMetaDao {
+interface SessionMetaDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    void upsert(SessionMetaEntity entity);
+    fun upsert(entity: SessionMetaEntity)
 
     @Query("SELECT * FROM session_meta WHERE sessionId = :sessionId")
-    SessionMetaEntity get(String sessionId);
+    fun get(sessionId: String): SessionMetaEntity?
 
     @Query("SELECT * FROM session_meta")
-    List<SessionMetaEntity> getAll();
+    fun getAll(): List<SessionMetaEntity>
 
     @Query("DELETE FROM session_meta WHERE sessionId = :sessionId")
-    void delete(String sessionId);
+    fun delete(sessionId: String)
 
     @Query("UPDATE session_meta SET title = :title WHERE sessionId = :sessionId")
-    void updateTitle(String sessionId, String title);
+    fun updateTitle(sessionId: String, title: String)
 
     @Query("UPDATE session_meta SET category = :category WHERE sessionId = :sessionId")
-    void updateCategory(String sessionId, String category);
+    fun updateCategory(sessionId: String, category: String)
 
     @Query("UPDATE session_meta SET favorite = :value WHERE sessionId = :sessionId")
-    void setFavorite(String sessionId, boolean value);
+    fun setFavorite(sessionId: String, value: Boolean)
 
     @Query("UPDATE session_meta SET pinned = :value WHERE sessionId = :sessionId")
-    void setPinned(String sessionId, boolean value);
+    fun setPinned(sessionId: String, value: Boolean)
 
     @Query("UPDATE session_meta SET deleted = :value WHERE sessionId = :sessionId")
-    void setDeleted(String sessionId, boolean value);
+    fun setDeleted(sessionId: String, value: Boolean)
 
     @Query("UPDATE session_meta SET hidden = :value WHERE sessionId = :sessionId")
-    void setHidden(String sessionId, boolean value);
+    fun setHidden(sessionId: String, value: Boolean)
 
     @Query("UPDATE session_meta SET outline = :outline WHERE sessionId = :sessionId")
-    void updateOutline(String sessionId, String outline);
+    fun updateOutline(sessionId: String, outline: String)
 
     @Query("SELECT DISTINCT category FROM session_meta WHERE category IS NOT NULL AND category != '' AND hidden = 0 AND deleted = 0")
-    List<String> getAllCategories();
+    fun getAllCategories(): List<String>
 }
