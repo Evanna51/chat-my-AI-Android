@@ -4,7 +4,24 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!--
+        Flat chat-bubble icon (WhatsApp / Line style).
+        Bubble body: x 18–90 (72px wide), y 22–76 (54px tall), r≈14.
+        Tail: from (50,76) → tip (30,92) → back (30,76), bottom-left.
+    -->
     <path
-        android:fillColor="#1976D2"
-        android:pathData="M54,30 L78,54 L54,78 L30,54 Z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="
+            M32,22
+            H76
+            Q90,22 90,36
+            V62
+            Q90,76 76,76
+            H50
+            L30,92
+            L30,76
+            Q18,76 18,62
+            V36
+            Q18,22 32,22
+            Z" />
 </vector>

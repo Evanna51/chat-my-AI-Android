@@ -18,6 +18,8 @@ import com.google.android.material.chip.Chip;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.chip.ChipGroup;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -103,19 +105,32 @@ public class SessionOutlineActivity extends ThemedActivity {
         FormInputScrollHelper.enableFor(editContent);
 
         int next = outlineStore.nextChapterIndex(sessionId);
-        editTitle.setText("章节" + next);
+        editTitle.setText(getString(R.string.outline_chapter_default_title, next));
 
         androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(this, R.style.ThemeOverlay_AIChat_MaterialAlertDialog)
-                .setTitle("新增大纲")
+                .setTitle(R.string.outline_add_title)
                 .setView(view)
                 .setPositiveButton(android.R.string.ok, (d, w) -> {
                     String title = editTitle.getText() != null ? editTitle.getText().toString().trim() : "";
                     String content = editContent.getText() != null ? editContent.getText().toString().trim() : "";
-                    if (title.isEmpty()) {
-                        Toast.makeText(this, "请填写标题", Toast.LENGTH_SHORT).show();
+                    String selectedType = typeValues[selected[0]];
+                    if ("knowledge".equals(selectedType)) {
+                        List<String> chapterTitles = getChapterTitles();
+                        if (chapterTitles.isEmpty()) {
+                            Toast.makeText(this, R.string.error_no_chapters_for_knowledge, Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        showChapterTitlePicker(chapterTitles, "", pickedTitle -> {
+                            outlineStore.add(sessionId, selectedType, pickedTitle, content);
+                            refreshList();
+                        });
                         return;
                     }
-                    outlineStore.add(sessionId, typeValues[selected[0]], title, content);
+                    if (title.isEmpty()) {
+                        Toast.makeText(this, R.string.error_outline_title_empty, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    outlineStore.add(sessionId, selectedType, title, content);
                     refreshList();
                 })
                 .setNegativeButton(android.R.string.cancel, null)
@@ -141,16 +156,34 @@ public class SessionOutlineActivity extends ThemedActivity {
         editContent.setText(item.content != null ? item.content : "");
 
         androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(this)
-                .setTitle("编辑大纲")
+                .setTitle(R.string.outline_edit_title)
                 .setView(view)
                 .setPositiveButton(android.R.string.ok, (d, w) -> {
-                    item.type = typeValues[selected[0]];
-                    item.title = editTitle.getText() != null ? editTitle.getText().toString().trim() : "";
-                    item.content = editContent.getText() != null ? editContent.getText().toString().trim() : "";
-                    if (item.title.isEmpty()) {
-                        Toast.makeText(this, "请填写标题", Toast.LENGTH_SHORT).show();
+                    String selectedType = typeValues[selected[0]];
+                    String editedTitle = editTitle.getText() != null ? editTitle.getText().toString().trim() : "";
+                    String editedContent = editContent.getText() != null ? editContent.getText().toString().trim() : "";
+                    if ("knowledge".equals(selectedType)) {
+                        List<String> chapterTitles = getChapterTitles();
+                        if (chapterTitles.isEmpty()) {
+                            Toast.makeText(this, R.string.error_no_chapters_for_knowledge, Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        showChapterTitlePicker(chapterTitles, item.title, pickedTitle -> {
+                            item.type = selectedType;
+                            item.title = pickedTitle;
+                            item.content = editedContent;
+                            outlineStore.update(sessionId, item);
+                            refreshList();
+                        });
                         return;
                     }
+                    if (editedTitle.isEmpty()) {
+                        Toast.makeText(this, R.string.error_outline_title_empty, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    item.type = selectedType;
+                    item.title = editedTitle;
+                    item.content = editedContent;
                     outlineStore.update(sessionId, item);
                     refreshList();
                 })
@@ -186,9 +219,56 @@ public class SessionOutlineActivity extends ThemedActivity {
                     && (editTitleForChapterAutofill.getText() == null
                     || editTitleForChapterAutofill.getText().toString().trim().isEmpty())) {
                 int nextChapter = outlineStore.nextChapterIndex(sessionId);
-                editTitleForChapterAutofill.setText("章节" + nextChapter);
+                editTitleForChapterAutofill.setText(getString(R.string.outline_chapter_default_title, nextChapter));
             }
         });
+    }
+
+    private List<String> getChapterTitles() {
+        List<String> all = new ArrayList<>();
+        List<SessionOutlineItem> items = outlineStore.getAll(sessionId);
+        if (items == null || items.isEmpty()) return all;
+        LinkedHashSet<String> uniq = new LinkedHashSet<>();
+        for (SessionOutlineItem one : items) {
+            if (one == null) continue;
+            if (!"chapter".equals(outlineStore.normalizeType(one.type))) continue;
+            String title = one.title != null ? one.title.trim() : "";
+            if (title.isEmpty()) continue;
+            uniq.add(title);
+        }
+        all.addAll(uniq);
+        return all;
+    }
+
+    private void showChapterTitlePicker(List<String> chapterTitles,
+                                        String defaultTitle,
+                                        ChapterTitleSelectionCallback callback) {
+        if (chapterTitles == null || chapterTitles.isEmpty() || callback == null) return;
+        String preferred = defaultTitle != null ? defaultTitle.trim() : "";
+        int defaultIndex = 0;
+        if (!preferred.isEmpty()) {
+            int idx = chapterTitles.indexOf(preferred);
+            if (idx >= 0) defaultIndex = idx;
+        }
+        String[] titles = chapterTitles.toArray(new String[0]);
+        final int[] checked = new int[] {defaultIndex};
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.select_related_chapter_title)
+                .setSingleChoiceItems(titles, defaultIndex, (d, which) -> checked[0] = which)
+                .setPositiveButton(android.R.string.ok, (d, w) -> {
+                    int idx = checked[0];
+                    if (idx < 0 || idx >= titles.length) {
+                        Toast.makeText(this, R.string.error_select_chapter, Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    callback.onSelected(titles[idx]);
+                })
+                .setNegativeButton(android.R.string.cancel, null)
+                .show();
+    }
+
+    private interface ChapterTitleSelectionCallback {
+        void onSelected(String title);
     }
 
     private void moveDialogUp(androidx.appcompat.app.AlertDialog dialog, int offsetDp) {
@@ -234,10 +314,10 @@ public class SessionOutlineActivity extends ThemedActivity {
             knowledge.append("\n");
         }
         if (knowledge.toString().trim().isEmpty()) {
-            Toast.makeText(this, "请先添加知情约束类型的大纲", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.error_no_knowledge_outline, Toast.LENGTH_SHORT).show();
             return;
         }
-        Toast.makeText(this, "正在审计最近AI回复…", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, R.string.auditing_ai_response, Toast.LENGTH_SHORT).show();
         executor.execute(() -> {
             String latestAssistant = "";
             try {
@@ -261,7 +341,7 @@ public class SessionOutlineActivity extends ThemedActivity {
                     public void onSuccess(String content) {
                         runOnUiThread(() -> new MaterialAlertDialogBuilder(
                                 SessionOutlineActivity.this)
-                                .setTitle("泄密审计结果")
+                                .setTitle(R.string.leak_audit_result_title)
                                 .setMessage(content != null ? content.trim() : "")
                                 .setPositiveButton(android.R.string.ok, null)
                                 .show());

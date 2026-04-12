@@ -7,11 +7,15 @@ import androidx.lifecycle.DefaultLifecycleObserver;
 import androidx.lifecycle.LifecycleOwner;
 import androidx.lifecycle.ProcessLifecycleOwner;
 
+import com.mikepenz.iconics.Iconics;
+
 public class AIChatApp extends Application implements DefaultLifecycleObserver {
     @Override
     public void onCreate() {
         super.onCreate();
+        Iconics.init(this); // typefaces auto-register via ContentProvider
         applyTheme();
+        RoomMigrationHelper.migrateIfNeeded(this);
         new ProactiveMessageNotifier(this).ensureChannel();
         ProcessLifecycleOwner.get().getLifecycle().addObserver(this);
         ProactiveMessageWorkScheduler.scheduleNext(this);

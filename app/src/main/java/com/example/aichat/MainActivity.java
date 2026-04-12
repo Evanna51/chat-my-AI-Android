@@ -66,7 +66,7 @@ public class MainActivity extends ThemedActivity {
                 executor.execute(() -> {
                     new SessionMetaStore(MainActivity.this).setHidden(s.sessionId, true);
                     mainHandler.post(() -> {
-                        Toast.makeText(MainActivity.this, "已隐藏对话", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, R.string.conversation_hidden, Toast.LENGTH_SHORT).show();
                         loadSessions();
                     });
                 });
@@ -76,16 +76,16 @@ public class MainActivity extends ThemedActivity {
             public void onDelete(SessionSummary s) {
                 if (s == null || s.sessionId == null) return;
                 new MaterialAlertDialogBuilder(MainActivity.this)
-                        .setTitle("删除对话")
-                        .setMessage("删除后不可恢复，确认删除？")
-                        .setNegativeButton("取消", null)
-                        .setPositiveButton("删除", (dialog, which) -> executor.execute(() -> {
+                        .setTitle(R.string.delete_conversation)
+                        .setMessage(R.string.delete_conversation_confirm)
+                        .setNegativeButton(R.string.cancel, null)
+                        .setPositiveButton(R.string.delete, (dialog, which) -> executor.execute(() -> {
                             db.messageDao().deleteBySession(s.sessionId);
                             new SessionMetaStore(MainActivity.this).remove(s.sessionId);
                             new SessionChatOptionsStore(MainActivity.this).remove(s.sessionId);
                             new SessionAssistantBindingStore(MainActivity.this).remove(s.sessionId);
                             mainHandler.post(() -> {
-                                Toast.makeText(MainActivity.this, "对话已删除", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(MainActivity.this, R.string.conversation_deleted, Toast.LENGTH_SHORT).show();
                                 loadSessions();
                             });
                         }))
@@ -124,7 +124,7 @@ public class MainActivity extends ThemedActivity {
     private void sendAndOpenSession(EditText inputEdit) {
         String text = inputEdit.getText().toString().trim();
         if (text.isEmpty()) {
-            Toast.makeText(this, "请输入消息", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.error_input_empty, Toast.LENGTH_SHORT).show();
             return;
         }
 

@@ -58,13 +58,14 @@ public class AllConversationsActivity extends ThemedActivity {
             @Override
             public void onSetCategory(SessionSummary session) {
                 List<String> categories = metaStore.getAllCategories();
-                categories.add("自定义…");
+                String customLabel = getString(R.string.category_custom_ellipsis);
+                categories.add(customLabel);
                 String[] items = categories.toArray(new String[0]);
                 new MaterialAlertDialogBuilder(AllConversationsActivity.this)
-                        .setTitle("选择分类")
+                        .setTitle(R.string.select_category_title)
                         .setItems(items, (dialog, which) -> {
                             String category = items[which];
-                            if ("自定义…".equals(category)) {
+                            if (customLabel.equals(category)) {
                                 showCustomCategoryDialog(session);
                                 return;
                             }
@@ -76,7 +77,7 @@ public class AllConversationsActivity extends ThemedActivity {
             @Override
             public void onGenerateOutline(SessionSummary session) {
                 if (session == null || session.sessionId == null) return;
-                Toast.makeText(AllConversationsActivity.this, "正在生成大纲…", Toast.LENGTH_SHORT).show();
+                Toast.makeText(AllConversationsActivity.this, R.string.generating_outline, Toast.LENGTH_SHORT).show();
                 executor.execute(() -> {
                     List<Message> full = db.messageDao().getBySession(session.sessionId);
                     List<Message> firstTen = new ArrayList<>();
@@ -98,7 +99,7 @@ public class AllConversationsActivity extends ThemedActivity {
                             meta.outline = outline;
                             metaStore.save(session.sessionId, meta);
                             mainHandler.post(() -> {
-                                Toast.makeText(AllConversationsActivity.this, "大纲已更新", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(AllConversationsActivity.this, R.string.outline_updated, Toast.LENGTH_SHORT).show();
                                 loadRows();
                             });
                         }
@@ -107,7 +108,7 @@ public class AllConversationsActivity extends ThemedActivity {
                         public void onError(String message) {
                             mainHandler.post(() ->
                                     Toast.makeText(AllConversationsActivity.this,
-                                            message != null && !message.trim().isEmpty() ? message : "生成大纲失败",
+                                            message != null && !message.trim().isEmpty() ? message : getString(R.string.error_generate_outline_failed),
                                             Toast.LENGTH_SHORT).show());
                         }
                     });
@@ -137,16 +138,16 @@ public class AllConversationsActivity extends ThemedActivity {
             public void onDelete(SessionSummary session) {
                 if (session == null || session.sessionId == null) return;
                 new MaterialAlertDialogBuilder(AllConversationsActivity.this)
-                        .setTitle("删除对话")
-                        .setMessage("删除后不可恢复，确认删除？")
-                        .setNegativeButton("取消", null)
-                        .setPositiveButton("删除", (dialog, which) -> executor.execute(() -> {
+                        .setTitle(R.string.delete_conversation)
+                        .setMessage(R.string.delete_conversation_confirm)
+                        .setNegativeButton(R.string.cancel, null)
+                        .setPositiveButton(R.string.delete, (dialog, which) -> executor.execute(() -> {
                             db.messageDao().deleteBySession(session.sessionId);
                             metaStore.remove(session.sessionId);
                             new SessionChatOptionsStore(AllConversationsActivity.this).remove(session.sessionId);
                             new SessionAssistantBindingStore(AllConversationsActivity.this).remove(session.sessionId);
                             mainHandler.post(() -> {
-                                Toast.makeText(AllConversationsActivity.this, "对话已删除", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(AllConversationsActivity.this, R.string.conversation_deleted, Toast.LENGTH_SHORT).show();
                                 loadRows();
                             });
                         }))
@@ -233,16 +234,16 @@ public class AllConversationsActivity extends ThemedActivity {
 
     private void showCustomCategoryDialog(SessionSummary session) {
         EditText input = new EditText(this);
-        input.setHint("输入分类名");
+        input.setHint(R.string.category_input_hint);
         input.setSingleLine(true);
         new MaterialAlertDialogBuilder(this)
-                .setTitle("自定义分类")
+                .setTitle(R.string.custom_category_title)
                 .setView(input)
-                .setNegativeButton("取消", null)
-                .setPositiveButton("确定", (dialog, which) -> {
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(android.R.string.ok, (dialog, which) -> {
                     String category = input.getText() != null ? input.getText().toString().trim() : "";
                     if (category.isEmpty()) {
-                        Toast.makeText(this, "分类名不能为空", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, R.string.error_category_name_empty, Toast.LENGTH_SHORT).show();
                         return;
                     }
                     applyCategory(session, category);

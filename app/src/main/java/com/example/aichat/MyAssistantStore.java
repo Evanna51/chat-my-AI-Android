@@ -1,57 +1,31 @@
 package com.example.aichat;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 
-import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
 public class MyAssistantStore {
-    private static final String PREFS = "aichat_my_assistants";
-    private static final String KEY_LIST = "assistant_list";
     private static final Gson GSON = new Gson();
-    private static final Type LIST_TYPE = new TypeToken<List<MyAssistant>>(){}.getType();
 
-    private final SharedPreferences prefs;
+    private final MyAssistantDao dao;
 
     public MyAssistantStore(Context context) {
-        prefs = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        dao = AppDatabase.getInstance(context).myAssistantDao();
     }
 
     public List<MyAssistant> getAll() {
-        String json = prefs.getString(KEY_LIST, "[]");
-        List<MyAssistant> list = GSON.fromJson(json, LIST_TYPE);
-        if (list == null) list = new ArrayList<>();
-        boolean migrated = false;
-        for (MyAssistant one : list) {
-            if (one == null) continue;
-            if (one.options == null) {
-                one.options = new SessionChatOptions();
-                migrated = true;
-            }
-            String optionPrompt = one.options.systemPrompt != null ? one.options.systemPrompt.trim() : "";
-            String legacyPrompt = one.prompt != null ? one.prompt.trim() : "";
-            if (optionPrompt.isEmpty() && !legacyPrompt.isEmpty()) {
-                one.options.systemPrompt = legacyPrompt;
-                migrated = true;
-            }
-            if (one.prompt != null && !one.prompt.isEmpty()) {
-                one.prompt = "";
-                migrated = true;
+        List<MyAssistantEntity> entities = dao.getAll();
+        List<MyAssistant> result = new ArrayList<>();
+        if (entities != null) {
+            for (MyAssistantEntity entity : entities) {
+                if (entity != null) result.add(fromEntity(entity));
             }
         }
-        if (migrated) {
-            prefs.edit().putString(KEY_LIST, GSON.toJson(list)).apply();
-        }
-        Collections.sort(list, (a, b) -> Long.compare(b != null ? b.updatedAt : 0L, a != null ? a.updatedAt : 0L));
-        return list;
+        return result;
     }
 
     public List<MyAssistant> getRecent(int n) {
@@ -61,11 +35,9 @@ public class MyAssistantStore {
     }
 
     public MyAssistant getById(String id) {
-        if (id == null) return null;
-        for (MyAssistant a : getAll()) {
-            if (a != null && id.equals(a.id)) return a;
-        }
-        return null;
+        if (id == null || id.isEmpty()) return null;
+        MyAssistantEntity entity = dao.getById(id);
+        return entity != null ? fromEntity(entity) : null;
     }
 
     public MyAssistant createEmpty() {
@@ -85,29 +57,53 @@ public class MyAssistantStore {
     }
 
     public void save(MyAssistant assistant) {
-        if (assistant == null) return;
-        List<MyAssistant> list = getAll();
-        boolean replaced = false;
-        for (int i = 0; i < list.size(); i++) {
-            MyAssistant old = list.get(i);
-            if (old != null && old.id != null && old.id.equals(assistant.id)) {
-                list.set(i, assistant);
-                replaced = true;
-                break;
-            }
-        }
-        if (!replaced) list.add(assistant);
+        if (assistant == null || assistant.id == null || assistant.id.isEmpty()) return;
         assistant.updatedAt = System.currentTimeMillis();
-        prefs.edit().putString(KEY_LIST, GSON.toJson(list)).apply();
+        dao.upsert(toEntity(assistant));
     }
 
     public void delete(String id) {
-        if (id == null) return;
-        List<MyAssistant> list = getAll();
-        List<MyAssistant> out = new ArrayList<>();
-        for (MyAssistant a : list) {
-            if (a == null || a.id == null || !a.id.equals(id)) out.add(a);
+        if (id == null || id.isEmpty()) return;
+        dao.delete(id);
+    }
+
+    // --- Conversion helpers ---
+
+    private static MyAssistantEntity toEntity(MyAssistant a) {
+        MyAssistantEntity entity = new MyAssistantEntity();
+        entity.id = a.id;
+        entity.name = a.name;
+        entity.prompt = ""; // always clear legacy field on write
+        entity.avatar = a.avatar;
+        entity.avatarImageBase64 = a.avatarImageBase64;
+        entity.firstDialogue = a.firstDialogue;
+        entity.type = a.type;
+        entity.allowAutoLife = a.allowAutoLife;
+        entity.allowProactiveMessage = a.allowProactiveMessage;
+        entity.optionsJson = GSON.toJson(a.options != null ? a.options : new SessionChatOptions());
+        entity.updatedAt = a.updatedAt;
+        return entity;
+    }
+
+    private static MyAssistant fromEntity(MyAssistantEntity entity) {
+        MyAssistant a = new MyAssistant();
+        a.id = entity.id;
+        a.name = entity.name;
+        a.prompt = ""; // legacy field; always empty after migration
+        a.avatar = entity.avatar;
+        a.avatarImageBase64 = entity.avatarImageBase64;
+        a.firstDialogue = entity.firstDialogue;
+        a.type = entity.type;
+        a.allowAutoLife = entity.allowAutoLife;
+        a.allowProactiveMessage = entity.allowProactiveMessage;
+        a.updatedAt = entity.updatedAt;
+        // Deserialize options from JSON
+        if (entity.optionsJson != null && !entity.optionsJson.isEmpty()) {
+            try {
+                a.options = GSON.fromJson(entity.optionsJson, SessionChatOptions.class);
+            } catch (Exception ignored) {}
         }
-        prefs.edit().putString(KEY_LIST, GSON.toJson(out)).apply();
+        if (a.options == null) a.options = new SessionChatOptions();
+        return a;
     }
 }

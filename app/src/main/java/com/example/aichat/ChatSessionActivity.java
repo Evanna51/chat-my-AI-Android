@@ -37,6 +37,12 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.nio.charset.StandardCharsets;
+
+import androidx.core.content.FileProvider;
+import androidx.lifecycle.ViewModelProvider;
 
 public class ChatSessionActivity extends ThemedActivity {
     private static final String TAG = "ChatSessionActivity";
@@ -70,7 +76,7 @@ public class ChatSessionActivity extends ThemedActivity {
     private MaterialButton sendButtonView;
     private EditText inputEditView;
     private ChatService chatService;
-    private AppDatabase db;
+    private ChatViewModel viewModel;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private Message activeThinkingMessage;
@@ -211,7 +217,53 @@ public class ChatSessionActivity extends ThemedActivity {
         proactiveSyncManager = new ProactiveMessageSyncManager(this);
 
         chatService = new ChatService(this);
-        db = AppDatabase.getInstance(this);
+        viewModel = new ViewModelProvider(this).get(ChatViewModel.class);
+
+        // --- Observe ViewModel LiveData ---
+        viewModel.messages.observe(this, msgs -> {
+            if (isFinishing() || isDestroyed()) return;
+            allMessages = new ArrayList<>(msgs);
+            maybeInsertAssistantOpeningMessage();
+            if (pendingInitialMessage != null && !pendingInitialMessage.isEmpty()) {
+                String msg = pendingInitialMessage;
+                pendingInitialMessage = null;
+                EditText input = findViewById(R.id.inputEdit);
+                if (input != null) {
+                    input.post(() -> sendMessageFromText(msg));
+                } else {
+                    sendMessageFromText(msg);
+                }
+                return;
+            }
+            applyMessagesAndTitle();
+            maybeAutoScrollToBottom(true);
+            updateLoadEarlierEntryVisibility();
+        });
+        viewModel.hasMoreOlderMessages.observe(this, has -> {
+            if (isFinishing() || isDestroyed()) return;
+            hasMoreOlderMessages = has != null && has;
+            updateLoadEarlierEntryVisibility();
+        });
+        viewModel.olderRemainingCount.observe(this, count -> {
+            if (isFinishing() || isDestroyed()) return;
+            olderRemainingCount = count != null ? count : 0;
+            updateLoadEarlierEntryVisibility();
+        });
+        viewModel.sessionTitle.observe(this, title -> {
+            if (isFinishing() || isDestroyed()) return;
+            if (title == null || title.isEmpty()) return;
+            if (getSupportActionBar() != null) getSupportActionBar().setTitle(title);
+            if (sessionOptions == null) sessionOptions = new SessionChatOptions();
+            sessionOptions.sessionTitle = title;
+            updateToolbarModelSubtitle();
+        });
+        viewModel.streamDeltaEvent.observe(this, event -> {
+            if (event == null) return;
+            if (event.responseToken != activeResponseToken) return;
+            if (isFinishing() || isDestroyed()) return;
+            handleStreamDeltaEvent(event);
+        });
+
         sessionOptions = resolveChatOptions();
 
         MaterialToolbar toolbar = findViewById(R.id.toolbar);
@@ -338,56 +390,11 @@ public class ChatSessionActivity extends ThemedActivity {
             });
         }
 
-        loadMessages();
+        viewModel.init(sessionId);
     }
 
     private void loadMessages() {
-        executor.execute(() -> {
-            List<Message> list;
-            long oldestCreatedAt = Long.MAX_VALUE;
-            long oldestMessageId = Long.MAX_VALUE;
-            int olderCount = 0;
-            try {
-                List<Message> desc = db.messageDao().getLatestBySession(sessionId, INITIAL_RENDER_MESSAGE_LIMIT);
-                list = toAscending(desc);
-                if (!list.isEmpty()) {
-                    Message oldest = list.get(0);
-                    oldestCreatedAt = oldest.createdAt;
-                    oldestMessageId = oldest.id;
-                    olderCount = db.messageDao().countOlderMessages(sessionId, oldestCreatedAt, oldestMessageId);
-                }
-            } catch (Exception e) {
-                list = new ArrayList<>();
-            }
-            final List<Message> finalList = list != null ? list : new ArrayList<>();
-            final long finalOldestCreatedAt = oldestCreatedAt;
-            final long finalOldestMessageId = oldestMessageId;
-            final int finalOlderCount = olderCount;
-            mainHandler.post(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                allMessages = new ArrayList<>(finalList);
-                oldestLoadedCreatedAt = finalOldestCreatedAt;
-                oldestLoadedMessageId = finalOldestMessageId;
-                olderRemainingCount = Math.max(0, finalOlderCount);
-                hasMoreOlderMessages = olderRemainingCount > 0;
-                loadingOlderMessages = false;
-                maybeInsertAssistantOpeningMessage();
-                if (pendingInitialMessage != null && !pendingInitialMessage.isEmpty()) {
-                    String msg = pendingInitialMessage;
-                    pendingInitialMessage = null;
-                    EditText input = findViewById(R.id.inputEdit);
-                    if (input != null) {
-                        input.post(() -> sendMessageFromText(msg));
-                    } else {
-                        sendMessageFromText(msg);
-                    }
-                    return;
-                }
-                applyMessagesAndTitle();
-                maybeAutoScrollToBottom(true);
-                updateLoadEarlierEntryVisibility();
-            });
-        });
+        viewModel.loadMessages();
     }
 
     private void applyMessagesAndTitle() {
@@ -461,17 +468,13 @@ public class ChatSessionActivity extends ThemedActivity {
         if (text == null || text.isEmpty()) return;
         if (isFinishing() || isDestroyed()) return;
         setAssistantResponseInProgress(true);
-        activeResponseToken++;
+        activeResponseToken = viewModel.incrementResponseToken();
         final long responseToken = activeResponseToken;
         activeStreamingMessage = null;
         activeChatHandle = null;
 
         Message userMsg = new Message(sessionId, Message.ROLE_USER, text);
-        executor.execute(() -> {
-            try {
-                db.messageDao().insert(userMsg);
-            } catch (Exception ignored) {}
-        });
+        viewModel.insertMessageAsync(userMsg);
         allMessages.add(userMsg);
         applyMessagesAndTitle();
         maybeAutoScrollToBottom(true);
@@ -655,139 +658,94 @@ public class ChatSessionActivity extends ThemedActivity {
         streamingTargetMessage = finalStreamingAssistant;
         stopStreamTypewriter(true);
         try {
-            ChatService.ChatHandle chatHandle = chatService.chat(historyForApi, apiUserMessage, options, new ChatService.ChatCallback() {
-                private boolean isStale() {
-                    return responseToken != activeResponseToken;
-                }
-
-                private boolean isUiAlive() {
-                    return !isFinishing() && !isDestroyed();
-                }
-
-                @Override
-                public void onSuccess(String content) {
-                    mainHandler.post(() -> {
-                        if (isStale()) return;
-                        if (!isUiAlive()) {
-                            persistAssistantMessageDetached(content, reportAssistantToMemory);
-                            return;
-                        }
-                        boolean shouldStickBottomAfterDone = autoScrollToBottomEnabled;
-                        setAssistantResponseInProgress(false);
-                        activeChatHandle = null;
-                        activeStreamingMessage = null;
-                        String safeContent = content != null ? content : "";
-                        removeCharacterMemoryLoadingPlaceholder();
-                        if (streamOutput && finalStreamingAssistant != null) {
-                            finishThinking(finalStreamingAssistant);
-                            stopStreamTypewriter(true);
-                            finalStreamingAssistant.content = safeContent;
-                            persistSessionMessagesAsync();
-                        } else {
-                            Message assistantMsg = new Message(sessionId, Message.ROLE_ASSISTANT, safeContent);
-                            executor.execute(() -> {
-                                try {
-                                    db.messageDao().insert(assistantMsg);
-                                } catch (Exception ignored) {}
-                            });
-                            allMessages.add(assistantMsg);
-                        }
-                        if (reportAssistantToMemory) {
-                            reportCharacterInteractionAsync(CharacterMemoryApi.ROLE_ASSISTANT, safeContent);
-                        }
-                        flushStreamRenderNow();
-                        maybeAutoScrollToBottom(shouldStickBottomAfterDone);
-                    });
-                }
-
-                @Override
-                public void onError(String message) {
-                    mainHandler.post(() -> {
-                        if (isStale()) return;
-                        if (!isUiAlive()) {
-                            return;
-                        }
-                        setAssistantResponseInProgress(false);
-                        activeChatHandle = null;
-                        activeStreamingMessage = null;
-                        removeCharacterMemoryLoadingPlaceholder();
-                        if (finalStreamingAssistant != null) {
-                            finishThinking(finalStreamingAssistant);
-                        }
-                        stopStreamTypewriter(true);
-                        if (streamOutput && finalStreamingAssistant != null) {
-                            allMessages.remove(finalStreamingAssistant);
-                            flushStreamRenderNow();
-                        }
-                        if (!isFinishing() && !isDestroyed()) {
-                            Toast.makeText(ChatSessionActivity.this, message != null ? message : "请求失败", Toast.LENGTH_LONG).show();
-                        }
-                    });
-                }
-
-                @Override
-                public void onCancelled() {
-                    mainHandler.post(() -> {
-                        if (isStale()) return;
-                        if (!isUiAlive()) return;
-                        removeCharacterMemoryLoadingPlaceholder();
-                        handleResponseStopped(finalStreamingAssistant, reportAssistantToMemory);
-                    });
-                }
-
-                @Override
-                public void onPartial(String delta) {
-                    if (!streamOutput || finalStreamingAssistant == null) return;
-                    mainHandler.post(() -> {
-                        if (isStale()) return;
-                        if (!isUiAlive()) return;
-                        if (CHARACTER_MEMORY_LOADING_TEXT.equals(
-                                finalStreamingAssistant.content != null ? finalStreamingAssistant.content.trim() : "")) {
-                            finalStreamingAssistant.content = "";
-                            removeCharacterMemoryLoadingPlaceholder();
-                        }
-                        finishThinking(finalStreamingAssistant);
-                        enqueueStreamDelta(finalStreamingAssistant, delta);
-                    });
-                }
-
-                @Override
-                public void onReasoning(String reasoning) {
-                    if (!streamOutput || finalStreamingAssistant == null) return;
-                    mainHandler.post(() -> {
-                        if (isStale()) return;
-                        if (!isUiAlive()) return;
-                        if (CHARACTER_MEMORY_LOADING_TEXT.equals(
-                                finalStreamingAssistant.content != null ? finalStreamingAssistant.content.trim() : "")) {
-                            finalStreamingAssistant.content = "";
-                            removeCharacterMemoryLoadingPlaceholder();
-                        }
-                        beginThinking(finalStreamingAssistant);
-                        finalStreamingAssistant.reasoning = reasoning != null ? reasoning : "";
-                        scheduleStreamRender();
-                    });
-                }
-
-                @Override
-                public void onUsage(int promptTokens, int completionTokens, int totalTokens, long elapsedMs) {
-                    if (finalStreamingAssistant == null) return;
-                    mainHandler.post(() -> {
-                        if (isStale()) return;
-                        if (!isUiAlive()) return;
-                        finalStreamingAssistant.promptTokens = promptTokens;
-                        finalStreamingAssistant.completionTokens = completionTokens;
-                        finalStreamingAssistant.totalTokens = totalTokens;
-                        finalStreamingAssistant.elapsedMs = elapsedMs;
-                        scheduleStreamRender();
-                    });
-                }
-            });
-            activeChatHandle = chatHandle;
+            activeChatHandle = viewModel.doChatRequest(
+                    historyForApi, apiUserMessage, options, responseToken,
+                    reportAssistantToMemory, assistantId, characterMemoryService);
         } catch (Exception e) {
             setAssistantResponseInProgress(false);
             activeChatHandle = null;
             activeStreamingMessage = null;
-            Toast.makeText(this, "发送失败: " + (e != null ? e.getMessage() : ""), Toast.LENGTH_LONG).show();
+            Toast.makeText(this, getString(R.string.error_send_failed, e != null ? e.getMessage() : ""), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void handleStreamDeltaEvent(ChatViewModel.StreamDeltaEvent event) {
+        if (event.delta != null) {
+            // onPartial
+            if (activeStreamingMessage != null && CHARACTER_MEMORY_LOADING_TEXT.equals(
+                    activeStreamingMessage.content != null ? activeStreamingMessage.content.trim() : "")) {
+                activeStreamingMessage.content = "";
+                removeCharacterMemoryLoadingPlaceholder();
+            }
+            finishThinking(activeStreamingMessage);
+            enqueueStreamDelta(activeStreamingMessage, event.delta);
+        } else if (event.reasoning != null) {
+            // onReasoning
+            if (activeStreamingMessage != null && CHARACTER_MEMORY_LOADING_TEXT.equals(
+                    activeStreamingMessage.content != null ? activeStreamingMessage.content.trim() : "")) {
+                activeStreamingMessage.content = "";
+                removeCharacterMemoryLoadingPlaceholder();
+            }
+            beginThinking(activeStreamingMessage);
+            if (activeStreamingMessage != null) {
+                activeStreamingMessage.reasoning = event.reasoning != null ? event.reasoning : "";
+            }
+            scheduleStreamRender();
+        } else if (event.isUsage) {
+            // onUsage
+            if (activeStreamingMessage != null) {
+                activeStreamingMessage.promptTokens = event.promptTokens;
+                activeStreamingMessage.completionTokens = event.completionTokens;
+                activeStreamingMessage.totalTokens = event.totalTokens;
+                activeStreamingMessage.elapsedMs = event.elapsedMs;
+                scheduleStreamRender();
+            }
+        } else if (event.isSuccess) {
+            // onSuccess
+            boolean shouldStick = autoScrollToBottomEnabled;
+            setAssistantResponseInProgress(false);
+            activeChatHandle = null;
+            Message streaming = activeStreamingMessage;
+            activeStreamingMessage = null;
+            String safeContent = event.successContent != null ? event.successContent : "";
+            removeCharacterMemoryLoadingPlaceholder();
+            if (streaming != null) {
+                finishThinking(streaming);
+                stopStreamTypewriter(true);
+                streaming.content = safeContent;
+                viewModel.persistSessionMessagesAsync(allMessages);
+            } else {
+                Message assistantMsg = new Message(sessionId, Message.ROLE_ASSISTANT, safeContent);
+                allMessages.add(assistantMsg);
+            }
+            if (event.reportAssistantToMemory) {
+                reportCharacterInteractionAsync(CharacterMemoryApi.ROLE_ASSISTANT, safeContent);
+            }
+            flushStreamRenderNow();
+            maybeAutoScrollToBottom(shouldStick);
+        } else if (event.isError) {
+            // onError
+            setAssistantResponseInProgress(false);
+            activeChatHandle = null;
+            Message streaming = activeStreamingMessage;
+            activeStreamingMessage = null;
+            removeCharacterMemoryLoadingPlaceholder();
+            if (streaming != null) {
+                finishThinking(streaming);
+            }
+            stopStreamTypewriter(true);
+            if (streaming != null) {
+                allMessages.remove(streaming);
+                flushStreamRenderNow();
+            }
+            String errMsg = viewModel.errorEvent.getValue();
+            Toast.makeText(this, errMsg != null && !errMsg.isEmpty() ? errMsg
+                    : getString(R.string.error_request_failed), Toast.LENGTH_LONG).show();
+        } else if (event.isCancelled) {
+            // onCancelled
+            removeCharacterMemoryLoadingPlaceholder();
+            handleResponseStopped(activeStreamingMessage, event.reportAssistantToMemory);
+            activeStreamingMessage = null;
         }
     }
 
@@ -830,26 +788,10 @@ public class ChatSessionActivity extends ThemedActivity {
         updateToolbarModelSubtitle();
         autoNamingInFlight = true;
         Log.d(TAG, "start auto title generation, sessionId=" + sessionId);
-        chatService.generateThreadTitle(firstUserMessage, new ChatService.ChatCallback() {
-            @Override
-            public void onSuccess(String content) {
-                autoNamingInFlight = false;
-                Log.d(TAG, "auto title success: " + content);
-                String generated = content != null ? content.trim() : "";
-                if (generated.isEmpty()) {
-                    Log.d(TAG, "auto title empty, keep fallback title");
-                    return;
-                }
-                persistSessionTitle(generated, true);
-                mainHandler.post(ChatSessionActivity.this::applyMessagesAndTitle);
-            }
-
-            @Override
-            public void onError(String message) {
-                autoNamingInFlight = false;
-                Log.e(TAG, "auto title failed: " + message);
-            }
-        });
+        viewModel.generateThreadTitle(firstUserMessage, fallbackTitle);
+        // Result arrives via viewModel.sessionTitle LiveData observer, which updates toolbar and sessionOptions.
+        // autoNamingInFlight is reset when observer fires or on next loadMessages.
+        autoNamingInFlight = false;
     }
 
     private String buildFallbackThreadTitle(String userMessage) {
@@ -861,31 +803,13 @@ public class ChatSessionActivity extends ThemedActivity {
     private void persistSessionTitle(String title, boolean overwriteExisting) {
         String trimmed = title != null ? title.trim() : "";
         if (trimmed.isEmpty()) return;
-        executor.execute(() -> {
-            SessionMetaStore metaStore = new SessionMetaStore(ChatSessionActivity.this);
-            SessionMeta meta = metaStore.get(sessionId);
-            String metaTitle = meta.title != null ? meta.title.trim() : "";
-            if (overwriteExisting || metaTitle.isEmpty()) {
-                meta.title = trimmed;
-                metaStore.save(sessionId, meta);
-            }
-
-            SessionChatOptionsStore optionsStore = new SessionChatOptionsStore(ChatSessionActivity.this);
-            SessionChatOptions options = optionsStore.get(sessionId);
-            String optionsTitle = options.sessionTitle != null ? options.sessionTitle.trim() : "";
-            if (overwriteExisting || optionsTitle.isEmpty()) {
-                options.sessionTitle = trimmed;
-                optionsStore.save(sessionId, options);
-            }
-
-            mainHandler.post(() -> {
-                if (sessionOptions == null) sessionOptions = new SessionChatOptions();
-                String current = sessionOptions.sessionTitle != null ? sessionOptions.sessionTitle.trim() : "";
-                if (overwriteExisting || current.isEmpty()) {
-                    sessionOptions.sessionTitle = trimmed;
-                }
-            });
-        });
+        viewModel.persistSessionTitle(trimmed, overwriteExisting);
+        // Update local sessionOptions mirror immediately on main thread
+        if (sessionOptions == null) sessionOptions = new SessionChatOptions();
+        String current = sessionOptions.sessionTitle != null ? sessionOptions.sessionTitle.trim() : "";
+        if (overwriteExisting || current.isEmpty()) {
+            sessionOptions.sessionTitle = trimmed;
+        }
     }
 
     private int countUserMessages() {
@@ -967,29 +891,15 @@ public class ChatSessionActivity extends ThemedActivity {
         mainHandler.removeCallbacks(thinkingTicker);
         stopProactivePolling();
         activeThinkingMessage = null;
-        if (!assistantResponseInProgress) {
-            executor.shutdown();
-        }
         super.onDestroy();
     }
 
     private void persistAssistantMessageDetached(String content, boolean reportAssistantToMemory) {
-        String safe = content != null ? content : "";
+        // ViewModel.onSuccess already persists the assistant message to DB.
         assistantResponseInProgress = false;
-        Runnable writeTask = () -> {
-            try {
-                Message assistantMsg = new Message(sessionId, Message.ROLE_ASSISTANT, safe);
-                AppDatabase.getInstance(getApplicationContext()).messageDao().insert(assistantMsg);
-            } catch (Exception ignored) {}
-            if (reportAssistantToMemory) {
-                reportCharacterInteractionSafely(CharacterMemoryApi.ROLE_ASSISTANT, safe);
-            }
-        };
-        try {
-            executor.execute(writeTask);
-            executor.shutdown();
-        } catch (Exception ignored) {
-            new Thread(writeTask).start();
+        if (reportAssistantToMemory) {
+            String safe = content != null ? content : "";
+            executor.execute(() -> reportCharacterInteractionSafely(CharacterMemoryApi.ROLE_ASSISTANT, safe));
         }
     }
 
@@ -1282,11 +1192,7 @@ public class ChatSessionActivity extends ThemedActivity {
         if (firstDialogue.isEmpty()) return;
         Message opening = new Message(sessionId, Message.ROLE_ASSISTANT, firstDialogue);
         allMessages.add(opening);
-        executor.execute(() -> {
-            try {
-                db.messageDao().insert(opening);
-            } catch (Exception ignored) {}
-        });
+        viewModel.insertMessageAsync(opening);
     }
 
     private void bindMessageActions(MessageAdapter adapter) {
@@ -1314,6 +1220,12 @@ public class ChatSessionActivity extends ThemedActivity {
             public void onCopy(Message message) {
                 if (message == null) return;
                 copyText(message.content != null ? message.content : "");
+            }
+
+            @Override
+            public void onOpen(Message message) {
+                if (message == null) return;
+                openMessageInBrowser(message.content != null ? message.content : "");
             }
 
             @Override
@@ -2029,8 +1941,59 @@ public class ChatSessionActivity extends ThemedActivity {
         ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
         if (cm != null) {
             cm.setPrimaryClip(ClipData.newPlainText("message", text != null ? text : ""));
-            Toast.makeText(this, "已复制", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, R.string.copied_to_clipboard, Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void openMessageInBrowser(String text) {
+        String source = text != null ? text.trim() : "";
+        if (source.isEmpty()) {
+            Toast.makeText(this, R.string.error_message_empty_cannot_open, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        try {
+            File out = new File(getCacheDir(), "message-view.html");
+            String html = buildMessageHtml(source);
+            try (FileOutputStream fos = new FileOutputStream(out, false)) {
+                fos.write(html.getBytes(StandardCharsets.UTF_8));
+            }
+            String authority = getPackageName() + ".fileprovider";
+            android.net.Uri uri = FileProvider.getUriForFile(this, authority, out);
+
+            android.content.Intent edgeIntent = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+            edgeIntent.setDataAndType(uri, "text/html");
+            edgeIntent.setPackage("com.microsoft.emmx");
+            edgeIntent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            try {
+                startActivity(edgeIntent);
+                return;
+            } catch (Exception ignored) {}
+
+            android.content.Intent browserIntent = new android.content.Intent(android.content.Intent.ACTION_VIEW);
+            browserIntent.setDataAndType(uri, "text/html");
+            browserIntent.addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(android.content.Intent.createChooser(browserIntent, getString(R.string.chooser_browser)));
+        } catch (Exception e) {
+            Toast.makeText(this, getString(R.string.error_open_failed, e != null ? e.getMessage() : ""), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private String buildMessageHtml(String content) {
+        String safe = escapeHtml(content != null ? content : "");
+        return "<!doctype html><html><head><meta charset=\"utf-8\"/>"
+                + "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>"
+                + "<title>Message</title>"
+                + "<style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"
+                + "padding:18px;line-height:1.7;font-size:18px;white-space:pre-wrap;color:#111;}"
+                + "</style></head><body>" + safe + "</body></html>";
+    }
+
+    private String escapeHtml(String source) {
+        if (source == null || source.isEmpty()) return "";
+        return source
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;");
     }
 
     private void showEditDialog(Message message) {
@@ -2051,18 +2014,7 @@ public class ChatSessionActivity extends ThemedActivity {
     }
 
     private void persistSessionMessagesAsync() {
-        List<Message> snapshot = new ArrayList<>(allMessages);
-        executor.execute(() -> {
-            try {
-                db.messageDao().deleteBySession(sessionId);
-                for (Message m : snapshot) {
-                    if (m == null) continue;
-                    Message item = new Message(sessionId, m.role, m.content != null ? m.content : "");
-                    item.createdAt = m.createdAt > 0 ? m.createdAt : System.currentTimeMillis();
-                    db.messageDao().insert(item);
-                }
-            } catch (Exception ignored) {}
-        });
+        viewModel.persistSessionMessagesAsync(allMessages);
     }
 
     private void setupAutoCollapseActions(RecyclerView recyclerHistory, RecyclerView recyclerCurrent, NestedScrollView scrollMessages) {
@@ -2143,7 +2095,7 @@ public class ChatSessionActivity extends ThemedActivity {
     private void stopLatestResponse() {
         ChatService.ChatHandle handle = activeChatHandle;
         Message target = activeStreamingMessage;
-        activeResponseToken++;
+        activeResponseToken = viewModel.incrementResponseToken();
         activeChatHandle = null;
         activeStreamingMessage = null;
         removeCharacterMemoryLoadingPlaceholder();
@@ -2313,49 +2265,9 @@ public class ChatSessionActivity extends ThemedActivity {
     }
 
     private void loadOlderMessages() {
-        if (loadingOlderMessages || !hasMoreOlderMessages) return;
-        if (oldestLoadedCreatedAt == Long.MAX_VALUE || oldestLoadedMessageId == Long.MAX_VALUE) return;
-        loadingOlderMessages = true;
+        if (viewModel.isLoadingOlderMessages() || !hasMoreOlderMessages) return;
         updateLoadEarlierEntryVisibility();
-        final long beforeCreatedAt = oldestLoadedCreatedAt;
-        final long beforeMessageId = oldestLoadedMessageId;
-        executor.execute(() -> {
-            List<Message> olderAsc = new ArrayList<>();
-            long newOldest = beforeCreatedAt;
-            long newOldestMessageId = beforeMessageId;
-            int remaining = 0;
-            try {
-                List<Message> olderDesc = db.messageDao().getOlderBySession(
-                        sessionId, beforeCreatedAt, beforeMessageId, LOAD_MORE_BATCH_SIZE);
-                olderAsc = toAscending(olderDesc);
-                if (!olderAsc.isEmpty()) {
-                    Message oldest = olderAsc.get(0);
-                    newOldest = oldest.createdAt;
-                    newOldestMessageId = oldest.id;
-                    remaining = db.messageDao().countOlderMessages(sessionId, newOldest, newOldestMessageId);
-                }
-            } catch (Exception ignored) {}
-            final List<Message> finalOlderAsc = olderAsc;
-            final long finalNewOldest = newOldest;
-            final long finalNewOldestMessageId = newOldestMessageId;
-            final int finalRemaining = remaining;
-            mainHandler.post(() -> {
-                if (isFinishing() || isDestroyed()) return;
-                if (!finalOlderAsc.isEmpty()) {
-                    allMessages.addAll(0, finalOlderAsc);
-                    oldestLoadedCreatedAt = finalNewOldest;
-                    oldestLoadedMessageId = finalNewOldestMessageId;
-                    olderRemainingCount = Math.max(0, finalRemaining);
-                    hasMoreOlderMessages = olderRemainingCount > 0;
-                    applyMessagesAndTitle();
-                } else {
-                    hasMoreOlderMessages = false;
-                    olderRemainingCount = 0;
-                }
-                loadingOlderMessages = false;
-                updateLoadEarlierEntryVisibility();
-            });
-        });
+        viewModel.loadOlderMessages();
     }
 
     private void updateLoadEarlierEntryVisibility() {
@@ -2363,8 +2275,8 @@ public class ChatSessionActivity extends ThemedActivity {
         boolean atTop = isAtTopForLoadMore();
         boolean visible = hasMoreOlderMessages && atTop;
         loadEarlierMessagesView.setVisibility(visible ? View.VISIBLE : View.GONE);
-        loadEarlierMessagesView.setEnabled(!loadingOlderMessages);
-        if (loadingOlderMessages) {
+        loadEarlierMessagesView.setEnabled(!viewModel.isLoadingOlderMessages());
+        if (viewModel.isLoadingOlderMessages()) {
             loadEarlierMessagesView.setText(getString(R.string.loading_earlier_messages));
         } else if (olderRemainingCount > 0) {
             loadEarlierMessagesView.setText(getString(R.string.load_earlier_messages_remaining, olderRemainingCount));

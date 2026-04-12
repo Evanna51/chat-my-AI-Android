@@ -45,7 +45,8 @@
             android:textSize="13sp"
             android:textColor="@color/chat_reasoning_text_color"
             android:background="@drawable/bubble_reasoning"
-            android:visibility="gone" />
+            android:visibility="gone"
+            android:textIsSelectable="true" />
     </LinearLayout>
 
     <!-- 助手消息气泡容器：正文 + affix 折叠按钮 -->
@@ -64,7 +65,8 @@
             android:paddingEnd="12dp"
             android:paddingBottom="10dp"
             android:textColor="@color/chat_assistant_text_color"
-            android:textSize="16sp" />
+            android:textSize="16sp"
+            android:textIsSelectable="true" />
         <!-- affix 折叠按钮：相对该条消息悬浮，不是全局悬浮 -->
         <TextView
             android:id="@+id/textCollapseToggle"
@@ -92,6 +94,18 @@
         android:textColor="@color/chat_meta_text_color"
         android:visibility="gone" />
 
+    <ImageButton
+        android:id="@+id/actionExpand"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_marginTop="2dp"
+        android:padding="6dp"
+        android:background="@drawable/bg_action_button"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_action_expand_left"
+        android:tint="@color/action_button_icon_tint"
+        android:contentDescription="展开操作" />
+
     <!-- 助手消息底部操作区：点击消息后显示 -->
     <LinearLayout
         android:id="@+id/layoutActions"
@@ -101,7 +115,7 @@
         android:layout_marginTop="6dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:visibility="visible">
+        android:visibility="gone">
         <!-- 编辑按钮 -->
         <ImageButton
             android:id="@+id/actionEdit"
@@ -125,6 +139,17 @@
             android:src="@drawable/ic_action_copy"
             android:tint="@color/action_button_icon_tint"
             android:contentDescription="复制" />
+        <ImageButton
+            android:id="@+id/actionOpen"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:padding="7dp"
+            android:background="@drawable/bg_action_button"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_action_open"
+            android:tint="@color/action_button_icon_tint"
+            android:contentDescription="打开" />
         <!-- 提取到大纲按钮：仅写作模式会显示 -->
         <ImageButton
             android:id="@+id/actionOutline"
