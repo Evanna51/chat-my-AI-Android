@@ -1,5 +1,6 @@
 package com.example.aichat
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -21,6 +22,7 @@ import com.google.android.material.chip.Chip
 import com.google.android.material.chip.ChipGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.util.LinkedHashSet
+import java.util.UUID
 import java.util.concurrent.Executors
 
 class SessionOutlineActivity : ThemedActivity() {
@@ -45,6 +47,12 @@ class SessionOutlineActivity : ThemedActivity() {
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
         toolbar.setNavigationOnClickListener { finish() }
+        toolbar.setOnMenuItemClickListener { item ->
+            if (item.itemId == R.id.action_new_novel) {
+                copyOutlineToNewSession()
+                true
+            } else false
+        }
 
         textEmpty = findViewById(R.id.textOutlineEmpty)
         val recycler = findViewById<RecyclerView>(R.id.recyclerOutline)
@@ -567,6 +575,43 @@ class SessionOutlineActivity : ThemedActivity() {
             4 -> R.id.chipTypeMaterial
             else -> R.id.chipTypeChapter
         }
+    }
+
+    // Bug 修复：UP 导航时确保带上正确的 sessionId，
+    // 避免 Android 重建父 Activity 时丢失 sessionId 导致大纲串掉
+    override fun getSupportParentActivityIntent(): Intent? {
+        return Intent(this, ChatSessionActivity::class.java)
+            .putExtra(ChatSessionActivity.EXTRA_SESSION_ID, sessionId)
+    }
+
+    override fun getParentActivityIntent(): Intent? {
+        return Intent(this, ChatSessionActivity::class.java)
+            .putExtra(ChatSessionActivity.EXTRA_SESSION_ID, sessionId)
+    }
+
+    private fun copyOutlineToNewSession() {
+        val items = outlineStore.getAll(sessionId)
+        if (items.isEmpty()) {
+            Toast.makeText(this, R.string.new_novel_empty_outline, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val newSessionId = UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+        val newItems = items.map { src ->
+            SessionOutlineItem().also { dst ->
+                dst.id = UUID.randomUUID().toString()
+                dst.type = src.type
+                dst.title = src.title
+                dst.content = src.content
+                dst.createdAt = now
+                dst.updatedAt = now
+            }
+        }
+        outlineStore.saveAll(newSessionId, newItems)
+        Toast.makeText(this, R.string.new_novel_copied, Toast.LENGTH_SHORT).show()
+        val intent = Intent(this, ChatSessionActivity::class.java)
+            .putExtra(ChatSessionActivity.EXTRA_SESSION_ID, newSessionId)
+        startActivity(intent)
     }
 
     private fun runLeakageAudit() {
