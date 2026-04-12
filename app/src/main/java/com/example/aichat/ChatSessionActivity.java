@@ -2083,11 +2083,10 @@ public class ChatSessionActivity extends ThemedActivity {
 
     private void updateSendButtonState() {
         if (sendButtonView == null) return;
+        sendButtonView.setText("");
         if (assistantResponseInProgress) {
-            sendButtonView.setText(getString(R.string.stop));
-            sendButtonView.setIcon(null);
+            sendButtonView.setIconResource(R.drawable.ic_action_stop);
         } else {
-            sendButtonView.setText(getString(R.string.send));
             sendButtonView.setIconResource(android.R.drawable.ic_menu_send);
         }
     }

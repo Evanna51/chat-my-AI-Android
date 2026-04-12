@@ -14,7 +14,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.appbar.MaterialToolbar;
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.switchmaterial.SwitchMaterial;
+import com.google.android.material.materialswitch.MaterialSwitch;
 
 import java.util.List;
 
@@ -24,7 +24,7 @@ public class ModelConfigActivity extends ThemedActivity {
     private ModelConfig modelConfig;
     private TextView textChatModel, textThreadNamingModel, textSearchModel, textSummaryModel, textNovelSharpModel;
     private String chatPreset, threadNamingPreset, searchPreset, summaryPreset, novelSharpPreset;
-    private SwitchMaterial switchHomeMode;
+    private MaterialSwitch switchHomeMode;
     private boolean editingHomeMode = true;
 
     @Override

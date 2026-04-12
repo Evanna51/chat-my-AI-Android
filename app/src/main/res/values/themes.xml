@@ -58,6 +58,8 @@
     </style>
 
     <!-- iOS 2026 公共 styles -->
+    <style name="Widget.AIChat" parent="" />
+
     <style name="Widget.AIChat.IOSSectionHeader">
         <item name="android:textSize">13sp</item>
         <item name="android:textColor">@color/ios_section_label</item>

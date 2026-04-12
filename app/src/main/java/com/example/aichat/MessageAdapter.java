@@ -4,6 +4,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.text.TextUtils;
+import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -496,7 +497,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     static class AssistantHolder extends RecyclerView.ViewHolder {
         TextView textTimestamp;
         TextView textContent;
-        TextView textCollapseToggle;
+        ImageView textCollapseToggle;
         View layoutAssistantBubble;
         View layoutActions;
         View actionExpand;
@@ -623,13 +624,12 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
     private void bindAssistantContent(AssistantHolder h, Message m, String content, boolean expanded) {
         if (!expanded) {
-            h.textContent.setText(content);
             h.textContent.setMaxLines(3);
             h.textContent.setEllipsize(TextUtils.TruncateAt.END);
-            return;
+        } else {
+            h.textContent.setMaxLines(Integer.MAX_VALUE);
+            h.textContent.setEllipsize(null);
         }
-        h.textContent.setMaxLines(Integer.MAX_VALUE);
-        h.textContent.setEllipsize(null);
         if (markwon == null || m == null) {
             h.textContent.setText(content);
             return;
@@ -673,53 +673,12 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     private void applyCollapseToggleAffix(AssistantHolder h) {
-        if (h == null || h.textCollapseToggle == null) return;
-        if (disableAssistantCollapseToggle) {
-            h.textCollapseToggle.setTranslationY(0f);
-            return;
-        }
-        Message m = h.boundMessage;
-        boolean expanded = m != null && assistantStateStore.isExpanded(m);
-        if (!expanded || h.textCollapseToggle.getVisibility() != View.VISIBLE) {
-            h.textCollapseToggle.setTranslationY(0f);
-            return;
-        }
-        if (affixViewportTop == Integer.MIN_VALUE || affixViewportBottom <= affixViewportTop) {
-            h.textCollapseToggle.setTranslationY(0f);
-            return;
-        }
-        View bubble = h.layoutAssistantBubble;
-        if (bubble == null || bubble.getHeight() <= 0) {
-            h.textCollapseToggle.setTranslationY(0f);
-            return;
-        }
-        int[] loc = new int[2];
-        bubble.getLocationOnScreen(loc);
-        int bubbleTop = loc[1];
-        int bubbleBottom = bubbleTop + bubble.getHeight();
-        int toggleH = h.textCollapseToggle.getHeight();
-        float density = h.textCollapseToggle.getResources().getDisplayMetrics().density;
-        int half = toggleH > 0 ? (toggleH / 2) : Math.round(14f * density);
-        int edgePad = Math.round(8f * density);
-        int minCenter = bubbleTop + edgePad + half;
-        int maxCenter = bubbleBottom - edgePad - half;
-        if (maxCenter <= minCenter) {
-            h.textCollapseToggle.setTranslationY(0f);
-            return;
-        }
-        int viewportHeight = affixViewportBottom - affixViewportTop;
-        int desiredCenter = affixViewportBottom - Math.max(1, viewportHeight / 10);
-        if (desiredCenter < minCenter) desiredCenter = minCenter;
-        if (desiredCenter > maxCenter) desiredCenter = maxCenter;
-        int baseCenter = bubbleTop + (bubble.getHeight() / 2);
-        h.textCollapseToggle.setTranslationY((float) (desiredCenter - baseCenter));
+        // Toggle is now in the action bar row; no affix positioning needed.
     }
 
-    private void setCollapseToggleLabel(TextView toggle, boolean expanded) {
+    private void setCollapseToggleLabel(ImageView toggle, boolean expanded) {
         if (toggle == null) return;
-        toggle.setText(expanded ? "收起" : "展开");
-        int icon = expanded ? R.drawable.ic_collapse_expand_less : R.drawable.ic_collapse_expand_more;
-        toggle.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, icon, 0);
+        toggle.setImageResource(expanded ? R.drawable.ic_collapse_expand_less : R.drawable.ic_collapse_expand_more);
     }
 
     private String formatSeconds(long ms) {
