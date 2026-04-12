@@ -12,19 +12,19 @@ class SessionChatOptionsEntity {
     var sessionId: String = ""
 
     @JvmField
-    var sessionTitle: String = ""
+    var sessionTitle: String? = null
 
     @JvmField
-    var sessionAvatar: String = ""
+    var sessionAvatar: String? = null
 
     @JvmField
-    var modelKey: String = ""
+    var modelKey: String? = null
 
     @JvmField
-    var systemPrompt: String = ""
+    var systemPrompt: String? = null
 
     @JvmField
-    var stop: String = ""
+    var stop: String? = null
 
     @ColumnInfo(defaultValue = "6")
     @JvmField

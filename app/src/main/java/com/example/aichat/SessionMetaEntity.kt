@@ -12,16 +12,16 @@ class SessionMetaEntity {
     var sessionId: String = ""
 
     @JvmField
-    var title: String = ""
+    var title: String? = null
 
     @JvmField
-    var outline: String = ""
+    var outline: String? = null
 
     @JvmField
-    var avatar: String = ""
+    var avatar: String? = null
 
     @JvmField
-    var category: String = "默认"
+    var category: String? = null
 
     @ColumnInfo(defaultValue = "0")
     @JvmField
