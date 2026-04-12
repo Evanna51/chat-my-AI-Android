@@ -155,6 +155,9 @@
     <string name="error_no_knowledge_outline">请先添加知情约束类型的大纲</string>
     <string name="auditing_ai_response">正在审计最近AI回复…</string>
     <string name="leak_audit_result_title">泄密审计结果</string>
+    <string name="new_novel_title">新小说</string>
+    <string name="new_novel_copied">已复制大纲到新对话</string>
+    <string name="new_novel_empty_outline">当前大纲为空，无法复制</string>
 
     <!-- ChatService 错误信息 -->
     <string name="error_no_chat_model_selected">请先在「模型配置」中选用对话模型</string>

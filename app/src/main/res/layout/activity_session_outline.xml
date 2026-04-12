@@ -13,7 +13,8 @@
         android:background="@color/ios_grouped_bg"
         app:elevation="0dp"
         app:navigationIcon="?attr/homeAsUpIndicator"
-        app:title="作家大纲" />
+        app:title="作家大纲"
+        app:menu="@menu/menu_session_outline" />
 
     <TextView
         android:id="@+id/textOutlineEmpty"
