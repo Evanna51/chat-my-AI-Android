@@ -66,6 +66,20 @@
             android:textColor="@color/chat_assistant_text_color"
             android:textSize="16sp"
             android:textIsSelectable="true" />
+        <!-- 折叠/展开正文内容按钮：悬浮在气泡右下角 -->
+        <ImageButton
+            android:id="@+id/textCollapseToggle"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="bottom|end"
+            android:layout_margin="4dp"
+            android:padding="6dp"
+            android:background="@drawable/bg_action_button"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_collapse_expand_more"
+            android:tint="@color/action_button_icon_tint"
+            android:contentDescription="展开/收起"
+            android:visibility="gone" />
     </FrameLayout>
 
     <TextView
@@ -93,6 +107,7 @@
             android:background="@drawable/bg_action_button"
             android:scaleType="centerInside"
             android:src="@drawable/ic_action_expand_left"
+            android:scaleX="-1"
             android:tint="@color/action_button_icon_tint"
             android:contentDescription="展开操作" />
 
@@ -165,24 +180,6 @@
             android:src="@drawable/ic_action_delete"
             android:tint="@color/ios_destructive"
             android:contentDescription="删除" />
-        <!-- 占位弹簧：把操作按钮整体顶到左侧 -->
-        <Space
-            android:layout_width="0dp"
-            android:layout_height="1dp"
-            android:layout_weight="1" />
-        <!-- 折叠/展开正文内容按钮：放在操作栏右侧 -->
-        <ImageButton
-            android:id="@+id/textCollapseToggle"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:layout_marginStart="4dp"
-            android:padding="7dp"
-            android:background="@drawable/bg_action_button"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_collapse_expand_more"
-            android:tint="@color/action_button_icon_tint"
-            android:contentDescription="展开/收起"
-            android:visibility="gone" />
         </LinearLayout>
 
     </LinearLayout>
