@@ -18,6 +18,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.button.MaterialButton
@@ -62,40 +63,81 @@ class MainActivity : ThemedActivity() {
             i.putExtra(ChatSessionActivity.EXTRA_SESSION_ID, s.sessionId)
             startActivity(i)
         }
-        sessionAdapter.setSessionActionListener(object : SessionListAdapter.SessionActionListener {
-            override fun onHide(s: SessionSummary) {
-                if (s.sessionId == null) return
+        // Long-press action sheet (pin / hide / delete)
+        sessionAdapter.setSessionLongPressListener { session, _ ->
+            val pinLabel = if (session.pinned) getString(R.string.unpin) else getString(R.string.pin)
+            val items = arrayOf(pinLabel, getString(R.string.hide), getString(R.string.delete_conversation))
+            MaterialAlertDialogBuilder(this@MainActivity)
+                .setItems(items) { _, which ->
+                    when (which) {
+                        0 -> { // Pin / Unpin
+                            executor.execute {
+                                SessionMetaStore(this@MainActivity).setPinned(session.sessionId, !session.pinned)
+                                mainHandler.post { loadSessions() }
+                            }
+                        }
+                        1 -> { // Hide
+                            executor.execute {
+                                SessionMetaStore(this@MainActivity).setHidden(session.sessionId, true)
+                                mainHandler.post {
+                                    Toast.makeText(this@MainActivity, R.string.conversation_hidden, Toast.LENGTH_SHORT).show()
+                                    loadSessions()
+                                }
+                            }
+                        }
+                        2 -> { // Delete
+                            showDeleteConfirmation(session)
+                        }
+                    }
+                }
+                .show()
+        }
+        sessionList.adapter = sessionAdapter
+
+        // Swipe-to-action: left swipe = delete (with confirmation)
+        val swipeHelper = SessionSwipeHelper(
+            context = this,
+            onPin = { pos ->
+                val session = sessionAdapter.getSessionAt(pos)
                 executor.execute {
-                    SessionMetaStore(this@MainActivity).setHidden(s.sessionId, true)
+                    SessionMetaStore(this).setPinned(session.sessionId, !session.pinned)
+                    mainHandler.post { loadSessions() }
+                }
+            },
+            onHide = { pos ->
+                val session = sessionAdapter.getSessionAt(pos)
+                executor.execute {
+                    SessionMetaStore(this).setHidden(session.sessionId, true)
                     mainHandler.post {
-                        Toast.makeText(this@MainActivity, R.string.conversation_hidden, Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, R.string.conversation_hidden, Toast.LENGTH_SHORT).show()
                         loadSessions()
                     }
                 }
+            },
+            onDelete = { pos ->
+                val session = sessionAdapter.getSessionAt(pos)
+                // Reset the swiped item first, then show confirmation dialog
+                sessionAdapter.notifyItemChanged(pos)
+                showDeleteConfirmation(session)
             }
+        )
+        ItemTouchHelper(swipeHelper).attachToRecyclerView(sessionList)
 
-            override fun onDelete(s: SessionSummary) {
-                if (s.sessionId == null) return
-                MaterialAlertDialogBuilder(this@MainActivity)
-                    .setTitle(R.string.delete_conversation)
-                    .setMessage(R.string.delete_conversation_confirm)
-                    .setNegativeButton(R.string.cancel, null)
-                    .setPositiveButton(R.string.delete) { _, _ ->
-                        executor.execute {
-                            db.messageDao().deleteBySession(s.sessionId)
-                            SessionMetaStore(this@MainActivity).remove(s.sessionId)
-                            SessionChatOptionsStore(this@MainActivity).remove(s.sessionId)
-                            SessionAssistantBindingStore(this@MainActivity).remove(s.sessionId)
-                            mainHandler.post {
-                                Toast.makeText(this@MainActivity, R.string.conversation_deleted, Toast.LENGTH_SHORT).show()
-                                loadSessions()
-                            }
-                        }
-                    }
-                    .show()
+        // Dynamic glass response: adjust toolbar blur/elevation on scroll
+        val glassToolbar = findViewById<LiquidGlassView>(R.id.glassToolbar)
+        sessionList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+                val scrollOffset = rv.computeVerticalScrollOffset()
+                val maxScroll = (300 * resources.displayMetrics.density).toInt()
+                val fraction = (scrollOffset.toFloat() / maxScroll).coerceIn(0f, 1f)
+
+                // Elevation: 0dp at rest → 4dp scrolled
+                glassToolbar.elevation = fraction * 4 * resources.displayMetrics.density
+
+                // Highlight alpha: 0.12 at rest → 0.25 scrolled
+                glassToolbar.setHighlightAlpha(0.12f + fraction * 0.13f)
             }
         })
-        sessionList.adapter = sessionAdapter
 
         findViewById<android.view.View>(R.id.headerMyAssistants).setOnClickListener {
             startActivity(Intent(this, MyAssistantsActivity::class.java))
@@ -208,6 +250,26 @@ class MainActivity : ThemedActivity() {
                 homeAssistantAdapter.setItems(list)
             }
         }
+    }
+
+    private fun showDeleteConfirmation(session: SessionSummary) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.delete_conversation)
+            .setMessage(R.string.delete_conversation_confirm)
+            .setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.delete) { _, _ ->
+                executor.execute {
+                    db.messageDao().deleteBySession(session.sessionId)
+                    SessionMetaStore(this).remove(session.sessionId)
+                    SessionChatOptionsStore(this).remove(session.sessionId)
+                    SessionAssistantBindingStore(this).remove(session.sessionId)
+                    mainHandler.post {
+                        Toast.makeText(this, R.string.conversation_deleted, Toast.LENGTH_SHORT).show()
+                        loadSessions()
+                    }
+                }
+            }
+            .show()
     }
 
     private fun shortenTitle(text: String?): String {

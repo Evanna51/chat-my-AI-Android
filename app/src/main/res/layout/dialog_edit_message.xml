@@ -3,7 +3,8 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@drawable/bg_ios_dialog">
+    android:background="@drawable/bg_ios_dialog"
+    android:clipToOutline="true">
 
     <!-- 标题 -->
     <TextView

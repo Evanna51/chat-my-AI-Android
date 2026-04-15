@@ -79,6 +79,9 @@
     <string name="delete_conversation">删除对话</string>
     <string name="set_category">设置分类</string>
     <string name="toggle_pin">置顶</string>
+    <string name="pin">置顶</string>
+    <string name="unpin">取消置顶</string>
+    <string name="hide">隐藏</string>
     <string name="toggle_favorite">收藏</string>
     <string name="generate_outline">生成大纲</string>
     <string name="character_memory_settings">人物记忆服务</string>

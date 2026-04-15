@@ -1,6 +1,38 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/ios_cell_bg" />
-    <corners android:radius="14dp" />
-</shape>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Base: glass surface -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/glass_surface" />
+            <corners android:radius="28dp" />
+        </shape>
+    </item>
+    <!-- Top edge highlight: bright gradient fading down -->
+    <item android:bottom="@dimen/dialog_glass_highlight_fade">
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="@color/glass_highlight_top"
+                android:endColor="@android:color/transparent"
+                android:angle="270" />
+            <corners android:topLeftRadius="28dp" android:topRightRadius="28dp" />
+        </shape>
+    </item>
+    <!-- Bottom edge shadow: dark gradient fading up -->
+    <item android:top="@dimen/dialog_glass_shadow_fade">
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="@android:color/transparent"
+                android:endColor="@color/glass_shadow_bottom"
+                android:angle="270" />
+            <corners android:bottomLeftRadius="28dp" android:bottomRightRadius="28dp" />
+        </shape>
+    </item>
+    <!-- Stroke -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="0.5dp" android:color="@color/glass_stroke" />
+            <corners android:radius="28dp" />
+        </shape>
+    </item>
+</layer-list>
