@@ -46,6 +46,23 @@
     <!-- Liquid glass -->
     <color name="glass_surface">#CCF2F2F7</color>
     <color name="glass_stroke">#40FFFFFF</color>
+    <!-- Edge highlight -->
+    <color name="glass_highlight_top">#30FFFFFF</color>
+    <color name="glass_shadow_bottom">#10000000</color>
+    <color name="glass_inner_glow">#08FFFFFF</color>
+    <!-- Liquid glass Tier 1 -->
+    <color name="glass_tint">#80F2F2F7</color>
+    <color name="glass_stroke_tier1">#40FFFFFF</color>
+    <!-- Environment tint -->
+    <color name="glass_tint_blue">#08448AFF</color>
+    <color name="glass_tint_green">#082E7D32</color>
+    <color name="glass_tint_purple">#086A1B9A</color>
+    <color name="glass_tint_orange">#08EF6C00</color>
+    <!-- Text/Icon utility -->
+    <color name="text_quaternary">#4D000000</color>
+    <!-- Shadow -->
+    <color name="shadow_ambient">#15000020</color>
+    <color name="shadow_spot">#10000020</color>
     <!-- iOS destructive -->
     <color name="ios_destructive">#FF3B30</color>
 </resources>

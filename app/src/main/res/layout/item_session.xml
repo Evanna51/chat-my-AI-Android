@@ -13,7 +13,7 @@
         android:gravity="center_vertical"
         android:paddingStart="12dp"
         android:paddingTop="12dp"
-        android:paddingEnd="6dp"
+        android:paddingEnd="12dp"
         android:paddingBottom="12dp"
         android:background="?attr/selectableItemBackground">
 
@@ -51,34 +51,14 @@
                 android:textColor="@color/list_subtitle_color" />
         </LinearLayout>
 
-        <!-- 首页按钮：隐藏会话 -->
-        <ImageButton
-            android:id="@+id/btnHideSession"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/hide_conversation"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:padding="4dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_action_hide"
-            app:tint="@color/list_icon_color" />
-
-        <!-- 首页按钮：删除会话 -->
-        <ImageButton
-            android:id="@+id/btnDeleteSession"
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:layout_marginStart="10dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/delete_conversation"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            android:padding="4dp"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_action_delete"
-            app:tint="@color/list_icon_color" />
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:layout_gravity="center_vertical"
+            android:src="@drawable/ic_chevron_right"
+            app:tint="@color/ios_separator"
+            android:layout_marginStart="4dp"
+            android:importantForAccessibility="no" />
     </LinearLayout>
 
     <View

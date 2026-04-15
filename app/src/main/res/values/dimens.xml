@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="dialog_glass_highlight_fade">120dp</dimen>
+    <dimen name="dialog_glass_shadow_fade">160dp</dimen>
+    <dimen name="glass_highlight_fade_height">60dp</dimen>
+    <dimen name="glass_shadow_fade_height">40dp</dimen>
+</resources>

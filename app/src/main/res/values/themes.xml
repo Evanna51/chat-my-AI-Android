@@ -91,9 +91,15 @@
     </style>
 
     <style name="ThemeOverlay.AIChat.MaterialAlertDialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
-        <item name="backgroundTint">@color/dialog_surface_bg</item>
+        <item name="backgroundTint">@android:color/transparent</item>
         <item name="android:windowBackground">@drawable/bg_material_alert_dialog</item>
         <item name="colorSurface">@color/dialog_surface_bg</item>
         <item name="elevationOverlayEnabled">false</item>
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.AIChat.Dialog</item>
+    </style>
+
+    <style name="ShapeAppearance.AIChat.Dialog" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">28dp</item>
     </style>
 </resources>

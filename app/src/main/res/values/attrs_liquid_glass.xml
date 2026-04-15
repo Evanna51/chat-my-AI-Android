@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="LiquidGlassView">
+        <!-- Blur radius (dp), default 25 -->
+        <attr name="glassBlurRadius" format="dimension" />
+        <!-- Saturation multiplier, default 1.5 -->
+        <attr name="glassSaturation" format="float" />
+        <!-- Brightness offset (-1.0 ~ 1.0), default 0.05 -->
+        <attr name="glassBrightnessOffset" format="float" />
+        <!-- Environment tint color, default glass_surface -->
+        <attr name="glassTintColor" format="color" />
+        <!-- Stroke color, default glass_stroke -->
+        <attr name="glassStrokeColor" format="color" />
+        <!-- Stroke width, default 1dp -->
+        <attr name="glassStrokeWidth" format="dimension" />
+        <!-- Corner radius, default 16dp -->
+        <attr name="glassCornerRadius" format="dimension" />
+        <!-- Enable edge highlight, default true -->
+        <attr name="glassEdgeHighlight" format="boolean" />
+        <!-- Enable dynamic response (scroll linking), default false -->
+        <attr name="glassDynamicResponse" format="boolean" />
+    </declare-styleable>
+</resources>
