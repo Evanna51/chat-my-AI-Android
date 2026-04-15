@@ -257,11 +257,13 @@ class ChatSessionActivity : ThemedActivity() {
             sessionOptions.sessionTitle = title
             updateToolbarModelSubtitle()
         }
-        viewModel.streamDeltaEvent.observe(this) { event ->
-            if (event == null) return@observe
-            if (event.responseToken != activeResponseToken) return@observe
+        viewModel.streamDeltaEvent.observe(this) { _ ->
             if (isFinishing || isDestroyed) return@observe
-            handleStreamDeltaEvent(event)
+            val events = viewModel.drainPendingStreamEvents()
+            for (event in events) {
+                if (event.responseToken != activeResponseToken) continue
+                handleStreamDeltaEvent(event)
+            }
         }
 
         sessionOptions = resolveChatOptions()
@@ -1863,13 +1865,136 @@ class ChatSessionActivity : ThemedActivity() {
     }
 
     private fun buildMessageHtml(content: String): String {
-        val safe = escapeHtml(content)
+        val htmlBody = markdownToHtml(content.trim())
         return "<!doctype html><html><head><meta charset=\"utf-8\"/>" +
                 "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/>" +
                 "<title>Message</title>" +
-                "<style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;" +
-                "padding:18px;line-height:1.7;font-size:18px;white-space:pre-wrap;color:#111;}" +
-                "</style></head><body>$safe</body></html>"
+                "<style>" +
+                "body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;padding:16px 18px;line-height:1.7;font-size:17px;color:#111;max-width:800px;margin:0 auto;}" +
+                "h1,h2,h3,h4,h5,h6{margin:1.1em 0 0.4em;line-height:1.3;}" +
+                "p{margin:0.7em 0;}" +
+                "pre{background:#f4f4f4;padding:12px 14px;border-radius:8px;overflow-x:auto;margin:0.8em 0;}" +
+                "code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;font-size:.9em;background:#f0f0f0;padding:2px 5px;border-radius:4px;}" +
+                "pre code{background:none;padding:0;}" +
+                "ul,ol{padding-left:1.6em;margin:.5em 0;}" +
+                "li{margin:3px 0;}" +
+                "blockquote{border-left:3px solid #ccc;margin:.8em 0;padding:4px 12px;color:#555;}" +
+                "hr{border:none;border-top:1px solid #ddd;margin:1.2em 0;}" +
+                "a{color:#007aff;}" +
+                "@media(prefers-color-scheme:dark){body{color:#e8e8e8;background:#1a1a1a;}pre{background:#2b2b2b;}code{background:#2b2b2b;}blockquote{color:#aaa;border-left-color:#555;}hr{border-top-color:#444;}a{color:#0a84ff;}}" +
+                "</style></head><body>$htmlBody</body></html>"
+    }
+
+    private fun markdownToHtml(md: String): String {
+        val sb = StringBuilder()
+        val lines = md.lines()
+        var i = 0
+        var inUl = false
+        var inOl = false
+
+        fun closeUl() { if (inUl) { sb.append("</ul>\n"); inUl = false } }
+        fun closeOl() { if (inOl) { sb.append("</ol>\n"); inOl = false } }
+        fun closeLists() { closeUl(); closeOl() }
+
+        while (i < lines.size) {
+            val line = lines[i].trimStart()
+
+            // Fenced code block
+            if (line.startsWith("```") || line.startsWith("~~~")) {
+                closeLists()
+                val fence = if (line.startsWith("```")) "```" else "~~~"
+                val lang = line.removePrefix(fence).trim()
+                sb.append(if (lang.isNotEmpty()) "<pre><code class=\"language-${escapeHtml(lang)}\">" else "<pre><code>")
+                i++
+                while (i < lines.size && !lines[i].trimStart().startsWith(fence)) {
+                    sb.append(escapeHtml(lines[i])).append("\n")
+                    i++
+                }
+                sb.append("</code></pre>\n")
+                i++ // skip closing fence
+                continue
+            }
+
+            // Blank line
+            if (line.isEmpty()) {
+                closeLists()
+                i++; continue
+            }
+
+            // ATX Headings
+            val hMatch = Regex("^(#{1,6})\\s+(.+?)\\s*#*$").matchEntire(line)
+            if (hMatch != null) {
+                closeLists()
+                val level = hMatch.groupValues[1].length
+                sb.append("<h$level>${inlineMarkdown(hMatch.groupValues[2])}</h$level>\n")
+                i++; continue
+            }
+
+            // Horizontal rule
+            if (line.matches(Regex("-{3,}|\\*{3,}|_{3,}"))) {
+                closeLists()
+                sb.append("<hr>\n")
+                i++; continue
+            }
+
+            // Blockquote
+            if (line.startsWith("> ")) {
+                closeLists()
+                sb.append("<blockquote><p>${inlineMarkdown(line.removePrefix("> "))}</p></blockquote>\n")
+                i++; continue
+            }
+
+            // Unordered list item
+            val ulMatch = Regex("^[-*+]\\s+(.+)").matchEntire(line)
+            if (ulMatch != null) {
+                closeOl()
+                if (!inUl) { sb.append("<ul>\n"); inUl = true }
+                sb.append("<li>${inlineMarkdown(ulMatch.groupValues[1])}</li>\n")
+                i++; continue
+            }
+
+            // Ordered list item
+            val olMatch = Regex("^\\d+\\.\\s+(.+)").matchEntire(line)
+            if (olMatch != null) {
+                closeUl()
+                if (!inOl) { sb.append("<ol>\n"); inOl = true }
+                sb.append("<li>${inlineMarkdown(olMatch.groupValues[1])}</li>\n")
+                i++; continue
+            }
+
+            // Regular paragraph
+            closeLists()
+            sb.append("<p>${inlineMarkdown(line)}</p>\n")
+            i++
+        }
+
+        closeLists()
+        return sb.toString()
+    }
+
+    private fun inlineMarkdown(text: String): String {
+        // Escape HTML first, then apply inline Markdown patterns
+        var s = escapeHtml(text)
+        // Protect inline code from further processing
+        val codeBlocks = mutableListOf<String>()
+        s = Regex("`([^`]+)`").replace(s) { mr ->
+            val idx = codeBlocks.size
+            codeBlocks.add("<code>${mr.groupValues[1]}</code>")
+            "\u0000CODE$idx\u0000"
+        }
+        // Bold + italic
+        s = Regex("\\*{3}(.+?)\\*{3}").replace(s, "<strong><em>$1</em></strong>")
+        // Bold
+        s = Regex("\\*{2}(.+?)\\*{2}").replace(s, "<strong>$1</strong>")
+        s = Regex("__(.+?)__").replace(s, "<strong>$1</strong>")
+        // Italic
+        s = Regex("\\*([^*\n]+)\\*").replace(s, "<em>$1</em>")
+        s = Regex("_([^_\n]+)_").replace(s, "<em>$1</em>")
+        // Links
+        s = Regex("\\[([^\\]]+)\\]\\(([^)]+)\\)").replace(s, "<a href=\"$2\">$1</a>")
+        // Restore inline code
+        codeBlocks.forEachIndexed { idx, code -> s = s.replace("\u0000CODE$idx\u0000", code) }
+        return s
     }
 
     private fun escapeHtml(source: String): String {

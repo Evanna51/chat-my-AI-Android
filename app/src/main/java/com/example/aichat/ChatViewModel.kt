@@ -1,11 +1,14 @@
 package com.example.aichat
 
 import android.app.Application
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.annotation.NonNull
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import java.util.Collections
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 
@@ -39,6 +42,16 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val db: AppDatabase = AppDatabase.getInstance(application)
     private val chatService: ChatService = ChatService(application)
+    private val mainHandler = Handler(Looper.getMainLooper())
+
+    /**
+     * Concurrent queue that buffers ALL streaming events so none are lost.
+     * LiveData.postValue() coalesces rapid updates (only last value survives),
+     * which drops intermediate content deltas and causes visible missing characters.
+     * Instead, events are enqueued here and streamDeltaEvent serves only as a
+     * notification signal; the Activity drains this queue on each observation.
+     */
+    private val pendingStreamEvents = ConcurrentLinkedQueue<StreamDeltaEvent>()
 
     private var sessionId: String? = null
 
@@ -294,7 +307,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     event.isSuccess = true
                     event.successContent = safeContent
                     event.reportAssistantToMemory = reportAssistantToMemory
-                    streamDeltaEvent.postValue(event)
+                    postStreamEvent(event)
                 }
 
                 override fun onError(message: String) {
@@ -306,7 +319,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     )
                     val event = StreamDeltaEvent(responseToken)
                     event.isError = true
-                    streamDeltaEvent.postValue(event)
+                    postStreamEvent(event)
                 }
 
                 override fun onCancelled() {
@@ -316,21 +329,21 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     val event = StreamDeltaEvent(responseToken)
                     event.isCancelled = true
                     event.reportAssistantToMemory = reportAssistantToMemory
-                    streamDeltaEvent.postValue(event)
+                    postStreamEvent(event)
                 }
 
                 override fun onPartial(delta: String) {
                     if (isStale()) return
                     val event = StreamDeltaEvent(responseToken)
                     event.delta = delta
-                    streamDeltaEvent.postValue(event)
+                    postStreamEvent(event)
                 }
 
                 override fun onReasoning(reasoning: String) {
                     if (isStale()) return
                     val event = StreamDeltaEvent(responseToken)
                     event.reasoning = reasoning
-                    streamDeltaEvent.postValue(event)
+                    postStreamEvent(event)
                 }
 
                 override fun onUsage(promptTokens: Int, completionTokens: Int, totalTokens: Int, elapsedMs: Long) {
@@ -341,7 +354,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     event.completionTokens = completionTokens
                     event.totalTokens = totalTokens
                     event.elapsedMs = elapsedMs
-                    streamDeltaEvent.postValue(event)
+                    postStreamEvent(event)
                 }
             })
         activeChatHandle = handle
@@ -387,6 +400,36 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     override fun onCleared() {
         executor.shutdown()
         super.onCleared()
+    }
+
+    // ─────────────────────────── Stream Event Dispatch ───────────────────────────
+
+    /**
+     * Enqueue a streaming event and notify observers.
+     *
+     * LiveData.postValue() coalesces rapid calls — only the last pending value
+     * is delivered, silently dropping intermediate content deltas ("吞字").
+     * We buffer every event in [pendingStreamEvents] (never drops) and use
+     * postValue purely as a wake-up signal.  The Activity calls
+     * [drainPendingStreamEvents] inside its observer to retrieve all buffered events.
+     */
+    private fun postStreamEvent(event: StreamDeltaEvent) {
+        pendingStreamEvents.add(event)
+        streamDeltaEvent.postValue(event)
+    }
+
+    /**
+     * Drain all buffered streaming events.  Called from the Activity's LiveData
+     * observer on the main thread — guaranteed to return every event that was
+     * enqueued since the last drain, regardless of LiveData coalescing.
+     */
+    fun drainPendingStreamEvents(): List<StreamDeltaEvent> {
+        val result = mutableListOf<StreamDeltaEvent>()
+        while (true) {
+            val e = pendingStreamEvents.poll() ?: break
+            result.add(e)
+        }
+        return result
     }
 
     // ─────────────────────────── Helpers ───────────────────────────
