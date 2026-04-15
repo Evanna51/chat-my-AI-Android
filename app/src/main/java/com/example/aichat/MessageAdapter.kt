@@ -1,6 +1,7 @@
 package com.example.aichat
 
 import android.text.TextUtils
+import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -308,16 +309,26 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     @NonNull
     override fun onCreateViewHolder(@NonNull parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val ctx = parent.context
         if (markwon == null) {
-            markwon = Markwon.create(parent.context.applicationContext)
+            // 必须用 Activity context（含 fontScale 覆盖），不能用 applicationContext
+            markwon = Markwon.create(ctx)
         }
-        val inflater = LayoutInflater.from(parent.context)
+        val inflater = LayoutInflater.from(ctx)
         return if (viewType == VIEW_USER) {
             val v = inflater.inflate(R.layout.item_message_user, parent, false)
-            UserHolder(v)
+            UserHolder(v).also { h ->
+                h.textContent.setTextSize(TypedValue.COMPLEX_UNIT_SP, AppFontSize.body(ctx))
+                h.textTimestamp.setTextSize(TypedValue.COMPLEX_UNIT_SP, AppFontSize.caption(ctx))
+            }
         } else {
             val v = inflater.inflate(R.layout.item_message_assistant, parent, false)
-            AssistantHolder(v)
+            AssistantHolder(v).also { h ->
+                h.textContent.setTextSize(TypedValue.COMPLEX_UNIT_SP, AppFontSize.body(ctx))
+                h.textTimestamp.setTextSize(TypedValue.COMPLEX_UNIT_SP, AppFontSize.caption(ctx))
+                h.textReasoningContent.setTextSize(TypedValue.COMPLEX_UNIT_SP, AppFontSize.reasoning(ctx))
+                h.textReasoningHeader.setTextSize(TypedValue.COMPLEX_UNIT_SP, AppFontSize.caption(ctx))
+            }
         }
     }
 

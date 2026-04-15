@@ -161,8 +161,8 @@ class ChatService(context: Context) {
         request.model = config.modelId
         request.messages = requestMessages
         request.stream = false
-        request.temperature = using.temperature.toDouble()
-        request.topP = using.topP.toDouble()
+        request.temperature = using.temperature.toString().toDouble()
+        request.topP = using.topP.toString().toDouble()
         request.stop = parseStopSequences(using.stop)
         request.thinking = null
         request.reasoning = ProviderRequestOptionsBuilder.buildReasoningConfig(selectedProviderId, using)
@@ -1208,11 +1208,9 @@ class ChatService(context: Context) {
         if (reasoning != null) request.add("reasoning", reasoning)
         val providerOptions = ProviderRequestOptionsBuilder.buildProviderOptions(providerId, using)
         if (providerOptions != null) request.add("providerOptions", providerOptions)
-        val shouldShowReasoning = shouldShowReasoning(using, providerId, config.modelId)
         Log.d(TAG, "stream request providerId=$providerId"
                 + ", model=${config.modelId}"
                 + ", thinking=${using.thinking}"
-                + ", showReasoning=$shouldShowReasoning"
                 + ", stopCount=${stops?.size ?: 0}"
                 + ", reasoning=${reasoning?.toString() ?: "null"}"
                 + ", providerOptions=${providerOptions?.toString() ?: "null"}")
@@ -1320,10 +1318,8 @@ class ChatService(context: Context) {
                                         }
                                         if (parts.reasoning.isNotEmpty()) {
                                             emittedInlineReasoning = true
-                                            if (shouldShowReasoning) {
-                                                fullReasoning.append(parts.reasoning)
-                                                callback.onReasoning(fullReasoning.toString())
-                                            }
+                                            fullReasoning.append(parts.reasoning)
+                                            callback.onReasoning(fullReasoning.toString())
                                         }
                                     } else {
                                         fullContent.append(contentDelta)
@@ -1331,7 +1327,7 @@ class ChatService(context: Context) {
                                     }
                                 }
                                 val reasoningDelta = extractReasoningDelta(obj, first, delta)
-                                if (shouldShowReasoning && reasoningDelta.isNotEmpty() && !emittedInlineReasoning) {
+                                if (reasoningDelta.isNotEmpty() && !emittedInlineReasoning) {
                                     fullReasoning.append(reasoningDelta)
                                     callback.onReasoning(fullReasoning.toString())
                                 }
@@ -1352,7 +1348,7 @@ class ChatService(context: Context) {
                         fullContent.append(tail.content)
                         callback.onPartial(tail.content)
                     }
-                    if (shouldShowReasoning && tail.reasoning.isNotEmpty()) {
+                    if (tail.reasoning.isNotEmpty()) {
                         fullReasoning.append(tail.reasoning)
                         callback.onReasoning(fullReasoning.toString())
                     }
@@ -1418,8 +1414,12 @@ class ChatService(context: Context) {
     }
 
     private fun shouldShowReasoning(options: SessionChatOptions?, providerId: String?, modelId: String?): Boolean {
-        if (isIntrinsicReasoningModel(providerId, modelId)) return true
-        return options != null && options.thinking
+        // Always show reasoning when the model returns it.
+        // The request-side toggle (options.thinking) controls whether we ASK
+        // the model to think, not whether we display reasoning it chose to emit.
+        // Models like Qwen3 emit <think> tags even when not requested; SSE
+        // reasoning_content fields should never be silently discarded.
+        return true
     }
 
     private fun isIntrinsicReasoningModel(providerId: String?, modelId: String?): Boolean {

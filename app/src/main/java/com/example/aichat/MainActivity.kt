@@ -3,10 +3,14 @@ package com.example.aichat
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.text.Editable
+import android.text.TextWatcher
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.Toast
@@ -119,6 +123,18 @@ class MainActivity : ThemedActivity() {
 
         val inputEdit: EditText = findViewById(R.id.inputEdit)
         val sendButton: MaterialButton = findViewById(R.id.sendButton)
+        sendButton.isEnabled = false
+        sendButton.iconTint = ColorStateList(
+            arrayOf(intArrayOf(android.R.attr.state_enabled), intArrayOf(-android.R.attr.state_enabled)),
+            intArrayOf(Color.WHITE, ContextCompat.getColor(this, R.color.ios_section_label))
+        )
+        inputEdit.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: Editable?) {
+                sendButton.isEnabled = !s.isNullOrBlank()
+            }
+        })
         sendButton.setOnClickListener { sendAndOpenSession(inputEdit) }
 
         loadSessions()
@@ -187,7 +203,7 @@ class MainActivity : ThemedActivity() {
 
     private fun loadAssistants() {
         executor.execute {
-            val list = MyAssistantStore(this).getRecent(5)
+            val list = MyAssistantStore(this).getAll()
             mainHandler.post {
                 homeAssistantAdapter.setItems(list)
             }

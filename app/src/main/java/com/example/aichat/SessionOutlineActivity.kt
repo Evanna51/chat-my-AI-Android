@@ -3,6 +3,8 @@ package com.example.aichat
 import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
+import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import android.view.Window
 import android.view.WindowManager
@@ -47,12 +49,6 @@ class SessionOutlineActivity : ThemedActivity() {
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
         toolbar.setNavigationOnClickListener { finish() }
-        toolbar.setOnMenuItemClickListener { item ->
-            if (item.itemId == R.id.action_new_novel) {
-                copyOutlineToNewSession()
-                true
-            } else false
-        }
 
         textEmpty = findViewById(R.id.textOutlineEmpty)
         val recycler = findViewById<RecyclerView>(R.id.recyclerOutline)
@@ -77,6 +73,18 @@ class SessionOutlineActivity : ThemedActivity() {
         btnAdd.setOnClickListener { showCreateDialog() }
         btnLeakAudit?.setOnClickListener { runLeakageAudit() }
         refreshList()
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_session_outline, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return if (item.itemId == R.id.action_new_novel) {
+            copyOutlineToNewSession()
+            true
+        } else super.onOptionsItemSelected(item)
     }
 
     override fun onResume() {
@@ -595,6 +603,11 @@ class SessionOutlineActivity : ThemedActivity() {
             Toast.makeText(this, R.string.new_novel_empty_outline, Toast.LENGTH_SHORT).show()
             return
         }
+
+        // 1. 查找当前对话绑定的助手（必须是作家类助手，才能看到大纲入口）
+        val bindingStore = SessionAssistantBindingStore(this)
+        val assistantId = bindingStore.getAssistantId(sessionId)
+
         val newSessionId = UUID.randomUUID().toString()
         val now = System.currentTimeMillis()
         val newItems = items.map { src ->
@@ -607,10 +620,21 @@ class SessionOutlineActivity : ThemedActivity() {
                 dst.updatedAt = now
             }
         }
+
+        // 2. 复制大纲到新对话
         outlineStore.saveAll(newSessionId, newItems)
+
+        // 3. 将同一个作家助手绑定到新对话，新对话才能显示大纲入口
+        if (assistantId.isNotEmpty()) {
+            bindingStore.bind(newSessionId, assistantId)
+        }
+
         Toast.makeText(this, R.string.new_novel_copied, Toast.LENGTH_SHORT).show()
         val intent = Intent(this, ChatSessionActivity::class.java)
             .putExtra(ChatSessionActivity.EXTRA_SESSION_ID, newSessionId)
+        if (assistantId.isNotEmpty()) {
+            intent.putExtra(ChatSessionActivity.EXTRA_ASSISTANT_ID, assistantId)
+        }
         startActivity(intent)
     }
 

@@ -136,17 +136,20 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
+        android:layout_marginHorizontal="12dp"
         android:layout_marginBottom="8dp"
+        android:background="@drawable/bg_glass_toolbar"
+        android:clipToOutline="true"
         android:clickable="true"
         android:focusable="true">
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerHomeAssistants"
             android:layout_width="match_parent"
-            android:layout_height="112dp"
+            android:layout_height="80dp"
             android:paddingHorizontal="4dp"
             android:paddingVertical="6dp"
             android:clipToPadding="false"
-            android:nestedScrollingEnabled="false" />
+            android:nestedScrollingEnabled="true" />
     </LinearLayout>
 
     <!-- Glass bottom input bar -->
