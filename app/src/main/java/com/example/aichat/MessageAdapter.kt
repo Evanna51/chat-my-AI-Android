@@ -72,6 +72,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         fun onOpen(message: Message)
         fun onOutline(message: Message)
         fun onDelete(message: Message)
+        fun onVoicePlay(message: Message)
     }
 
     interface OnAssistantStateChangedListener {
@@ -167,42 +168,66 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     class ActionPanelStateStore {
-        private val expanded: MutableSet<Message> = Collections.newSetFromMap(IdentityHashMap())
+        // Unified 3-level state for all messages (0=collapsed, 1=primary, 2=secondary)
+        private val levels: MutableMap<Message, Int> = IdentityHashMap()
         private val assistantExpandStack: Deque<Message> = ArrayDeque()
         private val activeMessages: MutableSet<Message> = Collections.newSetFromMap(IdentityHashMap())
 
         fun onAllMessagesChanged(allMessages: List<Message>?) {
             activeMessages.clear()
             if (allMessages != null) activeMessages.addAll(allMessages)
-            expanded.retainAll(activeMessages)
-            assistantExpandStack.removeIf { item -> item == null || !expanded.contains(item) }
+            levels.keys.retainAll(activeMessages)
+            assistantExpandStack.removeIf { item -> item == null || !activeMessages.contains(item) }
         }
 
-        fun isExpanded(message: Message?): Boolean {
-            return message != null && expanded.contains(message)
-        }
+        fun getLevel(message: Message?): Int = if (message == null) 0 else levels[message] ?: 0
 
-        fun expand(message: Message?): List<Message> {
+        // Aliases kept for call sites
+        fun getUserLevel(message: Message?): Int = getLevel(message)
+
+        /** Cycles level: 0 → 1 → 2 → 0, with LRU eviction for assistant messages */
+        fun cycleLevel(message: Message?): List<Message> {
             val changed: MutableList<Message> = ArrayList()
             if (message == null) return changed
-            if (expanded.contains(message)) return changed
-            expanded.add(message)
+            val next = (getLevel(message) + 1) % 3
+            levels[message] = next
             changed.add(message)
-            // Only assistant messages participate in "max 3 expanded" eviction.
             if (message.role == Message.ROLE_ASSISTANT) {
-                removeFromAssistantStack(message)
-                assistantExpandStack.addFirst(message)
-                while (assistantExpandStack.size > MAX_EXPANDED_ASSISTANT_ACTIONS) {
-                    val removed = assistantExpandStack.removeLast() ?: continue
-                    expanded.remove(removed)
-                    changed.add(removed)
+                assistantExpandStack.removeIf { it === message }
+                if (next > 0) {
+                    assistantExpandStack.addFirst(message)
+                    evictAssistant(changed)
                 }
             }
             return changed
         }
 
-        private fun removeFromAssistantStack(message: Message) {
-            assistantExpandStack.removeIf { item -> item === message }
+        fun cycleUserLevel(message: Message?): List<Message> = cycleLevel(message)
+
+        fun isExpanded(message: Message?): Boolean = getLevel(message) > 0
+
+        /** Expand to level 1 if currently collapsed (used for pinned messages) */
+        fun expand(message: Message?): List<Message> {
+            val changed: MutableList<Message> = ArrayList()
+            if (message == null || isExpanded(message)) return changed
+            levels[message] = 1
+            changed.add(message)
+            if (message.role == Message.ROLE_ASSISTANT) {
+                assistantExpandStack.removeIf { it === message }
+                assistantExpandStack.addFirst(message)
+                evictAssistant(changed)
+            }
+            return changed
+        }
+
+        private fun evictAssistant(changed: MutableList<Message>) {
+            while (assistantExpandStack.size > MAX_EXPANDED_ASSISTANT_ACTIONS) {
+                val removed = assistantExpandStack.removeLast() ?: continue
+                if (getLevel(removed) > 0) {
+                    levels[removed] = 0
+                    changed.add(removed)
+                }
+            }
         }
     }
 
@@ -356,29 +381,26 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (position < 0 || position >= messages.size) return
         val m = messages[position]
         val content = m.content ?: ""
-        val expandedByUser = actionPanelStateStore.isExpanded(m)
         val pinnedUser = m === pinnedUserMessage
         val pinnedAssistant = m === pinnedAssistantMessage
-        val showActions = expandedByUser || pinnedUser || (pinnedAssistant && !hidePinnedAssistantActions)
 
         if (holder is UserHolder) {
             holder.textTimestamp.text = formatTimestamp(m.createdAt)
             holder.textContent.text = content
-            holder.layoutActions.visibility = if (showActions) View.VISIBLE else View.GONE
-            holder.actionExpand.alpha = if (showActions) 0.55f else 1f
-            holder.actionExpand.rotation = if (showActions) 180f else 0f
-            // 每次重新绑定时收起次级菜单
-            holder.layoutMoreActions.visibility = View.GONE
-            // 小说大纲仅在写作模式下显示（在 layoutMoreActions 内）
-            holder.actionOutline.visibility = if (writerMode) View.VISIBLE else View.GONE
-            holder.actionExpand.setOnClickListener { expandActionPanel(m) }
+            // 3-level cycle: 0(<<) → 1(< + regen + copy) → 2(< + regen + copy + delete + edit) → 0
+            val userLevel = if (pinnedUser) maxOf(actionPanelStateStore.getUserLevel(m), 1)
+                            else actionPanelStateStore.getUserLevel(m)
+            holder.actionExpand.setImageResource(
+                if (userLevel == 0) R.drawable.ic_action_expand_left_double
+                else R.drawable.ic_action_expand_left
+            )
+            holder.layoutActions.visibility = if (userLevel >= 1) View.VISIBLE else View.GONE
+            holder.layoutSecondaryActions.visibility = if (userLevel >= 2) View.VISIBLE else View.GONE
+            holder.actionOutline.visibility = if (writerMode && userLevel >= 2) View.VISIBLE else View.GONE
+            holder.actionExpand.setOnClickListener { cycleUserActionLevel(m) }
             holder.itemView.setOnClickListener(null)
             holder.actionRegenerate.setOnClickListener { actionListener?.onRegenerate(m) }
             holder.actionCopy.setOnClickListener { actionListener?.onCopy(m) }
-            holder.actionMore.setOnClickListener {
-                holder.layoutMoreActions.visibility =
-                    if (holder.layoutMoreActions.visibility == View.VISIBLE) View.GONE else View.VISIBLE
-            }
             holder.actionEdit.setOnClickListener { actionListener?.onEdit(m) }
             holder.actionOutline.setOnClickListener { actionListener?.onOutline(m) }
             holder.actionDelete.setOnClickListener { actionListener?.onDelete(m) }
@@ -406,10 +428,19 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             var expanded = assistantStateStore.isExpanded(m)
             if (disableAssistantCollapseToggle) expanded = true
             val hasVisibleContent = content.trim().isNotEmpty()
-            holder.layoutActions.visibility = if (showActions) View.VISIBLE else View.GONE
+            // 3-level: 0(>>) → 1(> + open/voice/outline) → 2(< + delete/edit/copy) → 0
+            val assistantLevel = if (pinnedAssistant && !hidePinnedAssistantActions)
+                maxOf(actionPanelStateStore.getLevel(m), 1)
+            else actionPanelStateStore.getLevel(m)
+            when (assistantLevel) {
+                0 -> { holder.actionExpand.setImageResource(R.drawable.ic_action_expand_left_double); holder.actionExpand.scaleX = -1f }
+                1 -> { holder.actionExpand.setImageResource(R.drawable.ic_action_expand_left); holder.actionExpand.scaleX = -1f }
+                else -> { holder.actionExpand.setImageResource(R.drawable.ic_action_expand_left); holder.actionExpand.scaleX = 1f }
+            }
             holder.actionExpand.visibility = View.VISIBLE
-            holder.actionExpand.alpha = if (showActions) 0.55f else 1f
-            holder.actionExpand.rotation = if (showActions) 180f else 0f
+            holder.layoutActions.visibility = if (assistantLevel >= 1) View.VISIBLE else View.GONE
+            holder.layoutSecondaryActions.visibility = if (assistantLevel >= 2) View.VISIBLE else View.GONE
+            holder.actionOutline.visibility = if (writerMode && assistantLevel >= 1) View.VISIBLE else View.GONE
             if (fullBind || holder.lastHasVisibleContent != hasVisibleContent) {
                 if (disableAssistantCollapseToggle) {
                     holder.textCollapseToggle.visibility = View.GONE
@@ -422,24 +453,19 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 setCollapseToggleLabel(holder.textCollapseToggle, expanded)
             }
             if (disableAssistantCollapseToggle) {
-                // Character chats do not use assistant content collapse controls at all.
                 holder.textCollapseToggle.setOnClickListener(null)
             }
             holder.textContent.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
             holder.layoutAssistantBubble.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
             if (hasVisibleContent) bindAssistantContent(holder, m, content, expanded)
-            holder.actionOutline.visibility = if (writerMode && showActions) View.VISIBLE else View.INVISIBLE
-            holder.actionEdit.visibility = if (showActions) View.VISIBLE else View.INVISIBLE
-            holder.actionCopy.visibility = if (showActions) View.VISIBLE else View.INVISIBLE
-            holder.actionOpen.visibility = if (showActions) View.VISIBLE else View.INVISIBLE
-            holder.actionDelete.visibility = if (showActions) View.VISIBLE else View.INVISIBLE
             bindReasoning(holder, m, position)
             applyCollapseToggleAffix(holder)
             if (fullBind) {
                 holder.itemView.setOnClickListener(null)
-                holder.actionExpand.setOnClickListener { expandActionPanel(m) }
+                holder.actionExpand.setOnClickListener { cycleAssistantActionLevel(m) }
                 holder.actionEdit.setOnClickListener { actionListener?.onEdit(m) }
                 holder.actionCopy.setOnClickListener { actionListener?.onCopy(m) }
+                holder.actionVoicePlay.setOnClickListener { actionListener?.onVoicePlay(m) }
                 holder.actionOpen.setOnClickListener { actionListener?.onOpen(m) }
                 holder.actionOutline.setOnClickListener { actionListener?.onOutline(m) }
                 holder.actionDelete.setOnClickListener { actionListener?.onDelete(m) }
@@ -479,12 +505,11 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
     inner class UserHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val textTimestamp: TextView = itemView.findViewById(R.id.textTimestamp)
         val textContent: TextView = itemView.findViewById(R.id.textContent)
+        val actionExpand: ImageView = itemView.findViewById(R.id.actionExpand)
         val layoutActions: View = itemView.findViewById(R.id.layoutActions)
-        val actionExpand: View = itemView.findViewById(R.id.actionExpand)
+        val layoutSecondaryActions: View = itemView.findViewById(R.id.layoutSecondaryActions)
         val actionRegenerate: View = itemView.findViewById(R.id.actionRegenerate)
         val actionCopy: View = itemView.findViewById(R.id.actionCopy)
-        val actionMore: View = itemView.findViewById(R.id.actionMore)
-        val layoutMoreActions: View = itemView.findViewById(R.id.layoutMoreActions)
         val actionEdit: View = itemView.findViewById(R.id.actionEdit)
         val actionOutline: View = itemView.findViewById(R.id.actionOutline)
         val actionDelete: View = itemView.findViewById(R.id.actionDelete)
@@ -495,8 +520,9 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         val textContent: TextView = itemView.findViewById(R.id.textContent)
         val textCollapseToggle: ImageView = itemView.findViewById(R.id.textCollapseToggle)
         val layoutAssistantBubble: View = itemView.findViewById(R.id.layoutAssistantBubble)
+        val actionExpand: ImageView = itemView.findViewById(R.id.actionExpand)
         val layoutActions: View = itemView.findViewById(R.id.layoutActions)
-        val actionExpand: View = itemView.findViewById(R.id.actionExpand)
+        val layoutSecondaryActions: View = itemView.findViewById(R.id.layoutSecondaryActions)
         val layoutReasoning: View = itemView.findViewById(R.id.layoutReasoning)
         val textReasoningHeader: TextView = itemView.findViewById(R.id.textReasoningHeader)
         val textReasoningContent: TextView = itemView.findViewById(R.id.textReasoningContent)
@@ -504,10 +530,29 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         val actionEdit: View = itemView.findViewById(R.id.actionEdit)
         val actionCopy: View = itemView.findViewById(R.id.actionCopy)
         val actionOpen: View = itemView.findViewById(R.id.actionOpen)
+        val actionVoicePlay: ImageView = itemView.findViewById(R.id.actionVoicePlay)
         val actionOutline: View = itemView.findViewById(R.id.actionOutline)
         val actionDelete: View = itemView.findViewById(R.id.actionDelete)
         var lastHasVisibleContent: Boolean = false
         var boundMessage: Message? = null
+    }
+
+    private fun cycleUserActionLevel(message: Message?) {
+        if (message == null) return
+        val changed = actionPanelStateStore.cycleUserLevel(message)
+        for (one in changed) {
+            val idx = indexOfMessage(one)
+            if (idx >= 0) notifyItemChanged(idx)
+        }
+    }
+
+    private fun cycleAssistantActionLevel(message: Message?) {
+        if (message == null) return
+        val changed = actionPanelStateStore.cycleLevel(message)
+        for (one in changed) {
+            val idx = indexOfMessage(one)
+            if (idx >= 0) notifyItemChanged(idx)
+        }
     }
 
     private fun expandActionPanel(message: Message?) {
@@ -656,6 +701,16 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private fun formatSeconds(ms: Long): String {
         return String.format(Locale.US, "%.1fs", maxOf(ms, 0) / 1000.0f)
+    }
+
+    fun updateVoicePlayState(playingMessageId: Long?) {
+        for (h in ArrayList(attachedAssistantHolders)) {
+            val msg = h.boundMessage ?: continue
+            val isPlaying = playingMessageId != null && msg.id == playingMessageId
+            h.actionVoicePlay.setImageResource(
+                if (isPlaying) R.drawable.ic_action_voice_stop else R.drawable.ic_action_voice_play
+            )
+        }
     }
 
     private fun formatTimestamp(createdAt: Long): String {

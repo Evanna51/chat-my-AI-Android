@@ -30,7 +30,7 @@
             android:clipToPadding="false" />
     </LinearLayout>
 
-    <!-- FAB: 新建助手 -->
+    <!-- FAB: 新建助手 — Liquid Glass style -->
     <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
         android:id="@+id/btnCreateAssistant"
         android:layout_width="wrap_content"
@@ -39,6 +39,11 @@
         android:layout_margin="24dp"
         android:text="@string/create_assistant"
         app:icon="@drawable/ic_add"
-        app:elevation="6dp" />
+        app:elevation="0dp"
+        app:backgroundTint="@color/glass_surface"
+        app:strokeColor="@color/glass_stroke"
+        app:strokeWidth="1dp"
+        app:iconTint="?attr/colorPrimary"
+        android:textColor="?attr/colorPrimary" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

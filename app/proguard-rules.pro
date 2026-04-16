@@ -2,3 +2,4 @@
 -keepattributes Signature
 -keepattributes *Annotation*
 -keep class com.example.aichat.** { *; }
+-keep class com.bytedance.speech.speechengine.** { *; }

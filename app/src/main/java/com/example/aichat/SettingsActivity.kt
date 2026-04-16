@@ -8,6 +8,7 @@ import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import java.util.Locale
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.app.AlertDialog
@@ -44,6 +45,9 @@ class SettingsActivity : ThemedActivity() {
         }
         val cardCharacterMemory = findViewById<View?>(R.id.cardCharacterMemory)
         cardCharacterMemory?.setOnClickListener { showCharacterMemorySettingsDialog() }
+
+        val cardTTSSettings = findViewById<View?>(R.id.cardTTSSettings)
+        cardTTSSettings?.setOnClickListener { showTTSSettingsDialog() }
 
         val includeModel = findViewById<View?>(R.id.includeModelManagement)
         if (includeModel != null) {
@@ -255,6 +259,91 @@ class SettingsActivity : ThemedActivity() {
                 )
                 store.saveAll(enabled, baseUrl, apiKey, connectTimeoutMs, readTimeoutMs, debug)
                 Toast.makeText(this, R.string.character_memory_saved, Toast.LENGTH_SHORT).show()
+            }
+            .show()
+    }
+
+    private fun showTTSSettingsDialog() {
+        val store = TTSConfigStore(this)
+        val view = layoutInflater.inflate(R.layout.dialog_tts_settings, null)
+        val switchEnabled = view.findViewById<MaterialSwitch?>(R.id.switchTTSEnabled)
+        val radioMode = view.findViewById<RadioGroup?>(R.id.radioTTSMode)
+        val layoutHttpApi = view.findViewById<View?>(R.id.layoutHttpApi)
+        val layoutSdk = view.findViewById<View?>(R.id.layoutSdk)
+        val editApiKey = view.findViewById<TextInputEditText?>(R.id.editTTSApiKey)
+        val editEncoding = view.findViewById<TextInputEditText?>(R.id.editTTSEncoding)
+        val editAppId = view.findViewById<TextInputEditText?>(R.id.editTTSAppId)
+        val editToken = view.findViewById<TextInputEditText?>(R.id.editTTSAccessToken)
+        val editCluster = view.findViewById<TextInputEditText?>(R.id.editTTSCluster)
+        val editVoiceType = view.findViewById<TextInputEditText?>(R.id.editTTSVoiceType)
+        val seekSpeed = view.findViewById<SeekBar?>(R.id.seekTTSSpeed)
+        val textSpeedValue = view.findViewById<TextView?>(R.id.textTTSSpeedValue)
+        val seekVolume = view.findViewById<SeekBar?>(R.id.seekTTSVolume)
+        val textVolumeValue = view.findViewById<TextView?>(R.id.textTTSVolumeValue)
+
+        // Populate values
+        switchEnabled?.isChecked = store.isEnabled()
+        editApiKey?.setText(store.getApiKey())
+        editEncoding?.setText(store.getEncoding())
+        editAppId?.setText(store.getAppId())
+        editToken?.setText(store.getAccessToken())
+        editCluster?.setText(store.getCluster())
+        editVoiceType?.setText(store.getVoiceType())
+
+        // Mode toggle
+        fun updateModeVisibility(httpMode: Boolean) {
+            layoutHttpApi?.visibility = if (httpMode) View.VISIBLE else View.GONE
+            layoutSdk?.visibility = if (httpMode) View.GONE else View.VISIBLE
+        }
+        val isHttpApi = store.isHttpApiMode()
+        radioMode?.check(if (isHttpApi) R.id.modeHttpApi else R.id.modeSdk)
+        updateModeVisibility(isHttpApi)
+        radioMode?.setOnCheckedChangeListener { _, checkedId ->
+            updateModeVisibility(checkedId == R.id.modeHttpApi)
+        }
+
+        // SeekBar: 0..15 maps to 0.5..2.0 (step 0.1)
+        fun ratioToProgress(ratio: Float): Int = ((ratio - 0.5f) * 10f).toInt().coerceIn(0, 15)
+        fun progressToRatio(progress: Int): Float = 0.5f + progress * 0.1f
+
+        seekSpeed?.progress = ratioToProgress(store.getSpeedRatio())
+        textSpeedValue?.text = String.format(Locale.US, "%.1fx", store.getSpeedRatio())
+        seekSpeed?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar, progress: Int, fromUser: Boolean) {
+                textSpeedValue?.text = String.format(Locale.US, "%.1fx", progressToRatio(progress))
+            }
+            override fun onStartTrackingTouch(s: SeekBar) {}
+            override fun onStopTrackingTouch(s: SeekBar) {}
+        })
+
+        seekVolume?.progress = ratioToProgress(store.getVolumeRatio())
+        textVolumeValue?.text = String.format(Locale.US, "%.1fx", store.getVolumeRatio())
+        seekVolume?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(s: SeekBar, progress: Int, fromUser: Boolean) {
+                textVolumeValue?.text = String.format(Locale.US, "%.1fx", progressToRatio(progress))
+            }
+            override fun onStartTrackingTouch(s: SeekBar) {}
+            override fun onStopTrackingTouch(s: SeekBar) {}
+        })
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("语音合成设置")
+            .setView(view)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.save) { _, _ ->
+                store.saveAll(
+                    enabled = switchEnabled?.isChecked == true,
+                    useHttpApi = radioMode?.checkedRadioButtonId == R.id.modeHttpApi,
+                    appId = editAppId?.text?.toString(),
+                    accessToken = editToken?.text?.toString(),
+                    apiKey = editApiKey?.text?.toString(),
+                    encoding = editEncoding?.text?.toString(),
+                    cluster = editCluster?.text?.toString(),
+                    voiceType = editVoiceType?.text?.toString(),
+                    speedRatio = progressToRatio(seekSpeed?.progress ?: 5),
+                    volumeRatio = progressToRatio(seekVolume?.progress ?: 5)
+                )
+                Toast.makeText(this, "语音合成设置已保存", Toast.LENGTH_SHORT).show()
             }
             .show()
     }

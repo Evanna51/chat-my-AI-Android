@@ -207,9 +207,9 @@ class ProviderDetailActivity : ThemedActivity() {
                 runOnUiThread {
                     btnFetch.isEnabled = true
                     availableModels = models.toMutableList()
-                    textAvailableTitle?.visibility = if (availableModels.isEmpty()) View.GONE else View.VISIBLE
-                    findViewById<View>(R.id.recyclerModelsAvailable)?.visibility =
-                        if (availableModels.isEmpty()) View.GONE else View.VISIBLE
+                    val vis = if (availableModels.isEmpty()) View.GONE else View.VISIBLE
+                    textAvailableTitle?.visibility = vis
+                    findViewById<View>(R.id.cardModelsAvailable)?.visibility = vis
                     refreshAvailableAdapter()
                     Toast.makeText(
                         this@ProviderDetailActivity,
