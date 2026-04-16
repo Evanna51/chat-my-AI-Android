@@ -16,6 +16,7 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.InputStreamReader
+import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -24,7 +25,6 @@ object VolcEngineHttpTTS {
 
     private const val TAG = "VolcEngineHttpTTS"
     private const val API_URL_V3 = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
-    private const val RESOURCE_ID = "volc.service_type.10029"
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -54,9 +54,9 @@ object VolcEngineHttpTTS {
     }
 
     fun speak(text: String, messageId: Long, config: TTSConfigStore, callback: VolcEngineTTSManager.TTSCallback) {
-        val token = config.getAccessToken()
-        if (token.isBlank()) {
-            callback.onError("请在设置中配置 Access Token")
+        val apiKey = config.getApiKey()
+        if (apiKey.isBlank()) {
+            callback.onError("请在设置中配置 API Key")
             return
         }
 
@@ -69,13 +69,6 @@ object VolcEngineHttpTTS {
                 updateState(VolcEngineTTSManager.State.LOADING)
 
                 val encoding = config.getEncoding()
-                val sampleRate = when (encoding) {
-                    "mp3" -> 24000
-                    "ogg_opus" -> 24000
-                    "wav" -> 24000
-                    else -> 24000
-                }
-
                 val requestJson = JSONObject().apply {
                     put("user", JSONObject().apply {
                         put("uid", "android_user")
@@ -85,7 +78,7 @@ object VolcEngineHttpTTS {
                         put("speaker", config.getVoiceType())
                         put("audio_params", JSONObject().apply {
                             put("format", encoding)
-                            put("sample_rate", sampleRate)
+                            put("sample_rate", 24000)
                         })
                     })
                 }
@@ -94,9 +87,10 @@ object VolcEngineHttpTTS {
                     .toRequestBody("application/json".toMediaType())
                 val request = Request.Builder()
                     .url(API_URL_V3)
-                    .addHeader("Authorization", "Bearer;$token")
-                    .addHeader("Resource-Id", RESOURCE_ID)
                     .addHeader("Content-Type", "application/json")
+                    .addHeader("X-Api-Key", apiKey)
+                    .addHeader("X-Api-Resource-Id", config.getResourceId())
+                    .addHeader("X-Api-Request-Id", UUID.randomUUID().toString())
                     .post(body)
                     .build()
 

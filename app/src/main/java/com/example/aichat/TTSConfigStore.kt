@@ -29,6 +29,9 @@ class TTSConfigStore(context: Context) {
 
     fun getEncoding(): String = prefs.getString(KEY_ENCODING, DEFAULT_ENCODING) ?: DEFAULT_ENCODING
 
+    /** X-Api-Resource-Id: seed-icl-2.0 / seed-icl-1.0 / seed-tts-2.0 / seed-tts-1.0 */
+    fun getResourceId(): String = prefs.getString(KEY_RESOURCE_ID, DEFAULT_RESOURCE_ID) ?: DEFAULT_RESOURCE_ID
+
     // --- Shared fields ---
 
     fun getCluster(): String = prefs.getString(KEY_CLUSTER, DEFAULT_CLUSTER) ?: DEFAULT_CLUSTER
@@ -46,6 +49,7 @@ class TTSConfigStore(context: Context) {
         accessToken: String?,
         apiKey: String?,
         encoding: String?,
+        resourceId: String?,
         cluster: String?,
         voiceType: String?,
         speedRatio: Float,
@@ -58,6 +62,7 @@ class TTSConfigStore(context: Context) {
             .putString(KEY_ACCESS_TOKEN, accessToken?.trim() ?: "")
             .putString(KEY_API_KEY, apiKey?.trim() ?: "")
             .putString(KEY_ENCODING, encoding?.trim()?.ifEmpty { DEFAULT_ENCODING } ?: DEFAULT_ENCODING)
+            .putString(KEY_RESOURCE_ID, resourceId?.trim()?.ifEmpty { DEFAULT_RESOURCE_ID } ?: DEFAULT_RESOURCE_ID)
             .putString(KEY_CLUSTER, cluster?.trim()?.ifEmpty { DEFAULT_CLUSTER } ?: DEFAULT_CLUSTER)
             .putString(KEY_VOICE_TYPE, voiceType?.trim()?.ifEmpty { DEFAULT_VOICE_TYPE } ?: DEFAULT_VOICE_TYPE)
             .putFloat(KEY_SPEED_RATIO, speedRatio.coerceIn(0.5f, 2.0f))
@@ -75,12 +80,14 @@ class TTSConfigStore(context: Context) {
         private const val KEY_ENCODING = "encoding"
         private const val KEY_CLUSTER = "cluster"
         private const val KEY_VOICE_TYPE = "voice_type"
+        private const val KEY_RESOURCE_ID = "resource_id"
         private const val KEY_SPEED_RATIO = "speed_ratio"
         private const val KEY_VOLUME_RATIO = "volume_ratio"
 
         const val DEFAULT_CLUSTER = "volcano_tts"
         const val DEFAULT_CLUSTER_ICL = "volcano_icl"
         const val DEFAULT_VOICE_TYPE = "zh_female_shuangkuaisisi_moon_bigtts"
+        const val DEFAULT_RESOURCE_ID = "seed-icl-2.0"
         const val DEFAULT_ENCODING = "mp3"
         const val DEFAULT_SPEED_RATIO = 1.0f
         const val DEFAULT_VOLUME_RATIO = 1.0f
