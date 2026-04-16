@@ -29,7 +29,7 @@
     <color name="chat_reasoning_text_color">#CC000000</color>
     <color name="chat_meta_text_color">#99000000</color>
     <color name="reasoning_bubble">#EEF1F4</color>
-    <color name="action_button_bg">#10E7E7E7</color>
+    <color name="action_button_bg">#16000000</color>
     <color name="action_button_icon_tint">#66000000</color>
     <color name="affix_toggle_bg">#E7E7E7</color>
     <color name="home_background">#FFFFFFFF</color>

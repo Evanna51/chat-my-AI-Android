@@ -13,7 +13,14 @@ import android.view.View
 import android.view.MotionEvent
 import android.view.ViewParent
 import android.widget.EditText
-import android.widget.PopupMenu
+import android.graphics.Typeface
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.RelativeSizeSpan
+import android.text.style.StyleSpan
+import android.widget.ArrayAdapter
+import android.widget.ListPopupWindow
+import androidx.core.content.ContextCompat
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -844,6 +851,7 @@ class ChatSessionActivity : ThemedActivity() {
     }
 
     override fun onDestroy() {
+        VolcEngineTTSManager.stop()
         // Keep in-flight response alive when leaving page/app.
         // It can still finish in background and be persisted to DB.
         activeChatHandle = null
@@ -941,17 +949,25 @@ class ChatSessionActivity : ThemedActivity() {
     }
 
     private fun showSessionMoreMenu(anchor: View) {
-        val popupMenu = PopupMenu(this, anchor)
-        popupMenu.menu.add(0, 1, 0, getString(R.string.quick_jump_chapters))
-        popupMenu.setOnMenuItemClickListener { item ->
-            if (item.itemId == 1) {
-                showChapterJumpDialog()
-                true
-            } else {
-                false
-            }
+        val density = resources.displayMetrics.density
+        val popup = ListPopupWindow(this)
+        popup.setAdapter(ArrayAdapter(this, R.layout.item_popup_menu,
+            listOf(getString(R.string.quick_jump_chapters))))
+        popup.anchorView = anchor
+        popup.width = (168 * density + 0.5f).toInt()
+        popup.isModal = true
+        popup.setBackgroundDrawable(ContextCompat.getDrawable(this, R.drawable.bg_popup_menu))
+        // 定位到 toolbar 容器底部下方 8dp，而非紧贴按钮
+        val toolbarContainer = anchor.parent as? View
+        val extraVertical = if (toolbarContainer != null)
+            toolbarContainer.height - (anchor.top + anchor.height) + (8 * density + 0.5f).toInt()
+        else (8 * density + 0.5f).toInt()
+        popup.verticalOffset = extraVertical
+        popup.setOnItemClickListener { _, _, _, _ ->
+            popup.dismiss()
+            showChapterJumpDialog()
         }
-        popupMenu.show()
+        popup.show()
     }
 
     private fun showChapterJumpDialog() {
@@ -960,9 +976,16 @@ class ChatSessionActivity : ThemedActivity() {
             Toast.makeText(this, R.string.no_assistant_chapters, Toast.LENGTH_SHORT).show()
             return
         }
-        val labels = Array(items.size) { i ->
+        val labels = Array<CharSequence>(items.size) { i ->
             val one = items[i]
-            getString(R.string.chapter_jump_item_format, one.index, one.preview)
+            val prefix = "章节${one.index}："   // 黑体部分
+            val text = prefix + one.preview
+            SpannableString(text).also { s ->
+                // 序号前缀：黑体
+                s.setSpan(StyleSpan(Typeface.BOLD), 0, prefix.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                // 整行：字号缩小一档（约 87.5%）
+                s.setSpan(RelativeSizeSpan(0.875f), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
         }
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.quick_jump_chapters)
@@ -993,22 +1016,14 @@ class ChatSessionActivity : ThemedActivity() {
     }
 
     private fun buildChapterPreview(content: String): String {
-        val lines = content.split(Regex("\\r?\\n"))
-        val sb = StringBuilder()
-        var count = 0
-        for (line in lines) {
-            val one = line.trim()
-            if (one.isEmpty()) continue
-            if (sb.isNotEmpty()) sb.append(" / ")
-            sb.append(one)
-            count++
-            if (count >= 2) break
+        // 只取第一个非空行，截断到 40 字
+        for (line in content.split(Regex("\\r?\\n"))) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) continue
+            return if (trimmed.length > 40) trimmed.substring(0, 40) + "…" else trimmed
         }
-        var preview = if (sb.isNotEmpty()) sb.toString() else content.trim()
-        if (preview.length > 60) {
-            preview = preview.substring(0, 60) + "..."
-        }
-        return preview
+        val fallback = content.trim()
+        return if (fallback.length > 40) fallback.substring(0, 40) + "…" else fallback
     }
 
     private fun scrollToChapterMessage(createdAt: Long, messageId: Long) {
@@ -1183,6 +1198,40 @@ class ChatSessionActivity : ThemedActivity() {
                 allMessages.removeAt(idx)
                 applyMessagesAndTitle()
                 persistSessionMessagesAsync()
+            }
+
+            override fun onVoicePlay(message: Message) {
+                handleVoicePlay(message)
+            }
+        })
+    }
+
+    private fun handleVoicePlay(message: Message) {
+        val tts = VolcEngineTTSManager
+        if (tts.isPlaying() && tts.currentPlayingMessageId() == message.id) {
+            tts.stop()
+            historyAdapter.updateVoicePlayState(null)
+            currentAdapter.updateVoicePlayState(null)
+            return
+        }
+        val text = message.content?.trim() ?: ""
+        if (text.isEmpty()) {
+            Toast.makeText(this, "消息为空，无法朗读", Toast.LENGTH_SHORT).show()
+            return
+        }
+        tts.speak(text, message.id, object : VolcEngineTTSManager.TTSCallback {
+            override fun onStateChanged(state: VolcEngineTTSManager.State) {
+                val playingId = if (state == VolcEngineTTSManager.State.PLAYING ||
+                    state == VolcEngineTTSManager.State.LOADING
+                ) message.id else null
+                historyAdapter.updateVoicePlayState(playingId)
+                currentAdapter.updateVoicePlayState(playingId)
+            }
+
+            override fun onError(message: String) {
+                Toast.makeText(this@ChatSessionActivity, message, Toast.LENGTH_SHORT).show()
+                historyAdapter.updateVoicePlayState(null)
+                currentAdapter.updateVoicePlayState(null)
             }
         })
     }

@@ -12,6 +12,8 @@ class AIChatApp : Application(), DefaultLifecycleObserver {
         super<Application>.onCreate()
         Iconics.init(this) // typefaces auto-register via ContentProvider
         applyTheme()
+        VolcEngineTTSManager.init(this)
+        VolcEngineHttpTTS.init(cacheDir)
         RoomMigrationHelper.migrateIfNeeded(this)
         ProactiveMessageNotifier(this).ensureChannel()
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
