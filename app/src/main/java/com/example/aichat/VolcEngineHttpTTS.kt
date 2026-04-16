@@ -120,14 +120,19 @@ object VolcEngineHttpTTS {
 
                     try {
                         val chunk = JSONObject(trimmed)
-                        val code = chunk.optInt("code", -1)
-                        if (code != 3000) {
-                            val message = chunk.optString("message", "Unknown error")
-                            Log.e(TAG, "TTS chunk error: code=$code, message=$message")
-                            updateState(VolcEngineTTSManager.State.IDLE)
-                            notifyError("TTS error ($code): $message")
-                            reader.close()
-                            return@execute
+                        Log.d(TAG, "chunk: $trimmed")
+
+                        // Only treat as error if code is present and not 3000/0
+                        if (chunk.has("code")) {
+                            val code = chunk.getInt("code")
+                            if (code != 3000 && code != 0) {
+                                val message = chunk.optString("message", "Unknown error")
+                                Log.e(TAG, "TTS chunk error: code=$code, message=$message")
+                                updateState(VolcEngineTTSManager.State.IDLE)
+                                notifyError("TTS error ($code): $message")
+                                reader.close()
+                                return@execute
+                            }
                         }
 
                         val audioData = chunk.optString("data", "")
