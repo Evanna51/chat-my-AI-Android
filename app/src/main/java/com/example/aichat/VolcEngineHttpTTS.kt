@@ -125,6 +125,7 @@ object VolcEngineHttpTTS {
                         // Only treat as error if code is present and not 3000/0
                         if (chunk.has("code")) {
                             val code = chunk.getInt("code")
+                            if (code == 20000000) break // final OK
                             if (code != 3000 && code != 0) {
                                 val message = chunk.optString("message", "Unknown error")
                                 Log.e(TAG, "TTS chunk error: code=$code, message=$message")
