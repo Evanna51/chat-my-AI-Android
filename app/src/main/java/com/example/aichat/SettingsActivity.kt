@@ -270,6 +270,8 @@ class SettingsActivity : ThemedActivity() {
         val radioMode = view.findViewById<RadioGroup?>(R.id.radioTTSMode)
         val layoutHttpApi = view.findViewById<View?>(R.id.layoutHttpApi)
         val layoutSdk = view.findViewById<View?>(R.id.layoutSdk)
+        val editApiKey = view.findViewById<TextInputEditText?>(R.id.editTTSApiKey)
+        val editResourceId = view.findViewById<TextInputEditText?>(R.id.editTTSResourceId)
         val editEncoding = view.findViewById<TextInputEditText?>(R.id.editTTSEncoding)
         val editAppId = view.findViewById<TextInputEditText?>(R.id.editTTSAppId)
         val editToken = view.findViewById<TextInputEditText?>(R.id.editTTSAccessToken)
@@ -282,6 +284,8 @@ class SettingsActivity : ThemedActivity() {
 
         // Populate values
         switchEnabled?.isChecked = store.isEnabled()
+        editApiKey?.setText(store.getApiKey())
+        editResourceId?.setText(store.getResourceId())
         editEncoding?.setText(store.getEncoding())
         editAppId?.setText(store.getAppId())
         editToken?.setText(store.getAccessToken())
@@ -334,8 +338,9 @@ class SettingsActivity : ThemedActivity() {
                     useHttpApi = radioMode?.checkedRadioButtonId == R.id.modeHttpApi,
                     appId = editAppId?.text?.toString(),
                     accessToken = editToken?.text?.toString(),
-                    apiKey = null,
+                    apiKey = editApiKey?.text?.toString(),
                     encoding = editEncoding?.text?.toString(),
+                    resourceId = editResourceId?.text?.toString(),
                     cluster = editCluster?.text?.toString(),
                     voiceType = editVoiceType?.text?.toString(),
                     speedRatio = progressToRatio(seekSpeed?.progress ?: 5),
