@@ -80,7 +80,7 @@ class TTSConfigStore(context: Context) {
 
         const val DEFAULT_CLUSTER = "volcano_tts"
         const val DEFAULT_CLUSTER_ICL = "volcano_icl"
-        const val DEFAULT_VOICE_TYPE = "BV700_V2_streaming"
+        const val DEFAULT_VOICE_TYPE = "zh_female_shuangkuaisisi_moon_bigtts"
         const val DEFAULT_ENCODING = "mp3"
         const val DEFAULT_SPEED_RATIO = 1.0f
         const val DEFAULT_VOLUME_RATIO = 1.0f
