@@ -270,7 +270,6 @@ class SettingsActivity : ThemedActivity() {
         val radioMode = view.findViewById<RadioGroup?>(R.id.radioTTSMode)
         val layoutHttpApi = view.findViewById<View?>(R.id.layoutHttpApi)
         val layoutSdk = view.findViewById<View?>(R.id.layoutSdk)
-        val editApiKey = view.findViewById<TextInputEditText?>(R.id.editTTSApiKey)
         val editEncoding = view.findViewById<TextInputEditText?>(R.id.editTTSEncoding)
         val editAppId = view.findViewById<TextInputEditText?>(R.id.editTTSAppId)
         val editToken = view.findViewById<TextInputEditText?>(R.id.editTTSAccessToken)
@@ -283,17 +282,16 @@ class SettingsActivity : ThemedActivity() {
 
         // Populate values
         switchEnabled?.isChecked = store.isEnabled()
-        editApiKey?.setText(store.getApiKey())
         editEncoding?.setText(store.getEncoding())
         editAppId?.setText(store.getAppId())
         editToken?.setText(store.getAccessToken())
         editCluster?.setText(store.getCluster())
         editVoiceType?.setText(store.getVoiceType())
 
-        // Mode toggle
+        // Mode toggle: HTTP shows encoding, SDK shows appId
         fun updateModeVisibility(httpMode: Boolean) {
             layoutHttpApi?.visibility = if (httpMode) View.VISIBLE else View.GONE
-            layoutSdk?.visibility = if (httpMode) View.GONE else View.VISIBLE
+            layoutSdk?.visibility = if (!httpMode) View.VISIBLE else View.GONE
         }
         val isHttpApi = store.isHttpApiMode()
         radioMode?.check(if (isHttpApi) R.id.modeHttpApi else R.id.modeSdk)
@@ -336,7 +334,7 @@ class SettingsActivity : ThemedActivity() {
                     useHttpApi = radioMode?.checkedRadioButtonId == R.id.modeHttpApi,
                     appId = editAppId?.text?.toString(),
                     accessToken = editToken?.text?.toString(),
-                    apiKey = editApiKey?.text?.toString(),
+                    apiKey = null,
                     encoding = editEncoding?.text?.toString(),
                     cluster = editCluster?.text?.toString(),
                     voiceType = editVoiceType?.text?.toString(),

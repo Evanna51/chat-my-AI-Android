@@ -11,9 +11,11 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.util.UUID
+import java.io.InputStreamReader
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -21,7 +23,8 @@ import java.util.concurrent.TimeUnit
 object VolcEngineHttpTTS {
 
     private const val TAG = "VolcEngineHttpTTS"
-    private const val API_URL = "https://openspeech.bytedance.com/api/v1/tts"
+    private const val API_URL_V3 = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
+    private const val RESOURCE_ID = "volc.service_type.10029"
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -41,7 +44,7 @@ object VolcEngineHttpTTS {
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
             .writeTimeout(15, TimeUnit.SECONDS)
             .build()
     }
@@ -51,9 +54,9 @@ object VolcEngineHttpTTS {
     }
 
     fun speak(text: String, messageId: Long, config: TTSConfigStore, callback: VolcEngineTTSManager.TTSCallback) {
-        val apiKey = config.getApiKey()
-        if (apiKey.isBlank()) {
-            callback.onError("请在设置中配置 API Key")
+        val token = config.getAccessToken()
+        if (token.isBlank()) {
+            callback.onError("请在设置中配置 Access Token")
             return
         }
 
@@ -65,63 +68,96 @@ object VolcEngineHttpTTS {
                 currentMessageId = messageId
                 updateState(VolcEngineTTSManager.State.LOADING)
 
-                val reqId = UUID.randomUUID().toString().replace("-", "")
+                val encoding = config.getEncoding()
+                val sampleRate = when (encoding) {
+                    "mp3" -> 24000
+                    "ogg_opus" -> 24000
+                    "wav" -> 24000
+                    else -> 24000
+                }
+
                 val requestJson = JSONObject().apply {
-                    put("app", JSONObject().apply {
-                        put("cluster", config.getCluster())
-                    })
                     put("user", JSONObject().apply {
                         put("uid", "android_user")
                     })
-                    put("audio", JSONObject().apply {
-                        put("voice_type", config.getVoiceType())
-                        put("encoding", config.getEncoding())
-                        put("speed_ratio", config.getSpeedRatio().toDouble())
-                        put("volume_ratio", config.getVolumeRatio().toDouble())
-                    })
-                    put("request", JSONObject().apply {
-                        put("reqid", reqId)
+                    put("req_params", JSONObject().apply {
                         put("text", text)
-                        put("operation", "query")
+                        put("speaker", config.getVoiceType())
+                        put("audio_params", JSONObject().apply {
+                            put("format", encoding)
+                            put("sample_rate", sampleRate)
+                        })
                     })
                 }
 
                 val body = requestJson.toString()
                     .toRequestBody("application/json".toMediaType())
                 val request = Request.Builder()
-                    .url(API_URL)
-                    .addHeader("x-api-key", apiKey)
+                    .url(API_URL_V3)
+                    .addHeader("Authorization", "Bearer;$token")
+                    .addHeader("Resource-Id", RESOURCE_ID)
+                    .addHeader("Content-Type", "application/json")
                     .post(body)
                     .build()
 
                 val response = client.newCall(request).execute()
-                val responseBody = response.body?.string()
 
-                if (responseBody == null) {
+                if (!response.isSuccessful) {
+                    val errorBody = response.body?.string() ?: ""
+                    Log.e(TAG, "HTTP ${response.code}: $errorBody")
+                    updateState(VolcEngineTTSManager.State.IDLE)
+                    notifyError("TTS HTTP error ${response.code}")
+                    return@execute
+                }
+
+                val audioBuffer = ByteArrayOutputStream()
+                val inputStream = response.body?.byteStream()
+                if (inputStream == null) {
                     updateState(VolcEngineTTSManager.State.IDLE)
                     notifyError("Empty response from TTS server")
                     return@execute
                 }
 
-                val json = JSONObject(responseBody)
-                val code = json.optInt("code", -1)
-                if (code != 3000) {
-                    val message = json.optString("message", "Unknown error")
-                    Log.e(TAG, "TTS API error: code=$code, message=$message")
-                    updateState(VolcEngineTTSManager.State.IDLE)
-                    notifyError("TTS error ($code): $message")
-                    return@execute
-                }
+                val reader = BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8))
+                var line: String?
+                while (reader.readLine().also { line = it } != null) {
+                    val trimmed = line?.trim() ?: continue
+                    if (trimmed.isEmpty()) continue
 
-                val audioData = json.optString("data", "")
-                if (audioData.isBlank()) {
+                    try {
+                        val chunk = JSONObject(trimmed)
+                        val code = chunk.optInt("code", -1)
+                        if (code != 3000) {
+                            val message = chunk.optString("message", "Unknown error")
+                            Log.e(TAG, "TTS chunk error: code=$code, message=$message")
+                            updateState(VolcEngineTTSManager.State.IDLE)
+                            notifyError("TTS error ($code): $message")
+                            reader.close()
+                            return@execute
+                        }
+
+                        val audioData = chunk.optString("data", "")
+                        if (audioData.isNotBlank()) {
+                            val decoded = Base64.decode(audioData, Base64.DEFAULT)
+                            audioBuffer.write(decoded)
+                        }
+
+                        val sequence = chunk.optInt("sequence", 0)
+                        if (sequence == -1) break
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Skip non-JSON line: $trimmed")
+                    }
+                }
+                reader.close()
+
+                val allAudioBytes = audioBuffer.toByteArray()
+                if (allAudioBytes.isEmpty()) {
                     updateState(VolcEngineTTSManager.State.IDLE)
                     notifyError("No audio data in response")
                     return@execute
                 }
 
-                val audioBytes = Base64.decode(audioData, Base64.DEFAULT)
-                playAudio(audioBytes, config.getEncoding())
+                playAudio(allAudioBytes, encoding)
 
             } catch (e: Exception) {
                 Log.e(TAG, "speak() error", e)
