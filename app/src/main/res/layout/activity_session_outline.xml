@@ -60,13 +60,14 @@
             app:icon="@drawable/ic_add" />
 
         <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnLeakAudit"
+            android:id="@+id/btnMore"
             style="@style/Widget.Material3.Button.OutlinedButton"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
             app:cornerRadius="16dp"
-            android:text="泄密审计" />
+            android:text="更多"
+            app:icon="@drawable/ic_action_more" />
     </LinearLayout>
 
 </LinearLayout>

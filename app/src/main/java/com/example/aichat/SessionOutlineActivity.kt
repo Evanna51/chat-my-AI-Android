@@ -13,9 +13,11 @@ import android.graphics.drawable.GradientDrawable
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import com.google.gson.JsonParser
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
@@ -53,7 +55,7 @@ class SessionOutlineActivity : ThemedActivity() {
         textEmpty = findViewById(R.id.textOutlineEmpty)
         val recycler = findViewById<RecyclerView>(R.id.recyclerOutline)
         val btnAdd = findViewById<MaterialButton>(R.id.btnAddOutline)
-        val btnLeakAudit = findViewById<MaterialButton?>(R.id.btnLeakAudit)
+        val btnMore = findViewById<MaterialButton?>(R.id.btnMore)
 
         adapter = SessionOutlineAdapter()
         adapter.setOnItemActionListener(object : SessionOutlineAdapter.OnItemActionListener {
@@ -71,8 +73,24 @@ class SessionOutlineActivity : ThemedActivity() {
         recycler.adapter = adapter
 
         btnAdd.setOnClickListener { showCreateDialog() }
-        btnLeakAudit?.setOnClickListener { runLeakageAudit() }
+        btnMore?.setOnClickListener { v -> showMoreMenu(v) }
         refreshList()
+    }
+
+    private fun showMoreMenu(anchor: View) {
+        val popup = PopupMenu(this, anchor)
+        popup.menu.add(0, 1, 0, "泄密审计")
+        popup.menu.add(0, 2, 1, "知情注入")
+        popup.menu.add(0, 3, 2, "章节计划")
+        popup.setOnMenuItemClickListener { item ->
+            when (item.itemId) {
+                1 -> { runLeakageAudit(); true }
+                2 -> { runKnowledgeExtraction(); true }
+                3 -> { runChapterPlanGeneration(); true }
+                else -> false
+            }
+        }
+        popup.show()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -700,5 +718,215 @@ class SessionOutlineActivity : ThemedActivity() {
                 })
             }
         }
+    }
+
+    /** 知情注入：从大纲+最近对话提取知情约束并自动添加到大纲 */
+    private fun runKnowledgeExtraction() {
+        val all = outlineStore.getAll(sessionId)
+        val sb = StringBuilder()
+        for (item in all) {
+            if (item == null) continue
+            val type = outlineStore.normalizeType(item.type)
+            if ("knowledge" == type) continue // 不把已有知情约束塞回去
+            val typeLabel = when (type) {
+                "chapter" -> "章节"
+                "task" -> "人物资料"
+                "world" -> "世界背景"
+                "material" -> "资料"
+                else -> type
+            }
+            val title = item.title?.trim() ?: ""
+            val content = item.content?.trim() ?: ""
+            if (title.isEmpty() && content.isEmpty()) continue
+            sb.append("[").append(typeLabel).append("] ")
+            if (title.isNotEmpty()) sb.append(title)
+            if (content.isNotEmpty()) {
+                if (title.isNotEmpty()) sb.append("：")
+                sb.append(content)
+            }
+            sb.append("\n")
+        }
+        val outlineText = sb.toString().trim()
+
+        Toast.makeText(this, "正在提取知情约束…", Toast.LENGTH_SHORT).show()
+        executor.execute {
+            val dialogue = collectRecentDialogue(20, 4000)
+            runOnUiThread {
+                ChatService(this).extractKnowledgeConstraints(
+                    outlineText,
+                    dialogue,
+                    object : ChatService.ChatCallback {
+                        override fun onSuccess(content: String) {
+                            runOnUiThread {
+                                val n = parseAndAddKnowledgeItems(content)
+                                if (n > 0) {
+                                    Toast.makeText(
+                                        this@SessionOutlineActivity,
+                                        "已添加 $n 条知情约束",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    refreshList()
+                                } else {
+                                    Toast.makeText(
+                                        this@SessionOutlineActivity,
+                                        "未解析到有效知情约束",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                }
+                            }
+                        }
+
+                        override fun onError(message: String) {
+                            runOnUiThread {
+                                Toast.makeText(
+                                    this@SessionOutlineActivity,
+                                    if (message.isNotEmpty()) message else "提取失败",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    })
+            }
+        }
+    }
+
+    /** 解析模型返回的 JSON 数组并添加到大纲（type=knowledge），返回成功添加的条数 */
+    private fun parseAndAddKnowledgeItems(json: String): Int {
+        val raw = json.trim()
+        if (raw.isEmpty()) return 0
+        return try {
+            // 容错：去除可能的 ```json ... ``` 包裹
+            val cleaned = raw.removePrefix("```json").removePrefix("```")
+                .removeSuffix("```").trim()
+            val arr = JsonParser().parse(cleaned)
+            if (!arr.isJsonArray) return 0
+            var added = 0
+            for (el in arr.asJsonArray) {
+                if (!el.isJsonObject) continue
+                val obj = el.asJsonObject
+                val title = obj.get("title")?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
+                val content = obj.get("content")?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
+                if (title.isEmpty() && content.isEmpty()) continue
+                outlineStore.add(sessionId, "knowledge", title, content)
+                added++
+            }
+            added
+        } catch (e: Exception) {
+            0
+        }
+    }
+
+    /** 章节计划：从最近对话生成下一章计划并以 chapter 类型加入大纲 */
+    private fun runChapterPlanGeneration() {
+        Toast.makeText(this, "正在生成章节计划…", Toast.LENGTH_SHORT).show()
+        executor.execute {
+            val dialogue = collectRecentDialogue(20, 4000)
+            runOnUiThread {
+                ChatService(this).generateChapterPlanJson(
+                    "请根据当前故事进展，生成下一章的章节计划。",
+                    dialogue,
+                    object : ChatService.ChatCallback {
+                        override fun onSuccess(content: String) {
+                            runOnUiThread {
+                                val formatted = formatChapterPlanJson(content)
+                                if (formatted.isEmpty()) {
+                                    Toast.makeText(
+                                        this@SessionOutlineActivity,
+                                        "未解析到有效章节计划",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                    return@runOnUiThread
+                                }
+                                val next = outlineStore.nextChapterIndex(sessionId)
+                                val title = "章节$next"
+                                outlineStore.add(sessionId, "chapter", title, formatted)
+                                Toast.makeText(
+                                    this@SessionOutlineActivity,
+                                    "已加入大纲：$title",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                                refreshList()
+                            }
+                        }
+
+                        override fun onError(message: String) {
+                            runOnUiThread {
+                                Toast.makeText(
+                                    this@SessionOutlineActivity,
+                                    if (message.isNotEmpty()) message else "章节计划生成失败",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    })
+            }
+        }
+    }
+
+    /** 将章节计划 JSON 对象格式化为大纲可读文本 */
+    private fun formatChapterPlanJson(json: String): String {
+        val raw = json.trim()
+        if (raw.isEmpty()) return ""
+        return try {
+            val cleaned = raw.removePrefix("```json").removePrefix("```")
+                .removeSuffix("```").trim()
+            val obj = JsonParser().parse(cleaned)
+            if (!obj.isJsonObject) return raw
+            val o = obj.asJsonObject
+            val sb = StringBuilder()
+            fun strOf(key: String): String =
+                o.get(key)?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
+            val plotDrive = strOf("plotDrive")
+            val chapterGoal = strOf("chapterGoal")
+            val misbelief = strOf("misbelief")
+            val emotion = strOf("emotion")
+            val targetLength = strOf("targetLength")
+            if (plotDrive.isNotEmpty()) sb.append("【剧情推进】\n").append(plotDrive).append("\n\n")
+            if (chapterGoal.isNotEmpty()) sb.append("【本章目标】\n").append(chapterGoal).append("\n\n")
+            if (misbelief.isNotEmpty()) sb.append("【关键误解/冲突】\n").append(misbelief).append("\n\n")
+            if (emotion.isNotEmpty()) sb.append("【情感基调】\n").append(emotion).append("\n\n")
+            // characterDrives: array of {name, drive}
+            val cdArr = o.get("characterDrives")
+            if (cdArr != null && cdArr.isJsonArray && cdArr.asJsonArray.size() > 0) {
+                sb.append("【人物驱动】\n")
+                for (el in cdArr.asJsonArray) {
+                    if (!el.isJsonObject) continue
+                    val obj2 = el.asJsonObject
+                    val name = obj2.get("name")?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
+                    val drive = obj2.get("drive")?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
+                    if (name.isEmpty() && drive.isEmpty()) continue
+                    sb.append("- ")
+                    if (name.isNotEmpty()) sb.append(name)
+                    if (drive.isNotEmpty()) {
+                        if (name.isNotEmpty()) sb.append("：")
+                        sb.append(drive)
+                    }
+                    sb.append("\n")
+                }
+                sb.append("\n")
+            }
+            if (targetLength.isNotEmpty()) sb.append("【目标字数】").append(targetLength)
+            sb.toString().trim()
+        } catch (e: Exception) {
+            raw
+        }
+    }
+
+    /** 取最近 N 条对话消息拼接，超长时截断 */
+    private fun collectRecentDialogue(maxMessages: Int, maxChars: Int): String {
+        val sb = StringBuilder()
+        try {
+            val messages = AppDatabase.getInstance(this).messageDao().getBySession(sessionId)
+            val start = if (messages.size > maxMessages) messages.size - maxMessages else 0
+            for (i in start until messages.size) {
+                val m = messages[i] ?: continue
+                val role = if (m.role == Message.ROLE_USER) "用户" else "AI"
+                val content = m.content?.trim() ?: continue
+                if (content.isEmpty()) continue
+                sb.append(role).append("：").append(content).append("\n")
+            }
+        } catch (ignored: Exception) {}
+        val text = sb.toString().trim()
+        return if (text.length > maxChars) text.substring(text.length - maxChars) else text
     }
 }

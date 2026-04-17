@@ -1157,6 +1157,136 @@ class ChatService(context: Context) {
             })
     }
 
+    /**
+     * 从大纲和最近对话中提取「知情约束」，输出 JSON 数组。
+     * 与 auditNovelLeakage 使用同一个 Summary 模型配置。
+     */
+    fun extractKnowledgeConstraints(outlineContext: String?, recentDialogue: String?, callback: ChatCallback) {
+        val outline = outlineContext?.trim() ?: ""
+        val dialogue = recentDialogue?.trim() ?: ""
+        if (outline.isEmpty() && dialogue.isEmpty()) {
+            callback.onError("无可分析内容")
+            return
+        }
+
+        val config: AiModelConfig.ResolvedConfig
+        try {
+            config = AiModelConfig(context).getConfigForSummary()
+        } catch (e: Exception) {
+            callback.onError(context.getString(R.string.error_config_parse_failed, ""))
+            return
+        }
+        if (config == null || !config.isValid()) {
+            callback.onError(context.getString(R.string.error_no_summary_model_selected))
+            return
+        }
+
+        var providerId = ""
+        val summaryPreset = ModelConfig(context).getSummaryPreset()
+        if (summaryPreset != null && summaryPreset.contains(":")) {
+            providerId = summaryPreset.substring(0, summaryPreset.indexOf(':'))
+        }
+        providerId = resolveProviderId(providerId, config.apiHost)
+
+        var baseUrl = config.toRetrofitBaseUrl()
+        if (!baseUrl.endsWith("/")) baseUrl += "/"
+
+        val localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId)
+        val timeoutSec = if (localOpenAiCompat) 60 else 20
+
+        val client = OkHttpClient.Builder()
+            .connectTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
+            .readTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
+            .writeTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
+            .build()
+        val retrofit = Retrofit.Builder()
+            .baseUrl(baseUrl)
+            .client(client)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+        val api = retrofit.create(ChatApi::class.java)
+
+        val requestMessages = ArrayList<ChatApi.ChatMessage>()
+        requestMessages.add(ChatApi.ChatMessage("system",
+            "你是小说写作助手。请根据以下大纲和对话内容，提取所有角色的知情约束。\n" +
+                    "知情约束 = 某角色在某个时间点知道/不知道哪些关键信息。\n" +
+                    "仅输出一个JSON数组，不要任何额外文本。\n" +
+                    "格式：[{\"title\":\"角色名 - 信息点\",\"content\":\"描述该角色对此信息的知情状态\"}, ...]\n" +
+                    "约束：\n" +
+                    "1) 输出必须以 [ 开始、以 ] 结束。\n" +
+                    "2) 每条约束需明确指出角色名称。\n" +
+                    "3) 重点关注：秘密、隐藏信息、角色间的信息差。\n" +
+                    "4) 不要重复、不要输出与知情无关的内容。\n" +
+                    "5) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。"))
+
+        val userMsg = StringBuilder()
+        if (outline.isNotEmpty()) {
+            userMsg.append("【大纲内容】\n").append(outline).append("\n\n")
+        }
+        if (dialogue.isNotEmpty()) {
+            userMsg.append("【最近对话】\n").append(dialogue)
+        }
+        requestMessages.add(ChatApi.ChatMessage("user", userMsg.toString().trim()))
+
+        val request = ChatApi.ChatRequest()
+        request.model = config.modelId
+        request.messages = requestMessages
+        request.stream = false
+        request.n = 1
+        request.maxTokens = 1500
+        request.temperature = 0.3
+        request.topP = 0.8
+        request.stop = null
+        request.thinking = if (localOpenAiCompat) java.lang.Boolean.FALSE else null
+        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat)
+        if (!localOpenAiCompat) {
+            val fmt = JsonObject()
+            fmt.addProperty("type", "json_object")
+            request.responseFormat = fmt
+        } else {
+            request.responseFormat = null
+        }
+        request.providerOptions = null
+
+        val auth = if (config.apiKey != null && config.apiKey.trim().isNotEmpty())
+            "Bearer " + config.apiKey.trim() else null
+        val chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath)
+        api.chatWithUrl(chatUrl, auth, "application/json", request)
+            .enqueue(object : retrofit2.Callback<ChatApi.ChatResponse> {
+                override fun onResponse(
+                    call: retrofit2.Call<ChatApi.ChatResponse>,
+                    response: retrofit2.Response<ChatApi.ChatResponse>
+                ) {
+                    val body = response.body()
+                    val choices = body?.choices
+                    if (!response.isSuccessful || body == null || choices == null
+                        || choices.isEmpty() || choices[0] == null
+                        || choices[0].message == null) {
+                        var detail = ""
+                        try {
+                            if (response.errorBody() != null) {
+                                detail = response.errorBody()!!.string()
+                            }
+                        } catch (ignored: Exception) {}
+                        callback.onError("提取失败: " + response.code()
+                                + if (detail.isEmpty()) "" else ("\n" + detail))
+                        return
+                    }
+                    var result = extractAssistantContent(body)
+                    result = stripThinkTags(result).trim()
+                    if (result.isEmpty()) {
+                        callback.onError("提取失败")
+                        return
+                    }
+                    callback.onSuccess(result)
+                }
+
+                override fun onFailure(call: retrofit2.Call<ChatApi.ChatResponse>, t: Throwable) {
+                    callback.onError(t.message ?: "提取失败")
+                }
+            })
+    }
+
     private fun buildMessages(history: List<Message>?, userMessage: String?, using: SessionChatOptions): List<ChatApi.ChatMessage> {
         val messages = ArrayList<ChatApi.ChatMessage>()
         if (using.systemPrompt != null && using.systemPrompt.trim().isNotEmpty()) {
