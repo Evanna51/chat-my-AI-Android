@@ -479,15 +479,8 @@ class ChatSessionActivity : ThemedActivity() {
         val plainApiUserMessage = buildUserMessageForApi(text)
         val finalHistoryForApi = historyForApi
         val finalOptions = options
-        if (shouldAutoChapterPlan(finalOptions)) {
-            startChapterPlanFlow(finalHistoryForApi, text, plainApiUserMessage, finalOptions, responseToken, shouldUseCharacterMemory)
-            return
-        }
+        // Chapter plan auto-trigger removed; plan is now generated manually from the outline page "更多" menu.
         dispatchChatRequestWithOptionalMemory(finalHistoryForApi, plainApiUserMessage, finalOptions, responseToken, shouldUseCharacterMemory)
-    }
-
-    private fun shouldAutoChapterPlan(options: SessionChatOptions?): Boolean {
-        return writerAssistant && options != null && options.autoChapterPlan
     }
 
     private fun startChapterPlanFlow(
@@ -1214,7 +1207,10 @@ class ChatSessionActivity : ThemedActivity() {
             currentAdapter.updateVoicePlayState(null)
             return
         }
-        val text = message.content?.trim() ?: ""
+        var text = message.content?.trim() ?: ""
+        if (characterAssistant) {
+            text = stripBracketsForCharacterTts(text)
+        }
         if (text.isEmpty()) {
             Toast.makeText(this, "消息为空，无法朗读", Toast.LENGTH_SHORT).show()
             return
@@ -1804,6 +1800,22 @@ class ChatSessionActivity : ThemedActivity() {
         if (assistantId.isNullOrEmpty()) return false
         val assistant = MyAssistantStore(this).getById(assistantId!!)
         return assistant != null && "character" == assistant.type
+    }
+
+    /**
+     * 角色助手 TTS 朗读时移除括号内的描写内容（动作、心理、旁白等）。
+     * 支持中英文圆括号、方括号、花括号和中文方头括号。
+     */
+    private fun stripBracketsForCharacterTts(source: String): String {
+        if (source.isEmpty()) return source
+        return source
+            .replace(Regex("\\([^\\)]*\\)"), "")
+            .replace(Regex("（[^）]*）"), "")
+            .replace(Regex("\\[[^\\]]*\\]"), "")
+            .replace(Regex("【[^】]*】"), "")
+            .replace(Regex("\\{[^\\}]*\\}"), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 
     private fun shouldUseCharacterMemory(): Boolean {

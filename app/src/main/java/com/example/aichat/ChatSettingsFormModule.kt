@@ -8,7 +8,6 @@ import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.TextInputEditText
 
@@ -52,7 +51,6 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
     private val editTopP: TextInputEditText? = root.findViewById(R.id.editTopP)
     private val sliderContextCount: Slider? = root.findViewById(R.id.sliderContextCount)
     private val textContextCountValue: TextView? = root.findViewById(R.id.textContextCountValue)
-    private val switchAutoChapterPlan: MaterialSwitch? = root.findViewById(R.id.switchAutoChapterPlan)
 
     private var current = SessionChatOptions()
 
@@ -93,7 +91,6 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
             slider.value = position
             updateContextCountValue(mapSliderPositionToContextValue(position))
         }
-        switchAutoChapterPlan?.isChecked = current.autoChapterPlan
     }
 
     fun collect(): SessionChatOptions {
@@ -106,7 +103,9 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         out.topP = parseFloat(editTopP, 1.0f)
         out.contextMessageCount = getContextCount()
         out.streamOutput = true
-        out.autoChapterPlan = switchAutoChapterPlan?.isChecked == true
+        // autoChapterPlan is deprecated: chapter plan is now triggered manually from outline page.
+        // Preserve existing value for backward compat (never written back as true via UI).
+        out.autoChapterPlan = current.autoChapterPlan
         // Thinking is now a model capability (set in provider config), not a session toggle.
         // Preserve the stored value so existing sessions with thinking=true keep working.
         out.thinking = current.thinking

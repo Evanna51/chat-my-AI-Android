@@ -128,8 +128,6 @@ class EditMyAssistantActivity : ThemedActivity() {
         formModule.setOptions(assistant.options ?: SessionChatOptions())
         val layoutSystemPromptInForm: View? = findViewById(R.id.layoutSystemPrompt)
         layoutSystemPromptInForm?.visibility = View.GONE
-        val switchAutoPlanInForm: View? = findViewById(R.id.switchAutoChapterPlan)
-        switchAutoPlanInForm?.visibility = View.GONE
 
         avatarPickerContainer?.setOnClickListener { imagePickerLauncher.launch("image/*") }
         btnClearAvatarImage?.setOnClickListener {
