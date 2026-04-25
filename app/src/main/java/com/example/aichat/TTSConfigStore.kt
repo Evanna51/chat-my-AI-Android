@@ -88,7 +88,7 @@ class TTSConfigStore(context: Context) {
         const val DEFAULT_CLUSTER_ICL = "volcano_icl"
         const val DEFAULT_VOICE_TYPE = "zh_female_shuangkuaisisi_moon_bigtts"
         const val DEFAULT_RESOURCE_ID = "seed-icl-1.0"
-        const val DEFAULT_ENCODING = "mp3"
+        const val DEFAULT_ENCODING = "pcm"
         const val DEFAULT_SPEED_RATIO = 1.0f
         const val DEFAULT_VOLUME_RATIO = 1.0f
     }

@@ -51,7 +51,12 @@ object VolcEngineTTSManager {
         }
     }
 
-    fun speak(text: String, messageId: Long, callback: TTSCallback) {
+    fun speak(
+        text: String,
+        messageId: Long,
+        callback: TTSCallback,
+        params: VolcEngineHttpTTS.SpeechParams? = null,
+    ) {
         val ctx = appContext ?: run {
             callback.onError("TTS not initialized")
             return
@@ -64,7 +69,7 @@ object VolcEngineTTSManager {
 
         // Dispatch to HTTP API mode if configured
         if (config.isHttpApiMode()) {
-            VolcEngineHttpTTS.speak(text, messageId, config, callback)
+            VolcEngineHttpTTS.speak(text, messageId, config, callback, params)
             return
         }
 

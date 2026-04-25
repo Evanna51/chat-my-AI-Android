@@ -1,12 +1,16 @@
 package com.example.aichat
 
+import android.text.SpannableString
+import android.text.Spanned
 import android.text.TextUtils
+import android.text.style.ForegroundColorSpan
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.core.content.ContextCompat
 import androidx.annotation.NonNull
 import androidx.recyclerview.widget.RecyclerView
 import io.noties.markwon.Markwon
@@ -49,6 +53,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private val attachedAssistantHolders: MutableSet<AssistantHolder> =
         Collections.newSetFromMap(IdentityHashMap())
     private var writerMode: Boolean = false
+    private var characterMode: Boolean = false
     private var disableAssistantCollapseToggle: Boolean = false
     private var autoFocusLatestOnSetMessages: Boolean = true
     private var affixViewportTop: Int = Int.MIN_VALUE
@@ -246,6 +251,14 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     fun setDisableAssistantCollapseToggle(disabled: Boolean) {
         disableAssistantCollapseToggle = disabled
+        notifyDataSetChanged()
+    }
+
+    fun setCharacterMode(enabled: Boolean) {
+        if (characterMode == enabled) return
+        characterMode = enabled
+        markdownRenderedSource.clear()
+        markdownLastRenderAt.clear()
         notifyDataSetChanged()
     }
 
@@ -648,6 +661,10 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             h.textContent.maxLines = Int.MAX_VALUE
             h.textContent.ellipsize = null
         }
+        if (characterMode) {
+            h.textContent.text = buildCharacterDisplay(h.textContent, content)
+            return
+        }
         if (markwon == null || m == null) {
             h.textContent.text = content
             return
@@ -673,14 +690,38 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         var expanded = m != null && assistantStateStore.isExpanded(m)
         if (disableAssistantCollapseToggle) expanded = true
         if (!expanded) {
-            h.textContent.text = content
+            h.textContent.text = if (characterMode) buildCharacterDisplay(h.textContent, content) else content
             h.textContent.maxLines = 3
             h.textContent.ellipsize = TextUtils.TruncateAt.END
             return
         }
         h.textContent.maxLines = Int.MAX_VALUE
         h.textContent.ellipsize = null
-        h.textContent.text = content
+        h.textContent.text = if (characterMode) buildCharacterDisplay(h.textContent, content) else content
+    }
+
+    /**
+     * 角色模式渲染：解析协议 emoji 后隐藏，括号段落用 ios_section_label 灰色。
+     */
+    private fun buildCharacterDisplay(anchor: TextView, content: String): CharSequence {
+        if (content.isEmpty()) return content
+        val parsed = EmotionTagParser.parse(content)
+        val display = parsed.displayText
+        if (parsed.narrationRanges.isEmpty()) return display
+        val color = ContextCompat.getColor(anchor.context, R.color.ios_section_label)
+        val span = SpannableString(display)
+        for (range in parsed.narrationRanges) {
+            val end = (range.last + 1).coerceAtMost(display.length)
+            val start = range.first.coerceAtLeast(0)
+            if (start >= end) continue
+            span.setSpan(
+                ForegroundColorSpan(color),
+                start,
+                end,
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+            )
+        }
+        return span
     }
 
     private fun updateCollapseToggleAffixForAttachedHolders() {

@@ -3,6 +3,7 @@ package com.example.aichat
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import android.widget.ArrayAdapter
 import android.widget.ImageView
 import android.widget.RadioGroup
 import android.widget.SeekBar
@@ -17,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.google.android.material.textfield.TextInputEditText
 
 class SettingsActivity : ThemedActivity() {
@@ -271,12 +273,12 @@ class SettingsActivity : ThemedActivity() {
         val layoutHttpApi = view.findViewById<View?>(R.id.layoutHttpApi)
         val layoutSdk = view.findViewById<View?>(R.id.layoutSdk)
         val editApiKey = view.findViewById<TextInputEditText?>(R.id.editTTSApiKey)
-        val editResourceId = view.findViewById<TextInputEditText?>(R.id.editTTSResourceId)
-        val editEncoding = view.findViewById<TextInputEditText?>(R.id.editTTSEncoding)
+        val editResourceId = view.findViewById<MaterialAutoCompleteTextView?>(R.id.editTTSResourceId)
+        val editEncoding = view.findViewById<MaterialAutoCompleteTextView?>(R.id.editTTSEncoding)
         val editAppId = view.findViewById<TextInputEditText?>(R.id.editTTSAppId)
         val editToken = view.findViewById<TextInputEditText?>(R.id.editTTSAccessToken)
-        val editCluster = view.findViewById<TextInputEditText?>(R.id.editTTSCluster)
-        val editVoiceType = view.findViewById<TextInputEditText?>(R.id.editTTSVoiceType)
+        val editCluster = view.findViewById<MaterialAutoCompleteTextView?>(R.id.editTTSCluster)
+        val editVoiceType = view.findViewById<MaterialAutoCompleteTextView?>(R.id.editTTSVoiceType)
         val seekSpeed = view.findViewById<SeekBar?>(R.id.seekTTSSpeed)
         val textSpeedValue = view.findViewById<TextView?>(R.id.textTTSSpeedValue)
         val seekVolume = view.findViewById<SeekBar?>(R.id.seekTTSVolume)
@@ -285,12 +287,46 @@ class SettingsActivity : ThemedActivity() {
         // Populate values
         switchEnabled?.isChecked = store.isEnabled()
         editApiKey?.setText(store.getApiKey())
-        editResourceId?.setText(store.getResourceId())
-        editEncoding?.setText(store.getEncoding())
+        editResourceId?.setText(store.getResourceId(), false)
+        editResourceId?.let { dropdown ->
+            val resources = TTSResourcePresets.all
+            val resAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line,
+                resources.map { it.display })
+            dropdown.setAdapter(resAdapter)
+            dropdown.setOnItemClickListener { _, _, position, _ ->
+                dropdown.setText(resources[position].resourceId, false)
+            }
+        }
+        editEncoding?.setText(store.getEncoding(), false)
+        editEncoding?.setAdapter(
+            ArrayAdapter(
+                this,
+                android.R.layout.simple_dropdown_item_1line,
+                listOf("pcm", "mp3", "ogg_opus", "wav"),
+            )
+        )
         editAppId?.setText(store.getAppId())
         editToken?.setText(store.getAccessToken())
-        editCluster?.setText(store.getCluster())
-        editVoiceType?.setText(store.getVoiceType())
+        editCluster?.setText(store.getCluster(), false)
+        editCluster?.setAdapter(
+            ArrayAdapter(
+                this,
+                android.R.layout.simple_dropdown_item_1line,
+                listOf("volcano_tts", "volcano_icl"),
+            )
+        )
+        editVoiceType?.setText(store.getVoiceType(), false)
+        editVoiceType?.let { dropdown ->
+            val presets = TTSVoicePresets.all
+            val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line,
+                presets.map { it.display })
+            dropdown.setAdapter(adapter)
+            dropdown.setOnItemClickListener { _, _, position, _ ->
+                val preset = presets[position]
+                dropdown.setText(preset.speakerId, false)
+                editResourceId?.setText(preset.resourceId)
+            }
+        }
 
         // Mode toggle: HTTP shows encoding, SDK shows appId
         fun updateModeVisibility(httpMode: Boolean) {

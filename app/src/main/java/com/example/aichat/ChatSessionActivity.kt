@@ -13,6 +13,7 @@ import android.view.View
 import android.view.MotionEvent
 import android.view.ViewParent
 import android.widget.EditText
+import android.widget.ImageButton
 import android.graphics.Typeface
 import android.text.SpannableString
 import android.text.Spanned
@@ -117,6 +118,9 @@ class ChatSessionActivity : ThemedActivity() {
     private var assistantId: String? = null
     private var writerAssistant = false
     private var characterAssistant = false
+    private var autoTtsEnabled = false
+    private var btnAutoTtsView: ImageButton? = null
+    private val autoReadStore by lazy { AutoReadStore(this) }
     private var characterMemoryService: CharacterMemoryService? = null
     private var outlineStore: SessionOutlineStore? = null
     private var proactiveSyncManager: ProactiveMessageSyncManager? = null
@@ -297,6 +301,9 @@ class ChatSessionActivity : ThemedActivity() {
                     .putExtra(SessionOutlineActivity.EXTRA_SESSION_ID, sessionId))
             }
         }
+        btnAutoTtsView = findViewById(R.id.btnAutoTts)
+        btnAutoTtsView?.setOnClickListener { toggleAutoTts() }
+        refreshAutoTtsButton()
 
         val recyclerHistory: RecyclerView? = findViewById(R.id.recyclerHistory)
         val recyclerCurrent: RecyclerView? = findViewById(R.id.recyclerCurrent)
@@ -325,6 +332,8 @@ class ChatSessionActivity : ThemedActivity() {
         currentAdapter.setWriterMode(writerAssistant)
         historyAdapter.setDisableAssistantCollapseToggle(characterAssistant)
         currentAdapter.setDisableAssistantCollapseToggle(characterAssistant)
+        historyAdapter.setCharacterMode(characterAssistant)
+        currentAdapter.setCharacterMode(characterAssistant)
         historyAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
         currentAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
         val assistantStateListener = object : MessageAdapter.OnAssistantStateChangedListener {
@@ -454,6 +463,7 @@ class ChatSessionActivity : ThemedActivity() {
     private fun sendMessageFromText(text: String) {
         if (text.isEmpty()) return
         if (isFinishing || isDestroyed) return
+        if (VolcEngineTTSManager.isPlaying()) VolcEngineTTSManager.stop()
         setAssistantResponseInProgress(true)
         activeResponseToken = viewModel.incrementResponseToken()
         val responseToken = activeResponseToken
@@ -688,6 +698,7 @@ class ChatSessionActivity : ThemedActivity() {
             }
             flushStreamRenderNow()
             maybeAutoScrollToBottom(shouldStick)
+            maybeAutoReadAssistantMessage(streaming, safeContent)
         } else if (event.isError) {
             // onError
             setAssistantResponseInProgress(false)
@@ -876,10 +887,13 @@ class ChatSessionActivity : ThemedActivity() {
         currentAdapter.setWriterMode(writerAssistant)
         historyAdapter.setDisableAssistantCollapseToggle(characterAssistant)
         currentAdapter.setDisableAssistantCollapseToggle(characterAssistant)
+        historyAdapter.setCharacterMode(characterAssistant)
+        currentAdapter.setCharacterMode(characterAssistant)
         historyAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
         currentAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
         val btnWriterOutline: View? = findViewById(R.id.btnWriterOutline)
         btnWriterOutline?.visibility = if (writerAssistant) View.VISIBLE else View.GONE
+        refreshAutoTtsButton()
         sessionOptions = resolveChatOptions()
         applyMessagesAndTitle()
         startProactivePollingIfNeeded()
@@ -1199,6 +1213,38 @@ class ChatSessionActivity : ThemedActivity() {
         })
     }
 
+    private fun maybeAutoReadAssistantMessage(message: Message?, content: String) {
+        if (!autoTtsEnabled || !characterAssistant) return
+        if (message == null || content.isBlank()) return
+        handleVoicePlay(message)
+    }
+
+    private fun toggleAutoTts() {
+        val id = assistantId
+        if (id.isNullOrEmpty() || !characterAssistant) return
+        autoTtsEnabled = !autoTtsEnabled
+        autoReadStore.setEnabled(id, autoTtsEnabled)
+        btnAutoTtsView?.alpha = if (autoTtsEnabled) 1.0f else 0.4f
+        if (!autoTtsEnabled) VolcEngineTTSManager.stop()
+        Toast.makeText(
+            this,
+            if (autoTtsEnabled) R.string.auto_tts_on else R.string.auto_tts_off,
+            Toast.LENGTH_SHORT,
+        ).show()
+    }
+
+    private fun refreshAutoTtsButton() {
+        val btn = btnAutoTtsView ?: return
+        val visible = characterAssistant && !writerAssistant && !assistantId.isNullOrEmpty()
+        btn.visibility = if (visible) View.VISIBLE else View.GONE
+        if (!visible) {
+            autoTtsEnabled = false
+            return
+        }
+        autoTtsEnabled = autoReadStore.isEnabled(assistantId)
+        btn.alpha = if (autoTtsEnabled) 1.0f else 0.4f
+    }
+
     private fun handleVoicePlay(message: Message) {
         val tts = VolcEngineTTSManager
         if (tts.isPlaying() && tts.currentPlayingMessageId() == message.id) {
@@ -1207,15 +1253,31 @@ class ChatSessionActivity : ThemedActivity() {
             currentAdapter.updateVoicePlayState(null)
             return
         }
-        var text = message.content?.trim() ?: ""
+        val raw = message.content?.trim() ?: ""
+        val text: String
+        val speechParams: VolcEngineHttpTTS.SpeechParams?
         if (characterAssistant) {
-            text = stripBracketsForCharacterTts(text)
+            val parsed = EmotionTagParser.parse(raw)
+            text = parsed.ttsText
+            val profile = parsed.profile
+            speechParams = if (profile != null && profile.hasAnyParam()) {
+                VolcEngineHttpTTS.SpeechParams(
+                    emotion = profile.emotion,
+                    emotionScale = profile.emotionScale,
+                    speechRate = profile.speechRate,
+                    loudnessRate = profile.loudnessRate,
+                    pitchRate = profile.pitchRate,
+                )
+            } else null
+        } else {
+            text = raw
+            speechParams = null
         }
         if (text.isEmpty()) {
             Toast.makeText(this, "消息为空，无法朗读", Toast.LENGTH_SHORT).show()
             return
         }
-        tts.speak(text, message.id, object : VolcEngineTTSManager.TTSCallback {
+        val callback = object : VolcEngineTTSManager.TTSCallback {
             override fun onStateChanged(state: VolcEngineTTSManager.State) {
                 val playingId = if (state == VolcEngineTTSManager.State.PLAYING ||
                     state == VolcEngineTTSManager.State.LOADING
@@ -1229,7 +1291,8 @@ class ChatSessionActivity : ThemedActivity() {
                 historyAdapter.updateVoicePlayState(null)
                 currentAdapter.updateVoicePlayState(null)
             }
-        })
+        }
+        tts.speak(text, message.id, callback, speechParams)
     }
 
     private fun summarizeMessageToOutline(message: Message) {
@@ -1800,22 +1863,6 @@ class ChatSessionActivity : ThemedActivity() {
         if (assistantId.isNullOrEmpty()) return false
         val assistant = MyAssistantStore(this).getById(assistantId!!)
         return assistant != null && "character" == assistant.type
-    }
-
-    /**
-     * 角色助手 TTS 朗读时移除括号内的描写内容（动作、心理、旁白等）。
-     * 支持中英文圆括号、方括号、花括号和中文方头括号。
-     */
-    private fun stripBracketsForCharacterTts(source: String): String {
-        if (source.isEmpty()) return source
-        return source
-            .replace(Regex("\\([^\\)]*\\)"), "")
-            .replace(Regex("（[^）]*）"), "")
-            .replace(Regex("\\[[^\\]]*\\]"), "")
-            .replace(Regex("【[^】]*】"), "")
-            .replace(Regex("\\{[^\\}]*\\}"), "")
-            .replace(Regex("\\s+"), " ")
-            .trim()
     }
 
     private fun shouldUseCharacterMemory(): Boolean {
