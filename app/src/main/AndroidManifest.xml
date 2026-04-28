@@ -79,6 +79,16 @@
             android:exported="false"
             android:parentActivityName=".MyAssistantsActivity"
             android:theme="@style/Theme.AIChat" />
+        <activity
+            android:name=".TTSSettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".SettingsActivity"
+            android:theme="@style/Theme.AIChat" />
+        <activity
+            android:name=".CharacterMemorySettingsActivity"
+            android:exported="false"
+            android:parentActivityName=".SettingsActivity"
+            android:theme="@style/Theme.AIChat" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

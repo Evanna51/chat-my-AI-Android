@@ -3,13 +3,10 @@ package com.example.aichat
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.widget.ArrayAdapter
 import android.widget.ImageView
 import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.TextView
-import android.widget.Toast
-import java.util.Locale
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.app.AlertDialog
@@ -17,9 +14,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.materialswitch.MaterialSwitch
-import com.google.android.material.textfield.MaterialAutoCompleteTextView
-import com.google.android.material.textfield.TextInputEditText
 
 class SettingsActivity : ThemedActivity() {
 
@@ -46,10 +40,14 @@ class SettingsActivity : ThemedActivity() {
             startActivity(Intent(this, ModelConfigActivity::class.java))
         }
         val cardCharacterMemory = findViewById<View?>(R.id.cardCharacterMemory)
-        cardCharacterMemory?.setOnClickListener { showCharacterMemorySettingsDialog() }
+        cardCharacterMemory?.setOnClickListener {
+            startActivity(Intent(this, CharacterMemorySettingsActivity::class.java))
+        }
 
         val cardTTSSettings = findViewById<View?>(R.id.cardTTSSettings)
-        cardTTSSettings?.setOnClickListener { showTTSSettingsDialog() }
+        cardTTSSettings?.setOnClickListener {
+            startActivity(Intent(this, TTSSettingsActivity::class.java))
+        }
 
         val includeModel = findViewById<View?>(R.id.includeModelManagement)
         if (includeModel != null) {
@@ -223,176 +221,6 @@ class SettingsActivity : ThemedActivity() {
         providerAdapter?.let { adapter ->
             val list = providerManager?.getAllProviders() ?: emptyList()
             adapter.setProviders(list)
-        }
-    }
-
-    private fun showCharacterMemorySettingsDialog() {
-        val store = CharacterMemoryConfigStore(this)
-        val view = layoutInflater.inflate(R.layout.dialog_character_memory_settings, null)
-        val switchEnabled = view.findViewById<MaterialSwitch?>(R.id.switchCharacterMemoryEnabled)
-        val editBaseUrl = view.findViewById<TextInputEditText?>(R.id.editCharacterMemoryBaseUrl)
-        val editApiKey = view.findViewById<TextInputEditText?>(R.id.editCharacterMemoryApiKey)
-        val editConnectTimeout = view.findViewById<TextInputEditText?>(R.id.editCharacterMemoryConnectTimeout)
-        val editReadTimeout = view.findViewById<TextInputEditText?>(R.id.editCharacterMemoryReadTimeout)
-        val switchDebug = view.findViewById<MaterialSwitch?>(R.id.switchCharacterMemoryDebug)
-        switchEnabled?.isChecked = store.isEnabled()
-        editBaseUrl?.setText(store.getBaseUrl())
-        editApiKey?.setText(store.getApiKey())
-        editConnectTimeout?.setText(store.getConnectTimeoutMs().toString())
-        editReadTimeout?.setText(store.getReadTimeoutMs().toString())
-        switchDebug?.isChecked = store.isDebugLogEnabled()
-
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.character_memory_settings)
-            .setView(view)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.save) { _, _ ->
-                val enabled = switchEnabled?.isChecked == true
-                val debug = switchDebug?.isChecked == true
-                val baseUrl = editBaseUrl?.text?.toString()?.trim() ?: ""
-                val apiKey = editApiKey?.text?.toString()?.trim() ?: ""
-                val connectTimeoutMs = parseIntOrDefault(
-                    editConnectTimeout?.text?.toString()?.trim() ?: "",
-                    store.getConnectTimeoutMs()
-                )
-                val readTimeoutMs = parseIntOrDefault(
-                    editReadTimeout?.text?.toString()?.trim() ?: "",
-                    store.getReadTimeoutMs()
-                )
-                store.saveAll(enabled, baseUrl, apiKey, connectTimeoutMs, readTimeoutMs, debug)
-                Toast.makeText(this, R.string.character_memory_saved, Toast.LENGTH_SHORT).show()
-            }
-            .show()
-    }
-
-    private fun showTTSSettingsDialog() {
-        val store = TTSConfigStore(this)
-        val view = layoutInflater.inflate(R.layout.dialog_tts_settings, null)
-        val switchEnabled = view.findViewById<MaterialSwitch?>(R.id.switchTTSEnabled)
-        val radioMode = view.findViewById<RadioGroup?>(R.id.radioTTSMode)
-        val layoutHttpApi = view.findViewById<View?>(R.id.layoutHttpApi)
-        val layoutSdk = view.findViewById<View?>(R.id.layoutSdk)
-        val editApiKey = view.findViewById<TextInputEditText?>(R.id.editTTSApiKey)
-        val editResourceId = view.findViewById<MaterialAutoCompleteTextView?>(R.id.editTTSResourceId)
-        val editEncoding = view.findViewById<MaterialAutoCompleteTextView?>(R.id.editTTSEncoding)
-        val editAppId = view.findViewById<TextInputEditText?>(R.id.editTTSAppId)
-        val editToken = view.findViewById<TextInputEditText?>(R.id.editTTSAccessToken)
-        val editCluster = view.findViewById<MaterialAutoCompleteTextView?>(R.id.editTTSCluster)
-        val editVoiceType = view.findViewById<MaterialAutoCompleteTextView?>(R.id.editTTSVoiceType)
-        val seekSpeed = view.findViewById<SeekBar?>(R.id.seekTTSSpeed)
-        val textSpeedValue = view.findViewById<TextView?>(R.id.textTTSSpeedValue)
-        val seekVolume = view.findViewById<SeekBar?>(R.id.seekTTSVolume)
-        val textVolumeValue = view.findViewById<TextView?>(R.id.textTTSVolumeValue)
-
-        // Populate values
-        switchEnabled?.isChecked = store.isEnabled()
-        editApiKey?.setText(store.getApiKey())
-        editResourceId?.setText(store.getResourceId(), false)
-        editResourceId?.let { dropdown ->
-            val resources = TTSResourcePresets.all
-            val resAdapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line,
-                resources.map { it.display })
-            dropdown.setAdapter(resAdapter)
-            dropdown.setOnItemClickListener { _, _, position, _ ->
-                dropdown.setText(resources[position].resourceId, false)
-            }
-        }
-        editEncoding?.setText(store.getEncoding(), false)
-        editEncoding?.setAdapter(
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_dropdown_item_1line,
-                listOf("pcm", "mp3", "ogg_opus", "wav"),
-            )
-        )
-        editAppId?.setText(store.getAppId())
-        editToken?.setText(store.getAccessToken())
-        editCluster?.setText(store.getCluster(), false)
-        editCluster?.setAdapter(
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_dropdown_item_1line,
-                listOf("volcano_tts", "volcano_icl"),
-            )
-        )
-        editVoiceType?.setText(store.getVoiceType(), false)
-        editVoiceType?.let { dropdown ->
-            val presets = TTSVoicePresets.all
-            val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line,
-                presets.map { it.display })
-            dropdown.setAdapter(adapter)
-            dropdown.setOnItemClickListener { _, _, position, _ ->
-                val preset = presets[position]
-                dropdown.setText(preset.speakerId, false)
-                editResourceId?.setText(preset.resourceId)
-            }
-        }
-
-        // Mode toggle: HTTP shows encoding, SDK shows appId
-        fun updateModeVisibility(httpMode: Boolean) {
-            layoutHttpApi?.visibility = if (httpMode) View.VISIBLE else View.GONE
-            layoutSdk?.visibility = if (!httpMode) View.VISIBLE else View.GONE
-        }
-        val isHttpApi = store.isHttpApiMode()
-        radioMode?.check(if (isHttpApi) R.id.modeHttpApi else R.id.modeSdk)
-        updateModeVisibility(isHttpApi)
-        radioMode?.setOnCheckedChangeListener { _, checkedId ->
-            updateModeVisibility(checkedId == R.id.modeHttpApi)
-        }
-
-        // SeekBar: 0..15 maps to 0.5..2.0 (step 0.1)
-        fun ratioToProgress(ratio: Float): Int = ((ratio - 0.5f) * 10f).toInt().coerceIn(0, 15)
-        fun progressToRatio(progress: Int): Float = 0.5f + progress * 0.1f
-
-        seekSpeed?.progress = ratioToProgress(store.getSpeedRatio())
-        textSpeedValue?.text = String.format(Locale.US, "%.1fx", store.getSpeedRatio())
-        seekSpeed?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar, progress: Int, fromUser: Boolean) {
-                textSpeedValue?.text = String.format(Locale.US, "%.1fx", progressToRatio(progress))
-            }
-            override fun onStartTrackingTouch(s: SeekBar) {}
-            override fun onStopTrackingTouch(s: SeekBar) {}
-        })
-
-        seekVolume?.progress = ratioToProgress(store.getVolumeRatio())
-        textVolumeValue?.text = String.format(Locale.US, "%.1fx", store.getVolumeRatio())
-        seekVolume?.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-            override fun onProgressChanged(s: SeekBar, progress: Int, fromUser: Boolean) {
-                textVolumeValue?.text = String.format(Locale.US, "%.1fx", progressToRatio(progress))
-            }
-            override fun onStartTrackingTouch(s: SeekBar) {}
-            override fun onStopTrackingTouch(s: SeekBar) {}
-        })
-
-        MaterialAlertDialogBuilder(this)
-            .setTitle("语音合成设置")
-            .setView(view)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.save) { _, _ ->
-                store.saveAll(
-                    enabled = switchEnabled?.isChecked == true,
-                    useHttpApi = radioMode?.checkedRadioButtonId == R.id.modeHttpApi,
-                    appId = editAppId?.text?.toString(),
-                    accessToken = editToken?.text?.toString(),
-                    apiKey = editApiKey?.text?.toString(),
-                    encoding = editEncoding?.text?.toString(),
-                    resourceId = editResourceId?.text?.toString(),
-                    cluster = editCluster?.text?.toString(),
-                    voiceType = editVoiceType?.text?.toString(),
-                    speedRatio = progressToRatio(seekSpeed?.progress ?: 5),
-                    volumeRatio = progressToRatio(seekVolume?.progress ?: 5)
-                )
-                Toast.makeText(this, "语音合成设置已保存", Toast.LENGTH_SHORT).show()
-            }
-            .show()
-    }
-
-    private fun parseIntOrDefault(text: String?, fallback: Int): Int {
-        if (text.isNullOrBlank()) return fallback
-        return try {
-            text.trim().toInt()
-        } catch (e: Exception) {
-            fallback
         }
     }
 
