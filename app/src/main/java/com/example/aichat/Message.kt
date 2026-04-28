@@ -34,6 +34,9 @@ class Message {
     @JvmField
     var thinkingElapsedMs: Long = 0
 
+    @JvmField
+    var embedding: String = ""
+
     @Ignore
     @JvmField
     var promptTokens: Int = 0

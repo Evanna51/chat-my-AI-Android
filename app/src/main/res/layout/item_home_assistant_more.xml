@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="86dp"
+    android:layout_height="96dp"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:layout_margin="5dp"
+    android:paddingHorizontal="6dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="8dp"
+    android:background="@drawable/bg_home_assistant_card"
+    android:elevation="2dp"
+    android:clipToOutline="true"
+    android:clickable="true"
+    android:focusable="true">
+
+    <ImageView
+        android:id="@+id/iconMore"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:src="@drawable/ic_action_more"
+        android:contentDescription="@string/home_assistant_more"
+        app:tint="?attr/colorPrimary" />
+
+    <TextView
+        android:id="@+id/textMoreLabel"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone" />
+
+</LinearLayout>

@@ -6,6 +6,7 @@ class SessionSummary {
     @JvmField var sessionId: String = ""
     @JvmField var title: String = ""
     @JvmField var lastAt: Long = 0L
+    @JvmField var lastMessage: String = ""
 
     @Ignore @JvmField var avatar: String = ""
     @Ignore @JvmField var category: String = ""

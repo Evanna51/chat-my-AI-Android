@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Dark-mode translucent glass pill container -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Soft drop-shadow base -->
+    <item android:top="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#33000000" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+    <!-- Frosted dark surface body -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#0FFFFFFF" />
+            <stroke android:width="1dp" android:color="#26FFFFFF" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+    <!-- Top inner highlight -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#1AFFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:centerY="0.22" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+</layer-list>

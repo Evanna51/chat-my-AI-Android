@@ -22,11 +22,13 @@ class ModelConfigActivity : ThemedActivity() {
     private var textSearchModel: TextView? = null
     private var textSummaryModel: TextView? = null
     private var textNovelSharpModel: TextView? = null
+    private var textEmbeddingModel: TextView? = null
     private var chatPreset: String? = null
     private var threadNamingPreset: String? = null
     private var searchPreset: String? = null
     private var summaryPreset: String? = null
     private var novelSharpPreset: String? = null
+    private var embeddingPreset: String? = null
     private var switchHomeMode: MaterialSwitch? = null
     private var editingHomeMode = true
 
@@ -45,6 +47,7 @@ class ModelConfigActivity : ThemedActivity() {
         textSearchModel = findViewById(R.id.textSearchModel)
         textSummaryModel = findViewById(R.id.textSummaryModel)
         textNovelSharpModel = findViewById(R.id.textNovelSharpModel)
+        textEmbeddingModel = findViewById(R.id.textEmbeddingModel)
         switchHomeMode = findViewById(R.id.switchHomeMode)
 
         switchHomeMode?.let { sw ->
@@ -63,6 +66,7 @@ class ModelConfigActivity : ThemedActivity() {
         findViewById<View>(R.id.cardSearchModel).setOnClickListener { showPicker(2) }
         findViewById<View>(R.id.cardSummaryModel).setOnClickListener { showPicker(3) }
         findViewById<View>(R.id.cardNovelSharpModel).setOnClickListener { showPicker(4) }
+        findViewById<View>(R.id.cardEmbeddingModel).setOnClickListener { showPicker(5) }
 
         val btnSave = findViewById<MaterialButton>(R.id.btnSave)
         btnSave.setOnClickListener {
@@ -72,12 +76,14 @@ class ModelConfigActivity : ThemedActivity() {
                 modelConfig.setHomeSearchPreset(searchPreset ?: "")
                 modelConfig.setHomeSummaryPreset(summaryPreset ?: "")
                 modelConfig.setHomeNovelSharpPreset(novelSharpPreset ?: "")
+                modelConfig.setHomeEmbeddingPreset(embeddingPreset ?: "")
             } else {
                 modelConfig.setAwayChatPreset(chatPreset ?: "")
                 modelConfig.setAwayThreadNamingPreset(threadNamingPreset ?: "")
                 modelConfig.setAwaySearchPreset(searchPreset ?: "")
                 modelConfig.setAwaySummaryPreset(summaryPreset ?: "")
                 modelConfig.setAwayNovelSharpPreset(novelSharpPreset ?: "")
+                modelConfig.setAwayEmbeddingPreset(embeddingPreset ?: "")
             }
             modelConfig.setHomeModeEnabled(editingHomeMode)
             syncToConfigManager()
@@ -97,18 +103,21 @@ class ModelConfigActivity : ThemedActivity() {
             searchPreset = modelConfig.getHomeSearchPreset()
             summaryPreset = modelConfig.getHomeSummaryPreset()
             novelSharpPreset = modelConfig.getHomeNovelSharpPreset()
+            embeddingPreset = modelConfig.getHomeEmbeddingPreset()
         } else {
             chatPreset = modelConfig.getAwayChatPreset()
             threadNamingPreset = modelConfig.getAwayThreadNamingPreset()
             searchPreset = modelConfig.getAwaySearchPreset()
             summaryPreset = modelConfig.getAwaySummaryPreset()
             novelSharpPreset = modelConfig.getAwayNovelSharpPreset()
+            embeddingPreset = modelConfig.getAwayEmbeddingPreset()
         }
         updateText(textChatModel, chatPreset)
         updateText(textThreadNamingModel, threadNamingPreset)
         updateText(textSearchModel, searchPreset)
         updateText(textSummaryModel, summaryPreset)
         updateText(textNovelSharpModel, novelSharpPreset)
+        updateText(textEmbeddingModel, embeddingPreset)
     }
 
     private fun updateText(tv: TextView?, storageKey: String?) {
@@ -146,13 +155,14 @@ class ModelConfigActivity : ThemedActivity() {
         val recycler = dialogView.findViewById<RecyclerView>(R.id.recyclerOptions)
         recycler.layoutManager = LinearLayoutManager(this)
 
-        val titles = arrayOf("对话选用", "话题命名选用", "搜索选用", "总结选用", "小说敏锐选用")
+        val titles = arrayOf("对话选用", "话题命名选用", "搜索选用", "总结选用", "小说敏锐选用", "嵌入模型选用")
         val currentKey = when (field) {
             0 -> chatPreset
             1 -> threadNamingPreset
             2 -> searchPreset
             3 -> summaryPreset
-            else -> novelSharpPreset
+            4 -> novelSharpPreset
+            else -> embeddingPreset
         }
 
         val dialog = MaterialAlertDialogBuilder(this)
@@ -167,7 +177,8 @@ class ModelConfigActivity : ThemedActivity() {
                 1 -> { threadNamingPreset = option.getStorageKey(); updateText(textThreadNamingModel, threadNamingPreset) }
                 2 -> { searchPreset = option.getStorageKey(); updateText(textSearchModel, searchPreset) }
                 3 -> { summaryPreset = option.getStorageKey(); updateText(textSummaryModel, summaryPreset) }
-                else -> { novelSharpPreset = option.getStorageKey(); updateText(textNovelSharpModel, novelSharpPreset) }
+                4 -> { novelSharpPreset = option.getStorageKey(); updateText(textNovelSharpModel, novelSharpPreset) }
+                else -> { embeddingPreset = option.getStorageKey(); updateText(textEmbeddingModel, embeddingPreset) }
             }
             dialog.dismiss()
         }

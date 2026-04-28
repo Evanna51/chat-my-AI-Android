@@ -60,7 +60,15 @@
     <string name="auto_chapter_plan">自动开启章节计划（作家）</string>
     <string name="open_thinking">开启 Thinking</string>
     <string name="google_thinking_budget">Google Thinking Budget</string>
+    <string name="home_tab_recent">最近</string>
+    <string name="home_tab_pinned">置顶</string>
+    <string name="home_tab_novel">小说</string>
+    <string name="home_tab_all">全部</string>
+    <string name="home_no_sessions">暂无对话</string>
     <string name="my_assistants">我的助手</string>
+    <string name="view_all_assistants">查看全部</string>
+    <string name="home_assistant_more">更多</string>
+    <string name="home_assistant_collapse">收起</string>
     <string name="create_assistant">+ 新建我的助手</string>
     <string name="edit_assistant">编辑我的助手</string>
     <string name="assistant_name">名字</string>
@@ -104,8 +112,8 @@
     <string name="no_assistant_chapters">暂无可跳转的 AI 输出</string>
     <string name="chapter_jump_failed">定位失败，请重试</string>
     <string name="first_dialogue_helper">可留空；若填写，将作为该角色发起的默认对话</string>
-    <string name="quick_model_switch_placeholder">选择模型 ▾</string>
-    <string name="quick_model_switch_value">%1$s ▾</string>
+    <string name="quick_model_switch_placeholder">选择模型</string>
+    <string name="quick_model_switch_value">%1$s</string>
     <string name="system_prompt_preview_value">系统提示：%1$s</string>
 
     <!-- 通用操作 -->
@@ -176,4 +184,17 @@
     <string name="error_no_novel_model_selected">请先在「模型配置」中选用小说敏锐模型</string>
     <string name="error_naming_failed">命名失败: %1$s</string>
     <string name="error_config_parse_failed">配置解析失败: %1$s</string>
+
+    <string name="add_photo">添加照片</string>
+    <string name="error_location_unavailable">无法获取位置，请检查权限或定位服务</string>
+    <string name="error_location_permission_denied">未授予定位权限</string>
+    <string name="error_file_pick_failed">读取文件失败</string>
+    <string name="attachment_reading_file">正在读取文件…</string>
+    <string name="attachment_unsupported_format">暂不支持解析 %1$s，已记录文件名</string>
+    <string name="attachment_read_failed">读取失败：%1$s</string>
+    <string name="embedding_model">嵌入模型</string>
+    <string name="local_semantic_search">语义搜索对话</string>
+    <string name="semantic_search_indexing">正在为 %1$d 条消息建立索引…</string>
+    <string name="semantic_search_no_embedding_model">请先在「模型配置」中选择嵌入模型</string>
+    <string name="semantic_search_failed">语义搜索失败：%1$s</string>
 </resources>

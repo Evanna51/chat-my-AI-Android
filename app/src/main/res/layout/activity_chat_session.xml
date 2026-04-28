@@ -6,90 +6,134 @@
     android:orientation="vertical"
     android:background="@color/ios_grouped_bg">
 
-    <!-- WhatsApp-style toolbar: primary color bg, white icons -->
-    <FrameLayout
+    <!-- Glass header: back / title+model pill / right action circles -->
+    <RelativeLayout
+        android:id="@+id/chatHeaderContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="?attr/colorPrimary"
-        android:elevation="4dp">
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:background="@color/ios_grouped_bg">
 
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:background="@android:color/transparent"
-            android:paddingEnd="144dp"
-            app:title="@string/current_conversation"
-            app:titleTextColor="@color/on_primary"
-            app:subtitleTextColor="#CCffffff"
-            app:titleTextAppearance="@style/TextAppearance.AIChat.Toolbar.Title.Small"
-            app:subtitleTextAppearance="@style/TextAppearance.AIChat.Toolbar.Subtitle"
-            app:navigationIconTint="@color/on_primary"
-            app:navigationIcon="?attr/homeAsUpIndicator" />
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:background="@drawable/bg_chat_header_glass_circle"
+            android:contentDescription="@string/cancel"
+            android:src="@drawable/ic_chevron_right"
+            android:rotation="180"
+            android:elevation="2dp"
+            app:tint="?attr/colorOnSurface" />
 
-        <TextView
-            android:id="@+id/textQuickModelSwitch"
+        <LinearLayout
+            android:id="@+id/chatHeaderRightActions"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/btnWriterOutline"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_chat_header_glass_circle"
+                android:contentDescription="作家大纲"
+                android:src="@drawable/ic_action_outline"
+                android:visibility="gone"
+                android:elevation="2dp"
+                app:tint="?attr/colorOnSurface" />
+
+            <ImageButton
+                android:id="@+id/btnAutoTts"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="6dp"
+                android:alpha="0.4"
+                android:background="@drawable/bg_chat_header_glass_circle"
+                android:contentDescription="@string/auto_tts_toggle"
+                android:src="@drawable/ic_action_voice_play"
+                android:visibility="gone"
+                android:elevation="2dp"
+                app:tint="?attr/colorOnSurface" />
+
+            <ImageButton
+                android:id="@+id/btnSessionSettings"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_chat_header_glass_circle"
+                android:contentDescription="@string/session_chat_settings"
+                android:src="@drawable/ic_action_settings"
+                android:elevation="2dp"
+                app:tint="?attr/colorOnSurface" />
+
+            <ImageButton
+                android:id="@+id/btnSessionMore"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="@drawable/bg_chat_header_glass_circle"
+                android:contentDescription="@string/more_options"
+                android:src="@drawable/ic_action_more"
+                android:elevation="2dp"
+                app:tint="?attr/colorOnSurface" />
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_gravity="start|bottom"
-            android:paddingStart="60dp"
-            android:paddingEnd="160dp"
-            android:paddingBottom="6dp"
-            android:text="@string/quick_model_switch_placeholder"
-            android:textAppearance="?attr/textAppearanceBodySmall"
-            android:textColor="#CCffffff" />
-
-        <ImageButton
-            android:id="@+id/btnWriterOutline"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_gravity="end|top"
-            android:layout_marginTop="8dp"
-            android:layout_marginEnd="100dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="作家大纲"
-            android:src="@drawable/ic_action_outline"
-            android:visibility="gone"
-            app:tint="@color/on_primary" />
-
-        <ImageButton
-            android:id="@+id/btnAutoTts"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_gravity="end|top"
-            android:layout_marginTop="8dp"
-            android:layout_marginEnd="100dp"
-            android:alpha="0.4"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/auto_tts_toggle"
-            android:src="@drawable/ic_action_voice_play"
-            android:visibility="gone"
-            app:tint="@color/on_primary" />
-
-        <ImageButton
-            android:id="@+id/btnSessionSettings"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_gravity="end|top"
-            android:layout_marginTop="8dp"
-            android:layout_marginEnd="56dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/session_chat_settings"
-            android:src="@drawable/ic_action_settings"
-            app:tint="@color/on_primary" />
-
-        <ImageButton
-            android:id="@+id/btnSessionMore"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:layout_gravity="end|top"
-            android:layout_marginTop="8dp"
+            android:layout_toEndOf="@id/btnBack"
+            android:layout_toStartOf="@id/chatHeaderRightActions"
+            android:layout_centerVertical="true"
+            android:layout_marginStart="8dp"
             android:layout_marginEnd="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/more_options"
-            android:src="@drawable/ic_action_more"
-            app:tint="@color/on_primary" />
-    </FrameLayout>
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <TextView
+                android:id="@+id/textChatTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface"
+                android:text="@string/current_conversation" />
+
+            <TextView
+                android:id="@+id/textQuickModelSwitch"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:minHeight="26dp"
+                android:paddingStart="12dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:background="@drawable/bg_chat_header_model_pill"
+                android:elevation="1dp"
+                android:drawableEnd="@drawable/ic_chevron_down_small"
+                android:drawableTint="?attr/colorOnSurface"
+                android:drawablePadding="4dp"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:text="@string/quick_model_switch_placeholder"
+                android:textSize="12sp"
+                android:textColor="?attr/colorOnSurface"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+
+    </RelativeLayout>
 
     <androidx.core.widget.NestedScrollView
         android:id="@+id/scrollMessages"
@@ -309,11 +353,11 @@
                     android:layout_height="wrap_content"
                     android:text="@string/add_location" />
                 <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnAddTime"
+                    android:id="@+id/btnAddPhoto"
                     style="@style/Widget.Material3.Button.TextButton"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/add_time" />
+                    android:text="@string/add_photo" />
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnAddMore"
                     style="@style/Widget.Material3.Button.TextButton"

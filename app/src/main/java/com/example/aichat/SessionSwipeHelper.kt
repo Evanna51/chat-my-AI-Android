@@ -46,6 +46,13 @@ class SessionSwipeHelper(
 
     // ---- ItemTouchHelper callbacks ----
 
+    override fun getMovementFlags(rv: RecyclerView, vh: RecyclerView.ViewHolder): Int {
+        val adapter = rv.adapter as? SessionListAdapter
+        val pos = vh.bindingAdapterPosition
+        if (adapter != null && pos != RecyclerView.NO_POSITION && !adapter.isSessionRow(pos)) return 0
+        return super.getMovementFlags(rv, vh)
+    }
+
     override fun onMove(
         rv: RecyclerView,
         vh: RecyclerView.ViewHolder,

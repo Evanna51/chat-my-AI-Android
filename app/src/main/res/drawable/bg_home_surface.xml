@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Day-mode soft pastel blue gradient surface for the home page -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Base wash: light cool gradient -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#F4F6FC"
+                android:centerColor="#ECF1FA"
+                android:endColor="#E2E9F6" />
+        </shape>
+    </item>
+    <!-- Subtle radial glow near the top to mimic the pastel highlight in the spec -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="420dp"
+                android:centerX="0.5"
+                android:centerY="0.05"
+                android:startColor="#40FFFFFF"
+                android:endColor="#00FFFFFF" />
+        </shape>
+    </item>
+</layer-list>

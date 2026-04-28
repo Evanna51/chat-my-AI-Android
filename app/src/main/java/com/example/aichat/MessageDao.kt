@@ -42,6 +42,7 @@ interface MessageDao {
     @Query(
         "SELECT m.sessionId as sessionId, " +
         "(SELECT content FROM message m2 WHERE m2.sessionId = m.sessionId AND m2.role = 0 ORDER BY m2.createdAt ASC LIMIT 1) as title, " +
+        "(SELECT content FROM message m3 WHERE m3.sessionId = m.sessionId ORDER BY m3.createdAt DESC, m3.id DESC LIMIT 1) as lastMessage, " +
         "MAX(m.createdAt) as lastAt " +
         "FROM message m GROUP BY m.sessionId ORDER BY lastAt DESC"
     )
@@ -50,6 +51,7 @@ interface MessageDao {
     @Query(
         "SELECT m.sessionId as sessionId, " +
         "(SELECT content FROM message m2 WHERE m2.sessionId = m.sessionId AND m2.role = 0 ORDER BY m2.createdAt ASC LIMIT 1) as title, " +
+        "(SELECT content FROM message m3 WHERE m3.sessionId = m.sessionId ORDER BY m3.createdAt DESC, m3.id DESC LIMIT 1) as lastMessage, " +
         "MAX(m.createdAt) as lastAt " +
         "FROM message m GROUP BY m.sessionId ORDER BY lastAt DESC"
     )
@@ -57,4 +59,13 @@ interface MessageDao {
 
     @Query("SELECT sessionId FROM message WHERE sessionId IN (:sessionIds) GROUP BY sessionId ORDER BY MAX(createdAt) DESC LIMIT 1")
     fun getLatestSessionIdIn(sessionIds: List<String>): String?
+
+    @Query("UPDATE message SET embedding = :embedding WHERE id = :id")
+    fun updateEmbedding(id: Long, embedding: String)
+
+    @Query("SELECT * FROM message WHERE embedding = '' AND content != '' LIMIT :limit")
+    fun getMessagesNeedingEmbedding(limit: Int): List<Message>
+
+    @Query("SELECT * FROM message WHERE embedding != ''")
+    fun getAllWithEmbedding(): List<Message>
 }

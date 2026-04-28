@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Translucent glass pill container with top highlight -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Soft drop-shadow base (offset down) -->
+    <item android:top="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#10000020" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+    <!-- Glass surface body: high transparency white -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#A8FFFFFF" />
+            <stroke android:width="1dp" android:color="#50FFFFFF" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+    <!-- Top inner highlight gradient -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#40FFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:centerY="0.22" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+</layer-list>

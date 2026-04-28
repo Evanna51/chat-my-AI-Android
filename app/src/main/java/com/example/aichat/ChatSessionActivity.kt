@@ -1,19 +1,27 @@
 package com.example.aichat
 
+import android.Manifest
 import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.graphics.Rect
+import android.location.Location
+import android.location.LocationManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.OpenableColumns
 import android.util.Log
 import android.view.View
 import android.view.MotionEvent
 import android.view.ViewParent
 import android.widget.EditText
 import android.widget.ImageButton
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import android.graphics.Typeface
 import android.text.SpannableString
 import android.text.Spanned
@@ -33,7 +41,6 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
@@ -84,6 +91,105 @@ class ChatSessionActivity : ThemedActivity() {
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var activeThinkingMessage: Message? = null
+
+    private val filePickerLauncher: ActivityResultLauncher<Array<String>> =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            if (uri == null) return@registerForActivityResult
+            handleFilePicked(uri)
+        }
+
+    private fun handleFilePicked(uri: Uri) {
+        Toast.makeText(this, R.string.attachment_reading_file, Toast.LENGTH_SHORT).show()
+        executor.execute {
+            val result = AttachmentFileReader.read(this, uri)
+            mainHandler.post {
+                if (isFinishing || isDestroyed) return@post
+                when (result) {
+                    is AttachmentFileReader.Result.Text -> {
+                        val truncatedSuffix = if (result.truncated) "（已截断）" else ""
+                        val payload = "\n[文件: ${result.displayName}$truncatedSuffix]\n```\n${result.content}\n```\n"
+                        insertAttachmentText(payload)
+                    }
+                    is AttachmentFileReader.Result.Unsupported -> {
+                        insertAttachmentText("\n[文件: ${result.displayName}]\n")
+                        Toast.makeText(
+                            this,
+                            getString(R.string.attachment_unsupported_format, result.reason),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                    is AttachmentFileReader.Result.Failure -> {
+                        Toast.makeText(
+                            this,
+                            getString(R.string.attachment_read_failed, result.reason),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+        }
+    }
+
+    private val photoPickerLauncher: ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> =
+        registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
+            if (uri == null) return@registerForActivityResult
+            insertAttachmentText("\n[图片: $uri]\n")
+        }
+
+    private val locationPermissionLauncher: ActivityResultLauncher<String> =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) fetchLastKnownLocationAndInsert()
+            else Toast.makeText(this, R.string.error_location_permission_denied, Toast.LENGTH_SHORT).show()
+        }
+
+    private fun handleAddLocationClicked() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            fetchLastKnownLocationAndInsert()
+        } else {
+            locationPermissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+    }
+
+    private fun fetchLastKnownLocationAndInsert() {
+        try {
+            val lm = getSystemService(LOCATION_SERVICE) as LocationManager
+            val providers = lm.getProviders(true)
+            var best: Location? = null
+            for (p in providers) {
+                val l = try { lm.getLastKnownLocation(p) } catch (_: SecurityException) { null }
+                if (l != null && (best == null || l.accuracy < best.accuracy)) best = l
+            }
+            if (best == null) {
+                Toast.makeText(this, R.string.error_location_unavailable, Toast.LENGTH_SHORT).show()
+                return
+            }
+            val lat = String.format("%.5f", best.latitude)
+            val lng = String.format("%.5f", best.longitude)
+            insertAttachmentText("\n[位置: $lat,$lng]\n")
+        } catch (e: SecurityException) {
+            Toast.makeText(this, R.string.error_location_permission_denied, Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            Toast.makeText(this, R.string.error_location_unavailable, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun insertAttachmentText(text: String) {
+        val edit = inputEditView ?: return
+        val current = edit.text?.toString() ?: ""
+        edit.setText(current + text)
+        edit.setSelection(edit.text?.length ?: 0)
+        updateSendButtonState()
+    }
+
+    private fun queryDisplayName(uri: Uri): String? {
+        return try {
+            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
+                if (c.moveToFirst()) c.getString(0) else null
+            }
+        } catch (e: Exception) { null }
+    }
 
     private val thinkingTicker = object : Runnable {
         override fun run() {
@@ -140,6 +246,7 @@ class ChatSessionActivity : ThemedActivity() {
     private var loadEarlierMessagesView: TextView? = null
     private var quickModelSwitchView: TextView? = null
     private var firstDialoguePreviewView: TextView? = null
+    private var chatTitleView: TextView? = null
     private var expandHistoryView: View? = null
     private var historyExpandIconView: View? = null
     private var hasMoreOlderMessages = false
@@ -264,7 +371,7 @@ class ChatSessionActivity : ThemedActivity() {
         viewModel.sessionTitle.observe(this) { title ->
             if (isFinishing || isDestroyed) return@observe
             if (title.isNullOrEmpty()) return@observe
-            supportActionBar?.title = title
+            chatTitleView?.text = title
             sessionOptions.sessionTitle = title
             updateToolbarModelSubtitle()
         }
@@ -279,9 +386,8 @@ class ChatSessionActivity : ThemedActivity() {
 
         sessionOptions = resolveChatOptions()
 
-        val toolbar: MaterialToolbar = findViewById(R.id.toolbar)
-        setSupportActionBar(toolbar)
-        toolbar.setNavigationOnClickListener { finish() }
+        chatTitleView = findViewById(R.id.textChatTitle)
+        findViewById<View>(R.id.btnBack).setOnClickListener { finish() }
         quickModelSwitchView = findViewById(R.id.textQuickModelSwitch)
         quickModelSwitchView?.setOnClickListener { showQuickModelPicker() }
         firstDialoguePreviewView = findViewById(R.id.textFirstDialoguePreview)
@@ -317,7 +423,7 @@ class ChatSessionActivity : ThemedActivity() {
         val layoutAddActions: View? = findViewById(R.id.layoutAddActions)
         val btnAddFile: View? = findViewById(R.id.btnAddFile)
         val btnAddLocation: View? = findViewById(R.id.btnAddLocation)
-        val btnAddTime: View? = findViewById(R.id.btnAddTime)
+        val btnAddPhoto: View? = findViewById(R.id.btnAddPhoto)
         val btnAddMore: View? = findViewById(R.id.btnAddMore)
         loadEarlierMessagesView = findViewById(R.id.textLoadEarlierMessages)
         loadEarlierMessagesView?.setOnClickListener { loadOlderMessages() }
@@ -370,9 +476,15 @@ class ChatSessionActivity : ThemedActivity() {
                 layoutAddActions.visibility = if (addActionsExpanded) View.VISIBLE else View.GONE
             }
         }
-        btnAddFile?.setOnClickListener { Toast.makeText(this, "导入文件 TODO", Toast.LENGTH_SHORT).show() }
-        btnAddLocation?.setOnClickListener { Toast.makeText(this, "添加位置 TODO", Toast.LENGTH_SHORT).show() }
-        btnAddTime?.setOnClickListener { Toast.makeText(this, "添加时间 TODO", Toast.LENGTH_SHORT).show() }
+        btnAddFile?.setOnClickListener { filePickerLauncher.launch(arrayOf("*/*")) }
+        btnAddLocation?.setOnClickListener { handleAddLocationClicked() }
+        btnAddPhoto?.setOnClickListener {
+            photoPickerLauncher.launch(
+                androidx.activity.result.PickVisualMediaRequest(
+                    ActivityResultContracts.PickVisualMedia.ImageOnly
+                )
+            )
+        }
         btnAddMore?.setOnClickListener { Toast.makeText(this, "更多功能 TODO", Toast.LENGTH_SHORT).show() }
 
         updateSendButtonState()
@@ -404,13 +516,13 @@ class ChatSessionActivity : ThemedActivity() {
         scrollMessagesView?.post { updateCollapseToggleAffixViewport() }
         val sessionTitle = sessionOptions.sessionTitle
         if (!sessionTitle.isNullOrEmpty()) {
-            supportActionBar?.title = sessionTitle.trim()
+            chatTitleView?.text = sessionTitle.trim()
             updateToolbarModelSubtitle()
             return
         }
         val meta = SessionMetaStore(this).get(sessionId)
         if (meta != null && !meta.title.isNullOrEmpty()) {
-            supportActionBar?.title = meta.title.trim()
+            chatTitleView?.text = meta.title.trim()
             updateToolbarModelSubtitle()
             return
         }
@@ -421,7 +533,7 @@ class ChatSessionActivity : ThemedActivity() {
                 break
             }
         }
-        supportActionBar?.title = if (title.isEmpty()) "新对话" else title
+        chatTitleView?.text = if (title.isEmpty()) "新对话" else title
         updateToolbarModelSubtitle()
     }
 
@@ -735,7 +847,7 @@ class ChatSessionActivity : ThemedActivity() {
         val meta = SessionMetaStore(this).get(sessionId)
         if (meta != null && !meta.title.isNullOrEmpty()) return
         val title = if (userMsg.length > 25) userMsg.substring(0, 25) + "…" else userMsg
-        supportActionBar?.title = title
+        chatTitleView?.text = title
     }
 
     private fun maybeAutoGenerateThreadTitle(firstUserMessage: String) {
@@ -761,7 +873,7 @@ class ChatSessionActivity : ThemedActivity() {
         }
         val fallbackTitle = buildFallbackThreadTitle(firstUserMessage)
         persistSessionTitle(fallbackTitle, false)
-        supportActionBar?.title = fallbackTitle
+        chatTitleView?.text = fallbackTitle
         updateToolbarModelSubtitle()
         autoNamingInFlight = true
         Log.d(TAG, "start auto title generation, sessionId=$sessionId")
@@ -905,7 +1017,6 @@ class ChatSessionActivity : ThemedActivity() {
     }
 
     private fun updateToolbarModelSubtitle() {
-        supportActionBar?.subtitle = null
         val modelLabel = resolveCurrentModelLabel()
         if (modelLabel.isEmpty()) {
             quickModelSwitchView?.setText(getString(R.string.quick_model_switch_placeholder))

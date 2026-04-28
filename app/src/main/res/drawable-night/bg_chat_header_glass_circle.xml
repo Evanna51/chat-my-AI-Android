@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="?attr/colorControlHighlight">
+    <item>
+        <layer-list>
+            <item android:top="2dp">
+                <shape android:shape="oval">
+                    <solid android:color="#33000000" />
+                </shape>
+            </item>
+            <item>
+                <shape android:shape="oval">
+                    <solid android:color="#0FFFFFFF" />
+                    <stroke android:width="1dp" android:color="#26FFFFFF" />
+                </shape>
+            </item>
+            <item>
+                <shape android:shape="oval">
+                    <gradient
+                        android:type="linear"
+                        android:angle="270"
+                        android:startColor="#1AFFFFFF"
+                        android:centerColor="#00FFFFFF"
+                        android:endColor="#00FFFFFF"
+                        android:centerY="0.30" />
+                </shape>
+            </item>
+        </layer-list>
+    </item>
+</ripple>

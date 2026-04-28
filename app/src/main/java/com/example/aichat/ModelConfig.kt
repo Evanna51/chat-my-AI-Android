@@ -39,6 +39,14 @@ class ModelConfig(context: Context) {
         if (isHomeModeEnabled()) setHomeSearchPreset(modelKey) else setAwaySearchPreset(modelKey)
     }
 
+    /** 嵌入选用的预设 */
+    fun getEmbeddingPreset(): String =
+        if (isHomeModeEnabled()) getHomeEmbeddingPreset() else getAwayEmbeddingPreset()
+
+    fun setEmbeddingPreset(modelKey: String?) {
+        if (isHomeModeEnabled()) setHomeEmbeddingPreset(modelKey) else setAwayEmbeddingPreset(modelKey)
+    }
+
     /** 总结选用的预设 */
     fun getSummaryPreset(): String =
         if (isHomeModeEnabled()) getHomeSummaryPreset() else getAwaySummaryPreset()
@@ -77,6 +85,8 @@ class ModelConfig(context: Context) {
     fun setHomeSummaryPreset(modelKey: String?) = put(KEY_SUMMARY, modelKey)
     fun getHomeNovelSharpPreset(): String = getWithPrimary(KEY_NOVEL_SHARP)
     fun setHomeNovelSharpPreset(modelKey: String?) = put(KEY_NOVEL_SHARP, modelKey)
+    fun getHomeEmbeddingPreset(): String = getWithPrimary(KEY_EMBEDDING)
+    fun setHomeEmbeddingPreset(modelKey: String?) = put(KEY_EMBEDDING, modelKey)
 
     fun getAwayChatPreset(): String = getWithPrimary(KEY_CHAT_AWAY)
     fun setAwayChatPreset(modelKey: String?) = put(KEY_CHAT_AWAY, modelKey)
@@ -88,6 +98,8 @@ class ModelConfig(context: Context) {
     fun setAwaySummaryPreset(modelKey: String?) = put(KEY_SUMMARY_AWAY, modelKey)
     fun getAwayNovelSharpPreset(): String = getWithPrimary(KEY_NOVEL_SHARP_AWAY)
     fun setAwayNovelSharpPreset(modelKey: String?) = put(KEY_NOVEL_SHARP_AWAY, modelKey)
+    fun getAwayEmbeddingPreset(): String = getWithPrimary(KEY_EMBEDDING_AWAY)
+    fun setAwayEmbeddingPreset(modelKey: String?) = put(KEY_EMBEDDING_AWAY, modelKey)
 
     /** 主预设：作为未单独设置的任务的回退 */
     fun getPrimaryPreset(): String = prefs.getString(KEY_PRIMARY, "") ?: ""
@@ -136,11 +148,13 @@ class ModelConfig(context: Context) {
         private const val KEY_SEARCH = "preset_search"
         private const val KEY_SUMMARY = "preset_summary"
         private const val KEY_NOVEL_SHARP = "preset_novel_sharp"
+        private const val KEY_EMBEDDING = "preset_embedding"
         private const val KEY_CHAT_AWAY = "preset_chat_away"
         private const val KEY_THREAD_NAMING_AWAY = "preset_thread_naming_away"
         private const val KEY_SEARCH_AWAY = "preset_search_away"
         private const val KEY_SUMMARY_AWAY = "preset_summary_away"
         private const val KEY_NOVEL_SHARP_AWAY = "preset_novel_sharp_away"
+        private const val KEY_EMBEDDING_AWAY = "preset_embedding_away"
         private const val KEY_HOME_MODE_ENABLED = "home_mode_enabled"
 
         /** 主预设：当某任务未单独设置时，回退到此 */

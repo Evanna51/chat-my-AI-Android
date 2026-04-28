@@ -5,72 +5,9 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:fitsSystemWindows="true"
-    android:background="@color/ios_grouped_bg">
+    android:background="@drawable/bg_home_surface">
 
-    <!-- Glass search / toolbar area -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="16dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="8dp"
-        android:background="@color/ios_grouped_bg">
-
-        <!-- Glass search bar pill -->
-        <com.example.aichat.LiquidGlassView
-            android:id="@+id/glassToolbar"
-            android:layout_width="0dp"
-            android:layout_height="44dp"
-            android:layout_weight="1"
-            android:layout_marginEnd="8dp"
-            app:glassCornerRadius="16dp"
-            app:glassBlurRadius="25dp"
-            app:glassEdgeHighlight="true"
-            app:glassDynamicResponse="true">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingStart="12dp"
-                android:paddingEnd="8dp">
-                <ImageView
-                    android:layout_width="18dp"
-                    android:layout_height="18dp"
-                    android:src="@drawable/ic_search"
-                    android:layout_marginEnd="8dp"
-                    app:tint="@color/ios_section_label" />
-                <EditText
-                    android:id="@+id/searchEdit"
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="match_parent"
-                    android:hint="@string/search_hint"
-                    android:inputType="text"
-                    android:imeOptions="actionSearch"
-                    android:background="@android:color/transparent"
-                    android:textSize="15sp"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textColorHint="@color/ios_section_label" />
-            </LinearLayout>
-        </com.example.aichat.LiquidGlassView>
-
-        <!-- Settings button -->
-        <ImageButton
-            android:id="@+id/btnSettings"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
-            android:contentDescription="@string/settings"
-            android:src="@drawable/ic_action_menu"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            app:tint="?attr/colorPrimary" />
-    </LinearLayout>
-
-    <!-- Section header: 对话 -->
+    <!-- Title bar: WiChat + search + settings -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -78,20 +15,207 @@
         android:gravity="center_vertical"
         android:paddingStart="20dp"
         android:paddingEnd="12dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="6dp">
+        android:paddingTop="14dp"
+        android:paddingBottom="10dp">
+
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="对话"
-            android:textSize="13sp"
-            android:textColor="@color/ios_section_label" />
+            android:text="@string/app_name"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorPrimary" />
+
+        <ImageButton
+            android:id="@+id/btnSearch"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_search"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/search_hint"
+            app:tint="?attr/colorPrimary" />
+
+        <ImageButton
+            android:id="@+id/btnSettings"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:src="@drawable/ic_action_menu"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/settings"
+            app:tint="?attr/colorPrimary" />
+    </LinearLayout>
+
+    <!-- Inline glass search bar (hidden until 🔍 tapped) -->
+    <com.example.aichat.LiquidGlassView
+        android:id="@+id/glassToolbar"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="6dp"
+        android:visibility="gone"
+        app:glassCornerRadius="16dp"
+        app:glassBlurRadius="25dp"
+        app:glassEdgeHighlight="true"
+        app:glassDynamicResponse="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingEnd="8dp">
+
+            <ImageView
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:src="@drawable/ic_search"
+                android:layout_marginEnd="8dp"
+                android:importantForAccessibility="no"
+                app:tint="@color/ios_section_label" />
+
+            <EditText
+                android:id="@+id/searchEdit"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="match_parent"
+                android:hint="@string/search_hint"
+                android:inputType="text"
+                android:imeOptions="actionSearch"
+                android:background="@android:color/transparent"
+                android:textSize="15sp"
+                android:textColor="?attr/colorOnSurface"
+                android:textColorHint="@color/ios_section_label" />
+        </LinearLayout>
+    </com.example.aichat.LiquidGlassView>
+
+    <!-- Tab pills: 最近 / 置顶 / 小说 / 全部 (with sliding indicator) -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="14dp"
+        android:layout_marginBottom="14dp"
+        android:padding="6dp"
+        android:background="@drawable/bg_home_tab_container"
+        android:elevation="3dp"
+        android:clipToOutline="true">
+
+        <View
+            android:id="@+id/tabIndicator"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_gravity="start|center_vertical"
+            android:background="@drawable/bg_home_tab_indicator" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tabRecent"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:text="@string/home_tab_recent"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="@color/home_tab_text"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <TextView
+                android:id="@+id/tabPinned"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:text="@string/home_tab_pinned"
+                android:textSize="14sp"
+                android:textColor="@color/home_tab_text"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <TextView
+                android:id="@+id/tabNovel"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:text="@string/home_tab_novel"
+                android:textSize="14sp"
+                android:textColor="@color/home_tab_text"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <TextView
+                android:id="@+id/tabAll"
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="36dp"
+                android:gravity="center"
+                android:text="@string/home_tab_all"
+                android:textSize="14sp"
+                android:textColor="@color/home_tab_text"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- Session list (cards) -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/sessionList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:paddingHorizontal="12dp"
+        android:paddingBottom="8dp"
+        android:clipToPadding="false"
+        android:scrollbars="none" />
+
+    <!-- Empty state -->
+    <TextView
+        android:id="@+id/emptyView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:gravity="center"
+        android:padding="32dp"
+        android:text="@string/home_no_sessions"
+        android:textColor="@color/ios_section_label"
+        android:textSize="14sp" />
+
+    <!-- Assistant section header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="2dp">
+
         <TextView
-            android:id="@+id/btnAllConversations"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/my_assistants"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="@color/list_title_color" />
+
+        <TextView
+            android:id="@+id/btnViewAllAssistants"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="全部"
+            android:text="@string/view_all_assistants"
             android:textSize="13sp"
             android:textColor="?attr/colorPrimary"
             android:paddingHorizontal="8dp"
@@ -101,102 +225,32 @@
             android:focusable="true" />
     </LinearLayout>
 
-    <!-- Session list -->
+    <!-- Assistant strip (each item is its own glass card) -->
     <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/sessionList"
+        android:id="@+id/recyclerHomeAssistants"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:paddingBottom="8dp"
-        android:clipToPadding="false" />
+        android:layout_height="124dp"
+        android:paddingHorizontal="10dp"
+        android:paddingVertical="6dp"
+        android:layout_marginBottom="6dp"
+        android:clipToPadding="false"
+        android:clipChildren="false"
+        android:scrollbars="none" />
 
-    <!-- Section header: 我的助手 -->
-    <LinearLayout
+    <!-- Bottom: new chat button (no separate surface, flush with page bg) -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnNewChat"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:paddingStart="20dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="12dp"
-        android:paddingBottom="6dp">
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="@string/my_assistants"
-            android:textSize="13sp"
-            android:textColor="@color/ios_section_label" />
-        <ImageButton
-            android:id="@+id/btnMyAssistants"
-            android:layout_width="34dp"
-            android:layout_height="34dp"
-            android:src="@drawable/ic_action_expand_left"
-            android:rotation="180"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="管理助手"
-            app:tint="@color/ios_section_label" />
-    </LinearLayout>
-
-    <!-- Assistants glass card (collapsible) -->
-    <LinearLayout
-        android:id="@+id/headerMyAssistants"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:layout_marginHorizontal="12dp"
-        android:layout_marginBottom="8dp"
-        android:background="@drawable/bg_glass_toolbar"
-        android:clipToOutline="true"
-        android:clickable="true"
-        android:focusable="true">
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerHomeAssistants"
-            android:layout_width="match_parent"
-            android:layout_height="80dp"
-            android:paddingHorizontal="4dp"
-            android:paddingVertical="6dp"
-            android:clipToPadding="false"
-            android:nestedScrollingEnabled="true" />
-    </LinearLayout>
-
-    <!-- Glass bottom input bar -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingHorizontal="12dp"
-        android:paddingVertical="10dp"
-        android:background="@drawable/bg_glass_bottom_bar"
-        android:elevation="6dp"
-        android:gravity="center_vertical">
-        <EditText
-            android:id="@+id/inputEdit"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:hint="@string/chat_hint"
-            android:inputType="textMultiLine|textCapSentences"
-            android:maxLines="4"
-            android:minHeight="44dp"
-            android:background="@drawable/bg_glass_toolbar"
-            android:padding="12dp"
-            android:layout_marginEnd="10dp"
-            android:textSize="15sp"
-            android:textColor="?attr/colorOnSurface"
-            android:textColorHint="@color/ios_section_label" />
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/sendButton"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:padding="0dp"
-            android:minWidth="0dp"
-            android:minHeight="0dp"
-            app:icon="@android:drawable/ic_menu_send"
-            app:iconGravity="textStart"
-            app:iconPadding="0dp"
-            app:iconSize="22dp"
-            app:cornerRadius="24dp" />
-    </LinearLayout>
+        android:layout_height="52dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="28dp"
+        android:text="@string/new_chat"
+        app:icon="@drawable/ic_add"
+        app:iconGravity="textStart"
+        app:iconPadding="8dp"
+        app:iconSize="22dp"
+        app:cornerRadius="26dp"
+        android:textSize="16sp" />
 
 </LinearLayout>

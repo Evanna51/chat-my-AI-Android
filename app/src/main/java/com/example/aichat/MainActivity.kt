@@ -3,16 +3,13 @@ package com.example.aichat
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.ColorStateList
-import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.text.Editable
-import android.text.TextWatcher
-import android.widget.EditText
+import android.view.View
 import android.widget.ImageButton
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
@@ -41,6 +38,13 @@ class MainActivity : ThemedActivity() {
     private lateinit var db: AppDatabase
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var currentTab: HomeTab = HomeTab.RECENT
+    private val tabViews: MutableMap<HomeTab, TextView> = HashMap()
+    private var tabIndicator: View? = null
+    private var assistantsExpanded: Boolean = false
+    private lateinit var recyclerHomeAssistants: RecyclerView
+
+    private enum class HomeTab { RECENT, PINNED, NOVEL, ALL }
     private val notificationPermissionLauncher: ActivityResultLauncher<String> =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) {
             // No-op: app can continue without notification permission.
@@ -54,6 +58,9 @@ class MainActivity : ThemedActivity() {
 
         val btnSettings: ImageButton = findViewById(R.id.btnSettings)
         btnSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+
+        setupTabs()
+        setupSearchToggle()
 
         val sessionList: RecyclerView = findViewById(R.id.sessionList)
         sessionList.layoutManager = LinearLayoutManager(this)
@@ -123,35 +130,11 @@ class MainActivity : ThemedActivity() {
         )
         ItemTouchHelper(swipeHelper).attachToRecyclerView(sessionList)
 
-        // Dynamic glass response: adjust toolbar blur/elevation on scroll
-        val glassToolbar = findViewById<LiquidGlassView>(R.id.glassToolbar)
-        sessionList.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
-                val scrollOffset = rv.computeVerticalScrollOffset()
-                val maxScroll = (300 * resources.displayMetrics.density).toInt()
-                val fraction = (scrollOffset.toFloat() / maxScroll).coerceIn(0f, 1f)
-
-                // Elevation: 0dp at rest → 4dp scrolled
-                glassToolbar.elevation = fraction * 4 * resources.displayMetrics.density
-
-                // Highlight alpha: 0.12 at rest → 0.25 scrolled
-                glassToolbar.setHighlightAlpha(0.12f + fraction * 0.13f)
-            }
-        })
-
-        findViewById<android.view.View>(R.id.headerMyAssistants).setOnClickListener {
+        findViewById<View>(R.id.btnViewAllAssistants).setOnClickListener {
             startActivity(Intent(this, MyAssistantsActivity::class.java))
         }
-        findViewById<android.view.View>(R.id.btnMyAssistants).setOnClickListener {
-            startActivity(Intent(this, MyAssistantsActivity::class.java))
-        }
-        findViewById<android.view.View>(R.id.btnAllConversations).setOnClickListener {
-            startActivity(Intent(this, AllConversationsActivity::class.java))
-        }
 
-        val recyclerHomeAssistants: RecyclerView = findViewById(R.id.recyclerHomeAssistants)
-        recyclerHomeAssistants.layoutManager =
-            GridLayoutManager(this, 2, GridLayoutManager.HORIZONTAL, false)
+        recyclerHomeAssistants = findViewById(R.id.recyclerHomeAssistants)
         homeAssistantAdapter = HomeAssistantAdapter()
         homeAssistantAdapter.setOnAssistantClickListener { a ->
             val sessionId = UUID.randomUUID().toString()
@@ -161,41 +144,180 @@ class MainActivity : ThemedActivity() {
             i.putExtra(ChatSessionActivity.EXTRA_ASSISTANT_ID, a.id)
             startActivity(i)
         }
+        homeAssistantAdapter.setOnMoreClickListener { toggleAssistantsExpanded() }
         recyclerHomeAssistants.adapter = homeAssistantAdapter
+        applyAssistantsLayout()
 
-        val inputEdit: EditText = findViewById(R.id.inputEdit)
-        val sendButton: MaterialButton = findViewById(R.id.sendButton)
-        sendButton.isEnabled = false
-        sendButton.iconTint = ColorStateList(
-            arrayOf(intArrayOf(android.R.attr.state_enabled), intArrayOf(-android.R.attr.state_enabled)),
-            intArrayOf(Color.WHITE, ContextCompat.getColor(this, R.color.ios_section_label))
-        )
-        inputEdit.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(s: Editable?) {
-                sendButton.isEnabled = !s.isNullOrBlank()
-            }
-        })
-        sendButton.setOnClickListener { sendAndOpenSession(inputEdit) }
+        val btnNewChat: MaterialButton = findViewById(R.id.btnNewChat)
+        btnNewChat.setOnClickListener { startNewBlankChat() }
 
         loadSessions()
         loadAssistants()
+        setupSemanticSearch()
     }
 
-    private fun sendAndOpenSession(inputEdit: EditText) {
-        val text = inputEdit.text.toString().trim()
-        if (text.isEmpty()) {
-            Toast.makeText(this, R.string.error_input_empty, Toast.LENGTH_SHORT).show()
+    private fun setupSemanticSearch() {
+        val searchEdit = findViewById<android.widget.EditText>(R.id.searchEdit) ?: return
+        searchEdit.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) {
+                val q = searchEdit.text?.toString()?.trim() ?: ""
+                if (q.isEmpty()) {
+                    loadSessions()
+                } else {
+                    runSemanticSearch(q)
+                }
+                true
+            } else false
+        }
+    }
+
+    private fun runSemanticSearch(query: String) {
+        val service = SemanticSearchService(this)
+        if (service.resolveEmbeddingModel() == null) {
+            Toast.makeText(this, R.string.semantic_search_no_embedding_model, Toast.LENGTH_LONG).show()
             return
         }
+        Toast.makeText(this, getString(R.string.semantic_search_indexing, 0).replace("0", "…"), Toast.LENGTH_SHORT).show()
+        executor.execute {
+            try {
+                service.indexPendingMessages(50)
+                val hits = service.searchSessions(query, 20)
+                mainHandler.post { applySemanticHits(hits) }
+            } catch (e: Exception) {
+                mainHandler.post {
+                    Toast.makeText(this, getString(R.string.semantic_search_failed, e.message ?: "unknown"), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
 
+    private fun applySemanticHits(hits: List<SemanticSearchService.SemanticHit>) {
+        if (hits.isEmpty()) {
+            Toast.makeText(this, "无匹配结果", Toast.LENGTH_SHORT).show()
+            return
+        }
+        executor.execute {
+            val all = db.messageDao().getRecentSessions() ?: emptyList()
+            val byId = all.associateBy { it.sessionId }
+            val ordered = ArrayList<SessionSummary>()
+            val optionsStore = SessionChatOptionsStore(this)
+            val metaStore = SessionMetaStore(this)
+            for (h in hits) {
+                val s = byId[h.sessionId] ?: continue
+                val opts = optionsStore.get(s.sessionId)
+                val meta = metaStore.get(s.sessionId)
+                if (meta != null) {
+                    s.favorite = meta.favorite
+                    s.pinned = meta.pinned
+                    s.hidden = meta.hidden
+                    s.category = if (meta.category != null && meta.category.trim().isNotEmpty()) meta.category.trim() else "默认"
+                    if (meta.avatar != null && meta.avatar.trim().isNotEmpty()) s.avatar = meta.avatar.trim()
+                }
+                if (opts != null && opts.sessionTitle != null && opts.sessionTitle.trim().isNotEmpty()) {
+                    s.title = opts.sessionTitle.trim()
+                } else if (s.title.isNullOrBlank()) {
+                    s.title = h.sampleMessageContent.take(20)
+                }
+                ordered.add(s)
+            }
+            mainHandler.post { sessionAdapter.setSessions(ordered) }
+        }
+    }
+
+    private fun startNewBlankChat() {
         val sessionId = UUID.randomUUID().toString()
         val i = Intent(this, ChatSessionActivity::class.java)
         i.putExtra(ChatSessionActivity.EXTRA_SESSION_ID, sessionId)
-        i.putExtra(ChatSessionActivity.EXTRA_INITIAL_MESSAGE, text)
         startActivity(i)
-        inputEdit.setText("")
+    }
+
+    private fun setupTabs() {
+        tabViews[HomeTab.RECENT] = findViewById(R.id.tabRecent)
+        tabViews[HomeTab.PINNED] = findViewById(R.id.tabPinned)
+        tabViews[HomeTab.NOVEL] = findViewById(R.id.tabNovel)
+        tabViews[HomeTab.ALL] = findViewById(R.id.tabAll)
+        tabIndicator = findViewById(R.id.tabIndicator)
+        tabViews.forEach { (tab, view) ->
+            view.setOnClickListener { selectTab(tab) }
+        }
+        applyTabSelection()
+        // Position the indicator after the tab views are measured.
+        tabViews[currentTab]?.post { positionIndicator(currentTab, animate = false) }
+    }
+
+    private fun selectTab(tab: HomeTab) {
+        if (currentTab == tab) return
+        currentTab = tab
+        applyTabSelection()
+        positionIndicator(tab, animate = true)
+        loadSessions()
+    }
+
+    private fun applyTabSelection() {
+        tabViews.forEach { (tab, view) ->
+            view.isSelected = tab == currentTab
+        }
+    }
+
+    private fun positionIndicator(tab: HomeTab, animate: Boolean) {
+        val indicator = tabIndicator ?: return
+        val target = tabViews[tab] ?: return
+        if (target.width == 0) {
+            target.post { positionIndicator(tab, animate) }
+            return
+        }
+        val params = indicator.layoutParams
+        if (params.width != target.width) {
+            params.width = target.width
+            indicator.layoutParams = params
+        }
+        val targetX = target.left.toFloat()
+        if (animate) {
+            indicator.animate()
+                .translationX(targetX)
+                .setDuration(260)
+                .setInterpolator(android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f))
+                .start()
+        } else {
+            indicator.translationX = targetX
+        }
+    }
+
+    private fun toggleAssistantsExpanded() {
+        assistantsExpanded = !assistantsExpanded
+        applyAssistantsLayout()
+    }
+
+    private fun applyAssistantsLayout() {
+        val density = resources.displayMetrics.density
+        val params = recyclerHomeAssistants.layoutParams
+        if (assistantsExpanded) {
+            recyclerHomeAssistants.layoutManager = GridLayoutManager(this, 4)
+            params.height = (300 * density).toInt()
+            homeAssistantAdapter.setMoreLabelRes(R.string.home_assistant_collapse)
+        } else {
+            recyclerHomeAssistants.layoutManager =
+                LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false)
+            params.height = (124 * density).toInt()
+            homeAssistantAdapter.setMoreLabelRes(R.string.home_assistant_more)
+        }
+        recyclerHomeAssistants.layoutParams = params
+    }
+
+    private fun setupSearchToggle() {
+        val btnSearch = findViewById<ImageButton>(R.id.btnSearch)
+        val glassToolbar = findViewById<View>(R.id.glassToolbar)
+        val searchEdit = findViewById<android.widget.EditText>(R.id.searchEdit)
+        btnSearch.setOnClickListener {
+            if (glassToolbar.visibility == View.VISIBLE) {
+                glassToolbar.visibility = View.GONE
+                searchEdit?.setText("")
+                loadSessions()
+            } else {
+                glassToolbar.visibility = View.VISIBLE
+                searchEdit?.requestFocus()
+            }
+        }
     }
 
     private fun loadSessions() {
@@ -203,7 +325,14 @@ class MainActivity : ThemedActivity() {
             val list = db.messageDao().getRecentSessions()
             val optionsStore = SessionChatOptionsStore(this)
             val metaStore = SessionMetaStore(this)
-            val merged = ArrayList<SessionSummary>()
+            val bindingStore = SessionAssistantBindingStore(this)
+            val assistantTypeById = HashMap<String, String>()
+            for (a in MyAssistantStore(this).getAll()) {
+                if (a.id.isNotEmpty()) assistantTypeById[a.id] = a.type
+            }
+
+            val tab = currentTab
+            val items = ArrayList<SessionSummary>()
             if (list != null) {
                 for (s in list) {
                     if (s == null || s.sessionId == null) continue
@@ -233,13 +362,33 @@ class MainActivity : ThemedActivity() {
                     } else {
                         s.title = shortenTitle(firstUserMessage)
                     }
-                    merged.add(s)
+
+                    val assistantId = bindingStore.getAssistantId(s.sessionId)
+                    val type = assistantTypeById[assistantId] ?: ""
+                    val isWriter = type == "writer"
+
+                    val keep = when (tab) {
+                        HomeTab.RECENT -> !isWriter
+                        HomeTab.PINNED -> s.pinned
+                        HomeTab.NOVEL -> isWriter
+                        HomeTab.ALL -> true
+                    }
+                    if (keep) items.add(s)
                 }
             }
-            Collections.sort(merged, Comparator
+
+            val sessionSorter = Comparator
                 .comparing { s: SessionSummary -> s.pinned }.reversed()
-                .thenComparing({ s: SessionSummary -> s.lastAt }, Comparator.reverseOrder()))
-            mainHandler.post { sessionAdapter.setSessions(merged) }
+                .thenComparing({ s: SessionSummary -> s.lastAt }, Comparator.reverseOrder())
+            Collections.sort(items, sessionSorter)
+
+            val rows = ArrayList<SessionListAdapter.Row>()
+            for (s in items) rows.add(SessionListAdapter.Row.Session(s))
+            mainHandler.post {
+                sessionAdapter.setRows(rows)
+                findViewById<View>(R.id.emptyView)?.visibility =
+                    if (rows.isEmpty()) View.VISIBLE else View.GONE
+            }
         }
     }
 
@@ -291,6 +440,7 @@ class MainActivity : ThemedActivity() {
         val action = intent?.getStringExtra("action")
         if ("new_chat" == action) {
             intent.removeExtra("action")
+            startNewBlankChat()
         } else if ("export" == action) {
             intent.removeExtra("action")
             Toast.makeText(this, "请进入某个对话后，点击右上角菜单导出", Toast.LENGTH_SHORT).show()

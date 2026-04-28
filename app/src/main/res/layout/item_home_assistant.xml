@@ -1,46 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
-    android:layout_height="34dp"
-    android:orientation="horizontal"
-    android:gravity="center_vertical"
-    android:paddingStart="8dp"
-    android:paddingEnd="8dp"
-    android:background="?attr/selectableItemBackground"
+    android:layout_width="86dp"
+    android:layout_height="96dp"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:layout_margin="5dp"
+    android:paddingHorizontal="6dp"
+    android:paddingTop="10dp"
+    android:paddingBottom="8dp"
+    android:background="@drawable/bg_home_assistant_card"
+    android:elevation="2dp"
+    android:clipToOutline="true"
     android:clickable="true"
     android:focusable="true">
 
     <FrameLayout
-        android:layout_width="22dp"
-        android:layout_height="22dp">
+        android:layout_width="28dp"
+        android:layout_height="28dp">
 
         <ImageView
             android:id="@+id/imageAvatar"
-            android:layout_width="22dp"
-            android:layout_height="22dp"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
             android:clipToOutline="true"
             android:scaleType="centerCrop"
             android:visibility="gone" />
 
         <TextView
             android:id="@+id/textAvatar"
-            android:layout_width="22dp"
-            android:layout_height="22dp"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
             android:gravity="center"
-            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textSize="17sp"
             android:textColor="?attr/colorPrimary" />
-
     </FrameLayout>
 
     <TextView
         android:id="@+id/textName"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="8dp"
-        android:maxWidth="90dp"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
         android:maxLines="1"
         android:ellipsize="end"
-        android:textAppearance="?attr/textAppearanceBodySmall"
+        android:textSize="13sp"
+        android:textStyle="bold"
         android:textColor="@color/list_title_color" />
+
+    <TextView
+        android:id="@+id/textSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:gravity="center"
+        android:maxLines="1"
+        android:ellipsize="end"
+        android:textSize="11sp"
+        android:textColor="@color/ios_section_label" />
 
 </LinearLayout>

@@ -6,11 +6,13 @@ import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
 import com.mikepenz.iconics.Iconics
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 
 class AIChatApp : Application(), DefaultLifecycleObserver {
     override fun onCreate() {
         super<Application>.onCreate()
         Iconics.init(this) // typefaces auto-register via ContentProvider
+        PDFBoxResourceLoader.init(this)
         applyTheme()
         VolcEngineTTSManager.init(this)
         VolcEngineHttpTTS.init(cacheDir)
