@@ -29,6 +29,7 @@ class ModelConfigActivity : ThemedActivity() {
     private val sceneTabViews: MutableMap<ModelConfig.Scene, TextView> =
         EnumMap(ModelConfig.Scene::class.java)
     private var sceneTabIndicator: View? = null
+    private var modelListContainer: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +43,7 @@ class ModelConfigActivity : ThemedActivity() {
         setSupportActionBar(toolbar)
         toolbar.setNavigationOnClickListener { finish() }
 
+        modelListContainer = findViewById(R.id.cardModelList)
         textChatModel = findViewById(R.id.textChatModel)
         textThreadNamingModel = findViewById(R.id.textThreadNamingModel)
         textSearchModel = findViewById(R.id.textSearchModel)
@@ -198,10 +200,43 @@ class ModelConfigActivity : ThemedActivity() {
 
     private fun selectScene(scene: ModelConfig.Scene) {
         if (editingScene == scene) return
+        val direction = if (scene.ordinal > editingScene.ordinal) 1 else -1
         editingScene = scene
         applySceneTabSelection()
         positionSceneIndicator(scene, animate = true)
-        refreshDisplay()
+        animateContentSwitch(direction)
+    }
+
+    /**
+     * Cross-fade + horizontal slide for the model list as the scene changes.
+     * Old content slides out opposite the tab direction, new content slides
+     * in from that direction. Falls back to a plain refresh if container is
+     * not yet measured.
+     */
+    private fun animateContentSwitch(direction: Int) {
+        val container = modelListContainer
+        if (container == null || container.width == 0) {
+            refreshDisplay()
+            return
+        }
+        val travel = container.width * 0.10f
+        container.animate().cancel()
+        container.animate()
+            .translationX(-direction * travel)
+            .alpha(0f)
+            .setDuration(120)
+            .setInterpolator(android.view.animation.AccelerateInterpolator())
+            .withEndAction {
+                refreshDisplay()
+                container.translationX = direction * travel
+                container.animate()
+                    .translationX(0f)
+                    .alpha(1f)
+                    .setDuration(180)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .start()
+            }
+            .start()
     }
 
     private fun applySceneTabSelection() {
