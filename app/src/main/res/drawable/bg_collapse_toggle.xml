@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Floating "collapse / expand" pill on top of an assistant bubble.
+     Translucent fill + faint highlight + soft shadow → liquid-glass look. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Soft drop shadow (1dp offset down) -->
+    <item
+        android:top="1dp"
+        android:bottom="0dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="12dp" />
+            <solid android:color="@color/glass_input_shadow_bottom" />
+        </shape>
+    </item>
+    <!-- Main translucent fill + 0.5dp highlight rim -->
+    <item
+        android:top="0dp"
+        android:bottom="1dp">
+        <shape android:shape="rectangle">
+            <corners android:radius="12dp" />
+            <solid android:color="@color/glass_input_fill" />
+            <stroke
+                android:width="0.5dp"
+                android:color="@color/glass_input_highlight_top" />
+        </shape>
+    </item>
+</layer-list>

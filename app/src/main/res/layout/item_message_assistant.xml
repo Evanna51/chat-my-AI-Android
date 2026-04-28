@@ -55,7 +55,9 @@
         android:id="@+id/layoutAssistantBubble"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:background="@drawable/bubble_assistant_wa">
+        android:background="@drawable/bubble_assistant_wa"
+        android:clipChildren="false"
+        android:clipToPadding="false">
         <!-- 正文内容：长文折叠/展开逻辑由 MessageAdapter 控制 -->
         <TextView
             android:id="@+id/textContent"
@@ -68,20 +70,42 @@
             android:textColor="@color/chat_assistant_text_color"
             android:textSize="16sp"
             android:textIsSelectable="true" />
-        <!-- 折叠/展开正文内容按钮：悬浮在气泡右下角 -->
-        <ImageButton
+        <!-- 浮动消息折叠按钮：玻璃风胶囊，icon + 文案 [收起/展开]。
+             由 MessageAdapter.applyCollapseToggleAffix 在滚动时把 translationY 调整为
+             气泡可见区域中点，随消息滚动保持可见。 -->
+        <LinearLayout
             android:id="@+id/textCollapseToggle"
-            android:layout_width="32dp"
-            android:layout_height="32dp"
-            android:layout_gravity="bottom|end"
-            android:layout_margin="4dp"
-            android:padding="6dp"
-            android:background="@drawable/bg_action_button"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_collapse_expand_more"
-            android:tint="@color/action_button_icon_tint"
-            android:contentDescription="展开/收起"
-            android:visibility="gone" />
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_marginEnd="6dp"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="5dp"
+            android:background="@drawable/bg_collapse_toggle"
+            android:elevation="3dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:visibility="gone">
+            <ImageView
+                android:id="@+id/textCollapseIcon"
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:src="@drawable/ic_collapse_expand_less"
+                android:tint="@color/action_button_icon_tint"
+                android:contentDescription="@null" />
+            <TextView
+                android:id="@+id/textCollapseLabel"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:textSize="12sp"
+                android:fontFamily="@font/inter"
+                android:textColor="@color/action_button_icon_tint"
+                android:text="@string/collapse_message" />
+        </LinearLayout>
     </FrameLayout>
 
     <TextView
@@ -102,7 +126,7 @@
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
-        <!-- Toggle: collapsed -> expand_more (▼) / expanded -> expand_less (▲).
+        <!-- Toggle: collapsed → ic_chevron_right (>), expanded → ic_action_expand_left (<).
              No background; sits flush with the row. -->
         <ImageButton
             android:id="@+id/actionExpand"
@@ -111,7 +135,7 @@
             android:padding="5dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_collapse_expand_more"
+            android:src="@drawable/ic_chevron_right"
             android:tint="@color/action_button_icon_tint"
             android:contentDescription="展开操作" />
 

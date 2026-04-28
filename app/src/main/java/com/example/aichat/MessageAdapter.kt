@@ -487,8 +487,8 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             // Single-level fold: latest is always expanded (rawLevel forced to 1).
             val toolbarExpanded = isLatest || rawLevel >= 1
             holder.actionExpand.setImageResource(
-                if (toolbarExpanded) R.drawable.ic_collapse_expand_less
-                else R.drawable.ic_collapse_expand_more
+                if (toolbarExpanded) R.drawable.ic_action_expand_left
+                else R.drawable.ic_chevron_right
             )
             holder.actionExpand.scaleX = 1f
             holder.actionExpand.visibility = View.VISIBLE
@@ -504,7 +504,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 holder.lastHasVisibleContent = hasVisibleContent
             }
             if (!disableAssistantCollapseToggle) {
-                setCollapseToggleLabel(holder.textCollapseToggle, expanded)
+                setCollapseToggleLabel(holder, expanded)
             }
             if (disableAssistantCollapseToggle) {
                 holder.textCollapseToggle.setOnClickListener(null)
@@ -584,7 +584,9 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
     inner class AssistantHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         val textTimestamp: TextView = itemView.findViewById(R.id.textTimestamp)
         val textContent: TextView = itemView.findViewById(R.id.textContent)
-        val textCollapseToggle: ImageView = itemView.findViewById(R.id.textCollapseToggle)
+        val textCollapseToggle: View = itemView.findViewById(R.id.textCollapseToggle)
+        val textCollapseIcon: ImageView = itemView.findViewById(R.id.textCollapseIcon)
+        val textCollapseLabel: TextView = itemView.findViewById(R.id.textCollapseLabel)
         val layoutAssistantBubble: View = itemView.findViewById(R.id.layoutAssistantBubble)
         val actionExpand: ImageView = itemView.findViewById(R.id.actionExpand)
         val layoutActions: View = itemView.findViewById(R.id.layoutActions)
@@ -774,13 +776,64 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
     }
 
+    /**
+     * Pin the floating "expand / collapse" pill to the vertical center of the
+     * portion of the bubble that's visible inside the RecyclerView's viewport.
+     * When the bubble is fully on-screen → the pill sits in the geometric
+     * center of the bubble. When the bubble extends beyond the viewport → the
+     * pill clamps to the visible slice's center, so it never scrolls out.
+     *
+     * No-op if viewport hasn't been wired up yet (affixViewportTop sentinel).
+     */
+    /**
+     * Pin the floating "expand / collapse" pill to the vertical center of the
+     * portion of the bubble that's visible inside the RecyclerView's viewport.
+     * If the bubble is fully on-screen, the pill sits at the bubble's vertical
+     * center; otherwise it clamps to the visible slice's center so it stays
+     * reachable while the user scrolls the bubble in or out of view.
+     *
+     * Defers via post() if measurement isn't ready yet (typical on first bind).
+     */
     private fun applyCollapseToggleAffix(h: AssistantHolder) {
-        // Toggle floats inside the bubble (FrameLayout bottom|end); no extra positioning needed.
+        val toggle = h.textCollapseToggle
+        if (toggle.visibility != View.VISIBLE) {
+            toggle.translationY = 0f
+            return
+        }
+        if (affixViewportTop == Int.MIN_VALUE || affixViewportBottom == Int.MIN_VALUE) {
+            toggle.translationY = 0f
+            return
+        }
+        val bubble = h.layoutAssistantBubble
+        if (bubble.height <= 0 || toggle.height <= 0) {
+            toggle.post { applyCollapseToggleAffix(h) }
+            return
+        }
+        val baselineTop = toggle.top
+        val pos = IntArray(2)
+        bubble.getLocationOnScreen(pos)
+        val bubbleTopAbs = pos[1]
+        val bubbleBottomAbs = bubbleTopAbs + bubble.height
+        val visibleTop = maxOf(bubbleTopAbs, affixViewportTop)
+        val visibleBottom = minOf(bubbleBottomAbs, affixViewportBottom)
+        if (visibleBottom <= visibleTop) {
+            toggle.translationY = 0f
+            return
+        }
+        val centerAbs = (visibleTop + visibleBottom) / 2
+        val centerInBubble = centerAbs - bubbleTopAbs
+        val targetTop = centerInBubble - toggle.height / 2
+        toggle.translationY = (targetTop - baselineTop).toFloat()
     }
 
-    private fun setCollapseToggleLabel(toggle: ImageView?, expanded: Boolean) {
-        if (toggle == null) return
-        toggle.setImageResource(if (expanded) R.drawable.ic_collapse_expand_less else R.drawable.ic_collapse_expand_more)
+    private fun setCollapseToggleLabel(holder: AssistantHolder, expanded: Boolean) {
+        holder.textCollapseIcon.setImageResource(
+            if (expanded) R.drawable.ic_collapse_expand_less
+            else R.drawable.ic_collapse_expand_more
+        )
+        holder.textCollapseLabel.setText(
+            if (expanded) R.string.collapse_message else R.string.expand_message
+        )
     }
 
     private fun formatSeconds(ms: Long): String {

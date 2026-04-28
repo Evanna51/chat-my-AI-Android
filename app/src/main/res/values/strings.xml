@@ -228,4 +228,8 @@
     <string name="scene_away">外出</string>
     <string name="scene_custom">自定义</string>
     <string name="scene_hint">三套独立预设。切换 Tab 修改对应场景；当前生效场景为高亮项，保存后立即生效。</string>
+
+    <!-- Floating collapse / expand pill on assistant bubbles -->
+    <string name="collapse_message">收起</string>
+    <string name="expand_message">展开</string>
 </resources>
