@@ -304,6 +304,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         val sid = sessionId ?: ""
         activeResponseToken = responseToken
         responseInProgress.postValue(true)
+        val toolBridge = com.example.aichat.sync.ToolBridge.build(getApplication(), assistantId, sid)
         val handle = chatService.chat(historyForApi, apiUserMessage, options,
             object : ChatService.ChatCallback {
 
@@ -375,7 +376,14 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     event.elapsedMs = elapsedMs
                     postStreamEvent(event)
                 }
-            })
+
+                override fun onToolCallStart(toolName: String) {
+                    if (isStale()) return
+                    val event = StreamDeltaEvent(responseToken)
+                    event.toolCallStarted = toolName
+                    postStreamEvent(event)
+                }
+            }, toolBridge)
         activeChatHandle = handle
         return handle
     }
@@ -481,5 +489,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         @JvmField var reportAssistantToMemory: Boolean = false
         @JvmField var isError: Boolean = false
         @JvmField var isCancelled: Boolean = false
+        // Tool call notification (onToolCallStart)
+        @JvmField var toolCallStarted: String? = null
     }
 }

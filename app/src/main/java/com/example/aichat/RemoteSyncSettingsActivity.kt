@@ -24,6 +24,7 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
     private val executor = Executors.newSingleThreadExecutor()
 
     private lateinit var switchEnabled: MaterialSwitch
+    private lateinit var switchSearchMemoryTool: MaterialSwitch
     private lateinit var editBaseUrl: TextInputEditText
     private lateinit var editApiKey: TextInputEditText
     private lateinit var textDeviceId: TextView
@@ -39,6 +40,7 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
         findViewById<MaterialToolbar>(R.id.toolbar).setNavigationOnClickListener { finish() }
 
         switchEnabled = findViewById(R.id.switchRemoteSyncEnabled)
+        switchSearchMemoryTool = findViewById(R.id.switchSearchMemoryTool)
         editBaseUrl = findViewById(R.id.editRemoteSyncBaseUrl)
         editApiKey = findViewById(R.id.editRemoteSyncApiKey)
         textDeviceId = findViewById(R.id.textRemoteSyncDeviceId)
@@ -47,6 +49,7 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
         textLastError = findViewById(R.id.textRemoteSyncLastError)
 
         switchEnabled.isChecked = store.isEnabled()
+        switchSearchMemoryTool.isChecked = store.isSearchMemoryToolEnabled()
         editBaseUrl.setText(store.getBaseUrl())
         editApiKey.setText(store.getApiKey())
         textDeviceId.text = DeviceIdProvider.get(this)
@@ -68,6 +71,7 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
         store.setBaseUrl(baseUrl)
         store.setApiKey(apiKey)
         store.setEnabled(enabled)
+        store.setSearchMemoryToolEnabled(switchSearchMemoryTool.isChecked)
         if (enabled) SyncScheduler.start(applicationContext)
         else SyncScheduler.stop(applicationContext)
         Toast.makeText(this, R.string.remote_sync_saved, Toast.LENGTH_SHORT).show()

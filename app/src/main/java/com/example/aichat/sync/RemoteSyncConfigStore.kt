@@ -30,6 +30,15 @@ class RemoteSyncConfigStore(context: Context) {
 
     fun isReady(): Boolean = isEnabled() && getBaseUrl().isNotEmpty() && getApiKey().isNotEmpty()
 
+    /** Whether the LLM should be offered the search_memory tool during chat. */
+    fun isSearchMemoryToolEnabled(): Boolean =
+        prefs.getBoolean(KEY_TOOL_SEARCH_MEMORY, false)
+            && getBaseUrl().isNotEmpty()
+            && getApiKey().isNotEmpty()
+
+    fun setSearchMemoryToolEnabled(value: Boolean) =
+        prefs.edit().putBoolean(KEY_TOOL_SEARCH_MEMORY, value).apply()
+
     companion object {
         private const val PREFS = "wi_sync"
         private const val KEY_ENABLED = "enabled"
@@ -37,5 +46,6 @@ class RemoteSyncConfigStore(context: Context) {
         private const val KEY_API_KEY = "api_key"
         private const val KEY_LAST_SYNC_AT = "last_sync_at"
         private const val KEY_LAST_ERROR = "last_error"
+        private const val KEY_TOOL_SEARCH_MEMORY = "tool_search_memory_enabled"
     }
 }

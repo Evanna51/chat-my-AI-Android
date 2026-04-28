@@ -43,6 +43,9 @@ interface ChatApi {
         @JvmField var responseFormat: JsonObject? = null
         @SerializedName("providerOptions")
         @JvmField var providerOptions: JsonObject? = null
+        @JvmField var tools: com.google.gson.JsonArray? = null
+        @SerializedName("tool_choice")
+        @JvmField var toolChoice: JsonElement? = null
     }
 
     class ChatMessage(

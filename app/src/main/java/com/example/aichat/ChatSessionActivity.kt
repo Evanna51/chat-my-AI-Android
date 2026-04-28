@@ -759,6 +759,20 @@ class ChatSessionActivity : ThemedActivity() {
     }
 
     private fun handleStreamDeltaEvent(event: ChatViewModel.StreamDeltaEvent) {
+        if (event.toolCallStarted != null) {
+            // Reuse the typing placeholder while a tool call (e.g. search_memory)
+            // is in flight; the next stream round's first onPartial will clear it.
+            val streamingMsg = activeStreamingMessage
+            if (streamingMsg != null) {
+                stopStreamTypewriter(true)
+                streamingMsg.content = CHARACTER_MEMORY_LOADING_TEXT
+                streamingMsg.reasoning = ""
+                streamingMsg.thinkingRunning = false
+                streamingMsg.thinkingElapsedMs = 0L
+                applyMessagesAndTitle()
+            }
+            return
+        }
         if (event.delta != null) {
             // onPartial
             val streamingMsg = activeStreamingMessage

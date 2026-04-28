@@ -25,6 +25,8 @@ class ChatService(context: Context) {
 
     companion object {
         private const val TAG = "ChatService"
+        /** Maximum chained tool-call rounds before giving up. Prevents loops. */
+        private const val TOOL_LOOP_MAX_ROUNDS = 3
     }
 
     private val context: Context = context.applicationContext
@@ -76,7 +78,13 @@ class ChatService(context: Context) {
     }
 
     @JvmOverloads
-    fun chat(history: List<Message>, userMessage: String, options: SessionChatOptions? = null, callback: ChatCallback): ChatHandle {
+    fun chat(
+        history: List<Message>,
+        userMessage: String,
+        options: SessionChatOptions? = null,
+        callback: ChatCallback,
+        toolBridge: com.example.aichat.sync.ToolBridge? = null,
+    ): ChatHandle {
         val handle = ChatHandleImpl()
         val config: AiModelConfig.ResolvedConfig
         try {
@@ -152,7 +160,8 @@ class ChatService(context: Context) {
         }
 
         if (using.streamOutput) {
-            streamChat(client, config, using, messages, callback, selectedProviderId, handle)
+            streamChat(client, config, using, messages, callback, selectedProviderId, handle,
+                toolBridge = toolBridge, toolRound = 0)
             return handle
         }
 
@@ -1312,7 +1321,10 @@ class ChatService(context: Context) {
         messages: List<ChatApi.ChatMessage>,
         callback: ChatCallback,
         providerId: String,
-        handle: ChatHandleImpl
+        handle: ChatHandleImpl,
+        toolBridge: com.example.aichat.sync.ToolBridge? = null,
+        toolRound: Int = 0,
+        precomputedMessagesJson: JsonArray? = null,
     ) {
         val chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath)
         val request = JsonObject()
@@ -1320,14 +1332,19 @@ class ChatService(context: Context) {
         request.addProperty("stream", true)
         request.addProperty("temperature", using.temperature)
         request.addProperty("top_p", using.topP)
-        val arr = JsonArray()
-        for (m in messages) {
-            val one = JsonObject()
-            one.addProperty("role", m.role)
-            one.addProperty("content", m.content)
-            arr.add(one)
+        val arr = precomputedMessagesJson ?: JsonArray().also { acc ->
+            for (m in messages) {
+                val one = JsonObject()
+                one.addProperty("role", m.role)
+                one.addProperty("content", m.content)
+                acc.add(one)
+            }
         }
         request.add("messages", arr)
+        if (toolBridge != null && toolBridge.isReady() && toolRound < TOOL_LOOP_MAX_ROUNDS) {
+            request.add("tools", toolBridge.toolsJson())
+            request.addProperty("tool_choice", "auto")
+        }
         val stops = parseStopSequences(using.stop)
         if (stops != null && stops.isNotEmpty()) {
             val stopArr = JsonArray()
@@ -1391,6 +1408,8 @@ class ChatService(context: Context) {
                 var promptTokens = 0
                 var completionTokens = 0
                 var totalTokens = 0
+                val toolCallsByIndex = LinkedHashMap<Int, ToolCallBuilder>()
+                var sawToolCallFinish = false
                 try {
                     response.body.use { body ->
                         if (body == null) {
@@ -1461,6 +1480,11 @@ class ChatService(context: Context) {
                                     fullReasoning.append(reasoningDelta)
                                     callback.onReasoning(fullReasoning.toString())
                                 }
+                                if (delta.has("tool_calls") && delta.get("tool_calls").isJsonArray) {
+                                    accumulateToolCallDelta(delta.getAsJsonArray("tool_calls"), toolCallsByIndex)
+                                }
+                                val finishReason = getString(first, "finish_reason")
+                                if (finishReason == "tool_calls") sawToolCallFinish = true
                             } catch (ignored: Exception) {}
                         }
                     }
@@ -1487,10 +1511,104 @@ class ChatService(context: Context) {
                     fireCancelledOnce(callback, handle)
                     return
                 }
+                // Tool-call branch: model wants to invoke client tools. Run them
+                // server-side, append tool results to the message log, recurse
+                // into a fresh streamChat round (round-budgeted).
+                if ((sawToolCallFinish || toolCallsByIndex.isNotEmpty())
+                    && toolBridge != null && toolBridge.isReady()
+                    && toolRound < TOOL_LOOP_MAX_ROUNDS
+                ) {
+                    val toolCalls = toolCallsByIndex.values.toList()
+                    if (toolCalls.isNotEmpty()) {
+                        // 1. append assistant turn carrying tool_calls
+                        arr.add(buildAssistantToolCallMessage(toolCalls))
+                        // 2. invoke each tool, append role=tool message per call
+                        for (tc in toolCalls) {
+                            if (handle.isCancelled()) {
+                                fireCancelledOnce(callback, handle)
+                                return
+                            }
+                            try {
+                                callback.onToolCallStart(tc.name)
+                            } catch (_: Exception) {}
+                            val resultJson = toolBridge.invoke(tc.name, tc.argumentsBuilder.toString())
+                            arr.add(buildToolResultMessage(tc.id, tc.name, resultJson))
+                        }
+                        // 3. recurse with the extended message log; same handle so
+                        // cancellation still works through to the new request
+                        streamChat(client, config, using, messages, callback,
+                            providerId, handle,
+                            toolBridge = toolBridge,
+                            toolRound = toolRound + 1,
+                            precomputedMessagesJson = arr)
+                        return
+                    }
+                }
                 callback.onUsage(promptTokens, completionTokens, totalTokens, System.currentTimeMillis() - start)
                 callback.onSuccess(fullContent.toString())
             }
         })
+    }
+
+    private fun accumulateToolCallDelta(deltas: JsonArray, accum: LinkedHashMap<Int, ToolCallBuilder>) {
+        for (i in 0 until deltas.size()) {
+            val el = deltas[i]
+            if (!el.isJsonObject) continue
+            val obj = el.asJsonObject
+            val index = if (obj.has("index") && obj.get("index").isJsonPrimitive)
+                obj.get("index").asInt else i
+            val builder = accum.getOrPut(index) { ToolCallBuilder() }
+            if (obj.has("id") && obj.get("id").isJsonPrimitive) {
+                val newId = obj.get("id").asString
+                if (newId.isNotEmpty()) builder.id = newId
+            }
+            if (obj.has("type") && obj.get("type").isJsonPrimitive) {
+                builder.type = obj.get("type").asString
+            }
+            if (obj.has("function") && obj.get("function").isJsonObject) {
+                val fn = obj.getAsJsonObject("function")
+                if (fn.has("name") && fn.get("name").isJsonPrimitive) {
+                    val newName = fn.get("name").asString
+                    if (newName.isNotEmpty()) builder.name = newName
+                }
+                if (fn.has("arguments") && fn.get("arguments").isJsonPrimitive) {
+                    builder.argumentsBuilder.append(fn.get("arguments").asString)
+                }
+            }
+        }
+    }
+
+    private fun buildAssistantToolCallMessage(calls: List<ToolCallBuilder>): JsonObject = JsonObject().apply {
+        addProperty("role", "assistant")
+        // OpenAI compat: when assistant emits tool_calls, content is null.
+        add("content", com.google.gson.JsonNull.INSTANCE)
+        val arr = JsonArray()
+        for (tc in calls) {
+            arr.add(JsonObject().apply {
+                addProperty("id", tc.id.ifEmpty { "call_${System.nanoTime()}" })
+                addProperty("type", tc.type.ifEmpty { "function" })
+                add("function", JsonObject().apply {
+                    addProperty("name", tc.name)
+                    addProperty("arguments", tc.argumentsBuilder.toString())
+                })
+            })
+        }
+        add("tool_calls", arr)
+    }
+
+    private fun buildToolResultMessage(callId: String, name: String, content: String): JsonObject =
+        JsonObject().apply {
+            addProperty("role", "tool")
+            addProperty("tool_call_id", callId.ifEmpty { "call_${System.nanoTime()}" })
+            addProperty("name", name)
+            addProperty("content", content)
+        }
+
+    private class ToolCallBuilder {
+        var id: String = ""
+        var type: String = "function"
+        var name: String = ""
+        val argumentsBuilder: StringBuilder = StringBuilder()
     }
 
     private fun fireCancelledOnce(callback: ChatCallback?, handle: ChatHandleImpl?) {
@@ -1975,5 +2093,11 @@ class ChatService(context: Context) {
         fun onPartial(delta: String) {}
         fun onReasoning(reasoning: String) {}
         fun onUsage(promptTokens: Int, completionTokens: Int, totalTokens: Int, elapsedMs: Long) {}
+        /**
+         * Fired when the model emits a tool_call and the client is about to
+         * invoke it. UI can show a "calling tool" indicator. Followed by either
+         * onPartial/onReasoning (next round) or onError (tool loop aborted).
+         */
+        fun onToolCallStart(toolName: String) {}
     }
 }

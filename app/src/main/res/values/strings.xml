@@ -219,4 +219,7 @@
     <string name="remote_sync_no_pending">无待同步内容</string>
     <string name="remote_sync_drained_summary">已同步：accepted=%1$d, skipped=%2$d, rejected=%3$d</string>
     <string name="remote_sync_failed">同步失败：%1$s</string>
+    <string name="remote_sync_tools_section">工具调用</string>
+    <string name="remote_sync_tool_search_memory">允许 LLM 调用 search_memory</string>
+    <string name="remote_sync_tool_search_memory_hint">启用后，模型可在对话中检索 wi-chat-server 上的个人记忆库。需先填写服务器地址与 API Key。</string>
 </resources>

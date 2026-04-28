@@ -50,6 +50,49 @@
                     android:textAppearance="?attr/textAppearanceBodyLarge" />
             </com.google.android.material.card.MaterialCardView>
 
+            <!-- Section: 工具调用 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/remote_sync_tools_section"
+                android:textSize="13sp"
+                android:textColor="@color/ios_section_label"
+                android:paddingStart="20dp"
+                android:paddingEnd="20dp"
+                android:paddingTop="20dp"
+                android:paddingBottom="8dp" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="@color/ios_cell_bg"
+                app:cardCornerRadius="16dp"
+                app:strokeWidth="0dp">
+
+                <com.google.android.material.materialswitch.MaterialSwitch
+                    android:id="@+id/switchSearchMemoryTool"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:minHeight="56dp"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp"
+                    android:text="@string/remote_sync_tool_search_memory"
+                    android:textAppearance="?attr/textAppearanceBodyLarge" />
+            </com.google.android.material.card.MaterialCardView>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="20dp"
+                android:layout_marginTop="6dp"
+                android:text="@string/remote_sync_tool_search_memory_hint"
+                android:textSize="12sp"
+                android:textColor="@color/ios_section_label" />
+
             <!-- Section: 服务器配置 -->
             <TextView
                 android:layout_width="match_parent"
