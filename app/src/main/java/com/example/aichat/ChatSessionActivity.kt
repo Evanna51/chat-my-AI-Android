@@ -84,7 +84,7 @@ class ChatSessionActivity : ThemedActivity() {
     private lateinit var historyAdapter: MessageAdapter
     private lateinit var currentAdapter: MessageAdapter
     private val assistantMarkdownStateStore = MessageAdapter.AssistantMarkdownStateStore()
-    private var sendButtonView: MaterialButton? = null
+    private var sendButtonView: ImageButton? = null
     private var inputEditView: EditText? = null
     private lateinit var chatService: ChatService
     private lateinit var viewModel: ChatViewModel
@@ -416,7 +416,7 @@ class ChatSessionActivity : ThemedActivity() {
         val scrollMessages: NestedScrollView? = findViewById(R.id.scrollMessages)
         scrollMessagesView = scrollMessages
         val inputEdit: EditText? = findViewById(R.id.inputEdit)
-        val sendButton: MaterialButton? = findViewById(R.id.sendButton)
+        val sendButton: ImageButton? = findViewById(R.id.sendButton)
         inputEditView = inputEdit
         sendButtonView = sendButton
         val btnAdd: View? = findViewById(R.id.btnAdd)
@@ -2328,12 +2328,10 @@ class ChatSessionActivity : ThemedActivity() {
 
     private fun updateSendButtonState() {
         val btn = sendButtonView ?: return
-        btn.text = ""
-        if (assistantResponseInProgress) {
-            btn.setIconResource(R.drawable.ic_action_stop)
-        } else {
-            btn.setIconResource(android.R.drawable.ic_menu_send)
-        }
+        btn.setImageResource(
+            if (assistantResponseInProgress) R.drawable.ic_action_stop
+            else R.drawable.ic_arrow_up
+        )
     }
 
     private fun stopLatestResponse() {

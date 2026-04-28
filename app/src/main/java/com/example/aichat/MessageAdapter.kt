@@ -44,6 +44,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private var hidePinnedAssistantActions: Boolean = false
     private var actionListener: OnMessageActionListener? = null
     private val timestampFormat: SimpleDateFormat
+    private val timestampTodayFormat: SimpleDateFormat
     private val assistantStateStore: AssistantMarkdownStateStore
     private val actionPanelStateStore: ActionPanelStateStore
     private var assistantStateChangedListener: OnAssistantStateChangedListener? = null
@@ -69,6 +70,8 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.actionPanelStateStore = actionStore ?: ActionPanelStateStore()
         timestampFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         timestampFormat.timeZone = TimeZone.getDefault()
+        timestampTodayFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+        timestampTodayFormat.timeZone = TimeZone.getDefault()
     }
 
     interface OnMessageActionListener {
@@ -797,6 +800,16 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private fun formatTimestamp(createdAt: Long): String {
         if (createdAt <= 0) return ""
-        return timestampFormat.format(createdAt)
+        return if (isSameDayAsNow(createdAt)) timestampTodayFormat.format(createdAt)
+               else timestampFormat.format(createdAt)
+    }
+
+    private fun isSameDayAsNow(createdAt: Long): Boolean {
+        val cal = java.util.Calendar.getInstance()
+        val nowYear = cal.get(java.util.Calendar.YEAR)
+        val nowDay = cal.get(java.util.Calendar.DAY_OF_YEAR)
+        cal.timeInMillis = createdAt
+        return cal.get(java.util.Calendar.YEAR) == nowYear &&
+            cal.get(java.util.Calendar.DAY_OF_YEAR) == nowDay
     }
 }

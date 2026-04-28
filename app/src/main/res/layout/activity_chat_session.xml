@@ -271,74 +271,79 @@
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-    <!-- Glass input bar -->
+    <!-- iMessage-style input bar: white pill + circular send + free-floating + button below. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:paddingHorizontal="10dp"
-        android:paddingTop="8dp"
-        android:paddingBottom="8dp"
-        android:background="@drawable/bg_glass_bottom_bar"
-        android:elevation="6dp">
+        android:paddingHorizontal="14dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="14dp">
 
-        <LinearLayout
+        <FrameLayout
+            android:id="@+id/inputPill"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:gravity="bottom">
+            android:background="@drawable/bg_input_pill"
+            android:elevation="3dp"
+            android:paddingStart="18dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp">
+
             <EditText
                 android:id="@+id/inputEdit"
-                android:layout_width="0dp"
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
+                android:layout_marginEnd="56dp"
                 android:hint="@string/chat_hint"
                 android:inputType="textMultiLine|textCapSentences"
-                android:maxLines="5"
+                android:maxLines="6"
                 android:minHeight="48dp"
-                android:background="@drawable/bg_glass_toolbar"
-                android:padding="12dp"
-                android:layout_marginEnd="8dp"
+                android:background="@android:color/transparent"
+                android:paddingTop="12dp"
+                android:paddingBottom="12dp"
                 android:textSize="15sp"
                 android:textColor="?attr/colorOnSurface"
                 android:textColorHint="@color/ios_section_label" />
-            <com.google.android.material.button.MaterialButton
+
+            <ImageButton
                 android:id="@+id/sendButton"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:padding="0dp"
-                android:minWidth="0dp"
-                android:minHeight="0dp"
-                android:text=""
-                app:icon="@android:drawable/ic_menu_send"
-                app:iconGravity="textStart"
-                app:iconPadding="0dp"
-                app:iconSize="22dp"
-                app:cornerRadius="24dp" />
-        </LinearLayout>
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_gravity="bottom|end"
+                android:layout_margin="2dp"
+                android:padding="10dp"
+                android:scaleType="fitCenter"
+                android:background="@drawable/bg_send_button"
+                android:src="@drawable/ic_arrow_up"
+                android:tint="?attr/colorOnPrimary"
+                android:contentDescription="@string/send" />
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
             android:gravity="center_vertical"
-            android:layout_marginTop="4dp">
+            android:layout_marginTop="10dp">
 
             <ImageButton
                 android:id="@+id/btnAdd"
                 android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
+                android:background="@drawable/bg_input_add_button"
                 android:contentDescription="@string/add"
                 android:src="@drawable/ic_add"
-                android:padding="6dp"
-                app:tint="?attr/colorPrimary" />
+                android:padding="8dp"
+                app:tint="?attr/colorOnSurface" />
 
             <LinearLayout
                 android:id="@+id/layoutAddActions"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
+                android:layout_marginStart="8dp"
                 android:visibility="gone">
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnAddFile"

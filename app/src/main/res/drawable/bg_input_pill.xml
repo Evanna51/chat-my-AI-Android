@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- iMessage-style input pill: pure white, very large radius, hairline stroke. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/ios_cell_bg" />
+    <corners android:radius="22dp" />
+    <stroke
+        android:width="0.5dp"
+        android:color="@color/glass_input_stroke_idle" />
+</shape>
