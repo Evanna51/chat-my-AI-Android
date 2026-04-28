@@ -54,31 +54,31 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.GlassTextInputLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="@string/session_title"
-                        style="@style/Widget.AIChat.TextInputLayout">
+                        style="@style/Widget.AIChat.GlassInput">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/editSessionTitle"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="text" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                    </com.example.aichat.widget.GlassTextInputLayout>
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.GlassTextInputLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:hint="@string/session_avatar_optional"
-                        style="@style/Widget.AIChat.TextInputLayout">
+                        style="@style/Widget.AIChat.GlassInput">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/editSessionAvatar"
                             android:layout_width="120dp"
                             android:layout_height="wrap_content"
                             android:inputType="text"
                             android:maxLength="6" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                    </com.example.aichat.widget.GlassTextInputLayout>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

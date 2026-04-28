@@ -84,12 +84,12 @@
         app:cardCornerRadius="16dp"
         app:strokeWidth="0dp">
 
-        <com.google.android.material.textfield.TextInputLayout
+        <com.example.aichat.widget.GlassTextInputLayout
             android:id="@+id/layoutSystemPrompt"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="@string/system_prompt"
-            style="@style/Widget.AIChat.TextInputLayout"
+            style="@style/Widget.AIChat.GlassInput"
             android:layout_margin="16dp">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/editSystemPrompt"
@@ -100,7 +100,7 @@
                 android:maxLines="12"
                 android:minLines="4"
                 android:scrollbars="vertical" />
-        </com.google.android.material.textfield.TextInputLayout>
+        </com.example.aichat.widget.GlassTextInputLayout>
     </com.google.android.material.card.MaterialCardView>
 
     <!-- Section: 参数 -->
@@ -135,31 +135,31 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
-                <com.google.android.material.textfield.TextInputLayout
+                <com.example.aichat.widget.GlassTextInputLayout
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:hint="@string/temperature"
-                    style="@style/Widget.AIChat.TextInputLayout">
+                    style="@style/Widget.AIChat.GlassInput">
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/editTemperature"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="numberDecimal" />
-                </com.google.android.material.textfield.TextInputLayout>
-                <com.google.android.material.textfield.TextInputLayout
+                </com.example.aichat.widget.GlassTextInputLayout>
+                <com.example.aichat.widget.GlassTextInputLayout
                     android:layout_width="0dp"
                     android:layout_weight="1"
                     android:layout_height="wrap_content"
                     android:layout_marginStart="8dp"
                     android:hint="@string/top_p"
-                    style="@style/Widget.AIChat.TextInputLayout">
+                    style="@style/Widget.AIChat.GlassInput">
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/editTopP"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:inputType="numberDecimal" />
-                </com.google.android.material.textfield.TextInputLayout>
+                </com.example.aichat.widget.GlassTextInputLayout>
             </LinearLayout>
 
             <TextView

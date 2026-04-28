@@ -112,16 +112,16 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.GlassTextInputLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="@string/assistant_name"
-                        style="@style/Widget.AIChat.TextInputLayout">
+                        style="@style/Widget.AIChat.GlassInput">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/editAssistantName"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                    </com.example.aichat.widget.GlassTextInputLayout>
 
                     <TextView
                         android:layout_width="match_parent"
@@ -285,12 +285,12 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.GlassTextInputLayout
                         android:id="@+id/layoutAssistantSystemPrompt"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="@string/system_prompt"
-                        style="@style/Widget.AIChat.TextInputLayout">
+                        style="@style/Widget.AIChat.GlassInput">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/editAssistantSystemPrompt"
                             android:layout_width="match_parent"
@@ -300,15 +300,15 @@
                             android:maxLines="12"
                             android:minLines="4"
                             android:scrollbars="vertical" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                    </com.example.aichat.widget.GlassTextInputLayout>
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.GlassTextInputLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:hint="@string/assistant_first_dialogue"
                         app:helperText="@string/first_dialogue_helper"
-                        style="@style/Widget.AIChat.TextInputLayout">
+                        style="@style/Widget.AIChat.GlassInput">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/editAssistantFirstDialogue"
                             android:layout_width="match_parent"
@@ -318,7 +318,7 @@
                             android:maxLines="6"
                             android:minLines="2"
                             android:scrollbars="vertical" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                    </com.example.aichat.widget.GlassTextInputLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
