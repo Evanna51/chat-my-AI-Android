@@ -1,10 +1,17 @@
 package com.example.aichat
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "message")
+@Entity(
+    tableName = "message",
+    indices = [
+        Index(value = ["synced", "createdAt"], name = "idx_message_pending_sync"),
+    ],
+)
 class Message {
 
     companion object {
@@ -35,7 +42,34 @@ class Message {
     var thinkingElapsedMs: Long = 0
 
     @JvmField
+    @ColumnInfo(defaultValue = "''")
     var embedding: String = ""
+
+    /** UUID v7, client-generated for sync. Empty = legacy / not eligible for remote sync. */
+    @JvmField
+    @ColumnInfo(defaultValue = "''")
+    var turnId: String = ""
+
+    /** Snapshot of bound assistantId at insert time. Empty = no assistant bound. */
+    @JvmField
+    @ColumnInfo(defaultValue = "''")
+    var assistantId: String = ""
+
+    /** 0 = pending push, 1 = pushed (or skipped via already_exists). */
+    @JvmField
+    @ColumnInfo(defaultValue = "0")
+    var synced: Int = 0
+
+    @JvmField
+    @ColumnInfo(defaultValue = "0")
+    var syncAttempts: Int = 0
+
+    @JvmField
+    var lastAttemptAt: Long? = null
+
+    @JvmField
+    @ColumnInfo(defaultValue = "''")
+    var lastError: String = ""
 
     @Ignore
     @JvmField

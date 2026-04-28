@@ -154,6 +154,23 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         }
     }
 
+    /**
+     * Insert a message and stamp it for remote sync if [assistantId] is bound.
+     * Empty/blank assistantId → leave turnId empty so drainer skips this row.
+     */
+    fun insertMessageAsync(message: Message, assistantId: String?) {
+        stampForSync(message, assistantId)
+        insertMessageAsync(message)
+    }
+
+    private fun stampForSync(message: Message, assistantId: String?) {
+        val aid = assistantId?.trim().orEmpty()
+        if (aid.isEmpty()) return
+        if (message.turnId.isEmpty()) message.turnId = com.example.aichat.sync.UuidV7.next()
+        if (message.assistantId.isEmpty()) message.assistantId = aid
+        message.synced = 0
+    }
+
     fun persistSessionMessagesAsync(snapshot: List<Message>) {
         val sid = sessionId ?: return
         val copy: List<Message> = ArrayList(snapshot)
@@ -300,7 +317,9 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     // Persist to DB as fallback for when Activity is detached/destroyed
                     executor.execute {
                         try {
-                            db.messageDao().insert(Message(sid, Message.ROLE_ASSISTANT, safeContent))
+                            val msg = Message(sid, Message.ROLE_ASSISTANT, safeContent)
+                            stampForSync(msg, assistantId)
+                            db.messageDao().insert(msg)
                         } catch (ignored: Exception) {}
                     }
                     val event = StreamDeltaEvent(responseToken)

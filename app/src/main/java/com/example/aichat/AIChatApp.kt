@@ -5,6 +5,8 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
+import com.example.aichat.sync.RemoteSyncConfigStore
+import com.example.aichat.sync.SyncScheduler
 import com.mikepenz.iconics.Iconics
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 
@@ -20,6 +22,9 @@ class AIChatApp : Application(), DefaultLifecycleObserver {
         ProactiveMessageNotifier(this).ensureChannel()
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
         ProactiveMessageWorkScheduler.scheduleNext(this)
+        if (RemoteSyncConfigStore(this).isEnabled()) {
+            SyncScheduler.start(this)
+        }
     }
 
     private fun applyTheme() {

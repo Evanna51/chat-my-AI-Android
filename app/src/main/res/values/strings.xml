@@ -197,4 +197,26 @@
     <string name="semantic_search_indexing">正在为 %1$d 条消息建立索引…</string>
     <string name="semantic_search_no_embedding_model">请先在「模型配置」中选择嵌入模型</string>
     <string name="semantic_search_failed">语义搜索失败：%1$s</string>
+
+    <!-- Remote sync (wi-chat-server) -->
+    <string name="remote_sync_settings">远程同步</string>
+    <string name="remote_sync_enabled">启用远程同步</string>
+    <string name="remote_sync_server_section">服务器</string>
+    <string name="remote_sync_status_section">状态</string>
+    <string name="remote_sync_base_url_hint">服务器地址（如 http://192.168.5.7:8787）</string>
+    <string name="remote_sync_api_key_hint">API Key</string>
+    <string name="remote_sync_device_id">设备 ID</string>
+    <string name="remote_sync_pending_count">待同步条数</string>
+    <string name="remote_sync_last_synced">最近同步</string>
+    <string name="remote_sync_test_connection">测试连接</string>
+    <string name="remote_sync_run_now">立即同步</string>
+    <string name="remote_sync_saved">远程同步设置已保存</string>
+    <string name="remote_sync_base_url_required">请先填写服务器地址</string>
+    <string name="remote_sync_test_ok">连接成功</string>
+    <string name="remote_sync_test_failed">连接失败：服务器不可达</string>
+    <string name="remote_sync_not_ready">请先填写服务器地址、API Key 并启用</string>
+    <string name="remote_sync_running">正在同步…</string>
+    <string name="remote_sync_no_pending">无待同步内容</string>
+    <string name="remote_sync_drained_summary">已同步：accepted=%1$d, skipped=%2$d, rejected=%3$d</string>
+    <string name="remote_sync_failed">同步失败：%1$s</string>
 </resources>

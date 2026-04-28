@@ -49,6 +49,11 @@ class SettingsActivity : ThemedActivity() {
             startActivity(Intent(this, TTSSettingsActivity::class.java))
         }
 
+        val cardRemoteSync = findViewById<View?>(R.id.cardRemoteSync)
+        cardRemoteSync?.setOnClickListener {
+            startActivity(Intent(this, RemoteSyncSettingsActivity::class.java))
+        }
+
         val includeModel = findViewById<View?>(R.id.includeModelManagement)
         if (includeModel != null) {
             setupModelManagement(includeModel)

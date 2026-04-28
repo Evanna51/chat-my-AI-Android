@@ -68,4 +68,32 @@ interface MessageDao {
 
     @Query("SELECT * FROM message WHERE embedding != ''")
     fun getAllWithEmbedding(): List<Message>
+
+    // ─────────── Remote sync queue ───────────
+
+    @Query(
+        "SELECT * FROM message " +
+        "WHERE turnId != '' AND assistantId != '' AND synced = 0 AND syncAttempts < :maxAttempts " +
+        "ORDER BY createdAt ASC LIMIT :limit"
+    )
+    fun pendingSyncBatch(maxAttempts: Int, limit: Int): List<Message>
+
+    @Query(
+        "UPDATE message SET synced = 1, lastError = '' " +
+        "WHERE turnId IN (:turnIds)"
+    )
+    fun markSynced(turnIds: List<String>)
+
+    @Query(
+        "UPDATE message SET syncAttempts = syncAttempts + 1, " +
+        "lastAttemptAt = :ts, lastError = :err " +
+        "WHERE turnId IN (:turnIds)"
+    )
+    fun markSyncFailed(turnIds: List<String>, ts: Long, err: String)
+
+    @Query("SELECT COUNT(*) FROM message WHERE turnId != '' AND synced = 0")
+    fun pendingSyncCount(): Int
+
+    @Query("SELECT COUNT(*) FROM message WHERE turnId != '' AND synced = 1 AND assistantId = :assistantId")
+    fun syncedCountForAssistant(assistantId: String): Int
 }

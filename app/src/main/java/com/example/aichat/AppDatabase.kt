@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         MyAssistantEntity::class,
         SessionAssistantBindingEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -129,6 +129,21 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `message` ADD COLUMN `turnId` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `message` ADD COLUMN `assistantId` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `message` ADD COLUMN `synced` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `message` ADD COLUMN `syncAttempts` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `message` ADD COLUMN `lastAttemptAt` INTEGER")
+                db.execSQL("ALTER TABLE `message` ADD COLUMN `lastError` TEXT NOT NULL DEFAULT ''")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `idx_message_pending_sync` " +
+                    "ON `message`(`synced`, `createdAt`)"
+                )
+            }
+        }
+
         @JvmStatic
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -137,7 +152,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "ai_chat_db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .allowMainThreadQueries() // 临时：待优化2(ViewModel)完成后移除
                 .build()
                 .also { INSTANCE = it }

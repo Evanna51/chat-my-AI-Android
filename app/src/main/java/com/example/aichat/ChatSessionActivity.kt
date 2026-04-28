@@ -583,7 +583,7 @@ class ChatSessionActivity : ThemedActivity() {
         activeChatHandle = null
 
         val userMsg = Message(sessionId, Message.ROLE_USER, text)
-        viewModel.insertMessageAsync(userMsg)
+        viewModel.insertMessageAsync(userMsg, assistantId)
         allMessages.add(userMsg)
         applyMessagesAndTitle()
         maybeAutoScrollToBottom(true)
@@ -1276,7 +1276,7 @@ class ChatSessionActivity : ThemedActivity() {
         if (firstDialogue.isEmpty()) return
         val opening = Message(sessionId, Message.ROLE_ASSISTANT, firstDialogue)
         allMessages.add(opening)
-        viewModel.insertMessageAsync(opening)
+        viewModel.insertMessageAsync(opening, assistantId)
     }
 
     private fun bindMessageActions(adapter: MessageAdapter?) {
