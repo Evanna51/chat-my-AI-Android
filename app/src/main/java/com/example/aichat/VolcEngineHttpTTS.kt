@@ -102,12 +102,9 @@ object VolcEngineHttpTTS {
                 val audioParams = JSONObject().apply {
                     put("format", encoding)
                     put("sample_rate", 24000)
-                    params?.emotion?.let { put("emotion", it) }
-                    params?.emotionScale?.let { put("emotion_scale", it) }
-                    params?.speechRate?.let { put("speech_rate", it) }
-                    params?.loudnessRate?.let { put("loudness_rate", it) }
-                    params?.pitchRate?.let { put("pitch_rate", it) }
                 }
+                // emotion / emotion_scale / speech_rate / loudness_rate / pitch_rate 必须放在
+                // req_params 顶层（与 text、speaker 同级），塞进 audio_params 服务端不识别。
                 val requestJson = JSONObject().apply {
                     put("user", JSONObject().apply {
                         put("uid", "android_user")
@@ -116,6 +113,11 @@ object VolcEngineHttpTTS {
                         put("text", text)
                         put("speaker", config.getVoiceType())
                         put("audio_params", audioParams)
+                        params?.emotion?.let { put("emotion", it) }
+                        params?.emotionScale?.let { put("emotion_scale", it) }
+                        params?.speechRate?.let { put("speech_rate", it) }
+                        params?.loudnessRate?.let { put("loudness_rate", it) }
+                        params?.pitchRate?.let { put("pitch_rate", it) }
                     })
                 }
 
