@@ -17,7 +17,10 @@ import java.util.concurrent.TimeUnit
 
 class CharacterMemoryService(context: Context) {
 
-    private val configStore: CharacterMemoryConfigStore = CharacterMemoryConfigStore(context)
+    // Unified with the remote sync settings page — this service now reads from
+    // the same SharedPreferences as the wi-chat-server sync feature.
+    private val configStore: com.example.aichat.sync.RemoteSyncConfigStore =
+        com.example.aichat.sync.RemoteSyncConfigStore(context)
 
     fun isEnabled(): Boolean = configStore.isEnabled()
 
@@ -114,9 +117,9 @@ class CharacterMemoryService(context: Context) {
         }
 
         val client = OkHttpClient.Builder()
-            .connectTimeout(configStore.getConnectTimeoutMs().toLong(), TimeUnit.MILLISECONDS)
-            .readTimeout(configStore.getReadTimeoutMs().toLong(), TimeUnit.MILLISECONDS)
-            .writeTimeout(configStore.getReadTimeoutMs().toLong(), TimeUnit.MILLISECONDS)
+            .connectTimeout(CONNECT_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .readTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .writeTimeout(READ_TIMEOUT_MS, TimeUnit.MILLISECONDS)
             .build()
 
         val requestBuilder = Request.Builder().url(url)
@@ -138,9 +141,8 @@ class CharacterMemoryService(context: Context) {
             if (!response.isSuccessful) {
                 throw IllegalStateException("HTTP ${response.code}: $body")
             }
-            if (configStore.isDebugLogEnabled()) {
-                Log.d(TAG, "$method $path ok, response=$body")
-            }
+            // Debug logging removed during config merger; rely on OkHttp logging
+            // interceptor / network inspector when needed.
             return body
         }
     }
@@ -295,6 +297,8 @@ class CharacterMemoryService(context: Context) {
 
     companion object {
         private const val TAG = "CharacterMemoryService"
+        private const val CONNECT_TIMEOUT_MS = 5_000L
+        private const val READ_TIMEOUT_MS = 15_000L
         private val JSON = "application/json; charset=utf-8".toMediaType()
         private val GSON = Gson()
     }

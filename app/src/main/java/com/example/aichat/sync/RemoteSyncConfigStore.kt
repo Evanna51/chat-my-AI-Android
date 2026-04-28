@@ -9,8 +9,37 @@ import android.content.Context
  */
 class RemoteSyncConfigStore(context: Context) {
 
-    private val prefs = context.applicationContext
-        .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val appContext = context.applicationContext
+    private val prefs = appContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    init {
+        migrateFromLegacyCharacterMemoryStoreIfNeeded()
+    }
+
+    /**
+     * One-shot migration: when the new wi_sync store is empty but the old
+     * `character_memory` SP has values (from before the merger), copy them
+     * over so the user doesn't have to re-enter baseUrl / apiKey.
+     */
+    private fun migrateFromLegacyCharacterMemoryStoreIfNeeded() {
+        if (prefs.getBoolean(KEY_MIGRATED_FROM_CHARACTER_MEMORY, false)) return
+        val legacy = appContext.getSharedPreferences("character_memory", Context.MODE_PRIVATE)
+        val legacyBaseUrl = legacy.getString("base_url", "")?.trim()?.trimEnd('/') ?: ""
+        val legacyApiKey = legacy.getString("api_key", "")?.trim() ?: ""
+        val legacyEnabled = legacy.getBoolean("enabled", false)
+        val editor = prefs.edit()
+        if (prefs.getString(KEY_BASE_URL, "").isNullOrEmpty() && legacyBaseUrl.isNotEmpty()) {
+            editor.putString(KEY_BASE_URL, legacyBaseUrl)
+        }
+        if (prefs.getString(KEY_API_KEY, "").isNullOrEmpty() && legacyApiKey.isNotEmpty()) {
+            editor.putString(KEY_API_KEY, legacyApiKey)
+        }
+        // Only inherit `enabled` if user hadn't touched the new store yet.
+        if (!prefs.contains(KEY_ENABLED) && legacyEnabled) {
+            editor.putBoolean(KEY_ENABLED, true)
+        }
+        editor.putBoolean(KEY_MIGRATED_FROM_CHARACTER_MEMORY, true).apply()
+    }
 
     fun isEnabled(): Boolean = prefs.getBoolean(KEY_ENABLED, false)
     fun setEnabled(value: Boolean) = prefs.edit().putBoolean(KEY_ENABLED, value).apply()
@@ -47,5 +76,6 @@ class RemoteSyncConfigStore(context: Context) {
         private const val KEY_LAST_SYNC_AT = "last_sync_at"
         private const val KEY_LAST_ERROR = "last_error"
         private const val KEY_TOOL_SEARCH_MEMORY = "tool_search_memory_enabled"
+        private const val KEY_MIGRATED_FROM_CHARACTER_MEMORY = "migrated_from_character_memory"
     }
 }

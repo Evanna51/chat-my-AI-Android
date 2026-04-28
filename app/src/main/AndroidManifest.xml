@@ -86,11 +86,6 @@
             android:parentActivityName=".SettingsActivity"
             android:theme="@style/Theme.AIChat" />
         <activity
-            android:name=".CharacterMemorySettingsActivity"
-            android:exported="false"
-            android:parentActivityName=".SettingsActivity"
-            android:theme="@style/Theme.AIChat" />
-        <activity
             android:name=".RemoteSyncSettingsActivity"
             android:exported="false"
             android:parentActivityName=".SettingsActivity"

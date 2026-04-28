@@ -39,11 +39,6 @@ class SettingsActivity : ThemedActivity() {
         findViewById<View>(R.id.cardModelConfig).setOnClickListener {
             startActivity(Intent(this, ModelConfigActivity::class.java))
         }
-        val cardCharacterMemory = findViewById<View?>(R.id.cardCharacterMemory)
-        cardCharacterMemory?.setOnClickListener {
-            startActivity(Intent(this, CharacterMemorySettingsActivity::class.java))
-        }
-
         val cardTTSSettings = findViewById<View?>(R.id.cardTTSSettings)
         cardTTSSettings?.setOnClickListener {
             startActivity(Intent(this, TTSSettingsActivity::class.java))
