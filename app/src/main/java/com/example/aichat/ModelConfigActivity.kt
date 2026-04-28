@@ -10,10 +10,10 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.materialswitch.MaterialSwitch
 
-/** 模型配置：为各任务选用模型预设 */
+/** 模型配置：为各任务选用模型预设，按场景（居家/外出/自定义）三套独立维护 */
 class ModelConfigActivity : ThemedActivity() {
 
     private lateinit var modelConfig: ModelConfig
@@ -23,20 +23,18 @@ class ModelConfigActivity : ThemedActivity() {
     private var textSummaryModel: TextView? = null
     private var textNovelSharpModel: TextView? = null
     private var textEmbeddingModel: TextView? = null
-    private var chatPreset: String? = null
-    private var threadNamingPreset: String? = null
-    private var searchPreset: String? = null
-    private var summaryPreset: String? = null
-    private var novelSharpPreset: String? = null
-    private var embeddingPreset: String? = null
-    private var switchHomeMode: MaterialSwitch? = null
-    private var editingHomeMode = true
+
+    private val drafts: MutableMap<ModelConfig.Scene, MutableMap<ModelConfig.Field, String>> =
+        EnumMap(ModelConfig.Scene::class.java)
+    private var editingScene: ModelConfig.Scene = ModelConfig.Scene.HOME
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_model_config)
 
         modelConfig = ModelConfig(this)
+        loadAllScenesIntoDrafts()
+        editingScene = modelConfig.getActiveScene()
 
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
@@ -48,44 +46,32 @@ class ModelConfigActivity : ThemedActivity() {
         textSummaryModel = findViewById(R.id.textSummaryModel)
         textNovelSharpModel = findViewById(R.id.textNovelSharpModel)
         textEmbeddingModel = findViewById(R.id.textEmbeddingModel)
-        switchHomeMode = findViewById(R.id.switchHomeMode)
 
-        switchHomeMode?.let { sw ->
-            editingHomeMode = modelConfig.isHomeModeEnabled()
-            sw.isChecked = editingHomeMode
-            sw.setOnCheckedChangeListener { _, isChecked ->
-                editingHomeMode = isChecked
-                refreshDisplay()
-            }
+        val toggleGroup = findViewById<MaterialButtonToggleGroup>(R.id.sceneToggleGroup)
+        toggleGroup.check(buttonIdForScene(editingScene))
+        toggleGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) return@addOnButtonCheckedListener
+            editingScene = sceneForButtonId(checkedId) ?: ModelConfig.Scene.HOME
+            refreshDisplay()
         }
 
         refreshDisplay()
 
-        findViewById<View>(R.id.cardChatModel).setOnClickListener { showPicker(0) }
-        findViewById<View>(R.id.cardThreadNamingModel).setOnClickListener { showPicker(1) }
-        findViewById<View>(R.id.cardSearchModel).setOnClickListener { showPicker(2) }
-        findViewById<View>(R.id.cardSummaryModel).setOnClickListener { showPicker(3) }
-        findViewById<View>(R.id.cardNovelSharpModel).setOnClickListener { showPicker(4) }
-        findViewById<View>(R.id.cardEmbeddingModel).setOnClickListener { showPicker(5) }
+        findViewById<View>(R.id.cardChatModel).setOnClickListener { showPicker(ModelConfig.Field.CHAT) }
+        findViewById<View>(R.id.cardThreadNamingModel).setOnClickListener { showPicker(ModelConfig.Field.THREAD_NAMING) }
+        findViewById<View>(R.id.cardSearchModel).setOnClickListener { showPicker(ModelConfig.Field.SEARCH) }
+        findViewById<View>(R.id.cardSummaryModel).setOnClickListener { showPicker(ModelConfig.Field.SUMMARY) }
+        findViewById<View>(R.id.cardNovelSharpModel).setOnClickListener { showPicker(ModelConfig.Field.NOVEL_SHARP) }
+        findViewById<View>(R.id.cardEmbeddingModel).setOnClickListener { showPicker(ModelConfig.Field.EMBEDDING) }
 
-        val btnSave = findViewById<MaterialButton>(R.id.btnSave)
-        btnSave.setOnClickListener {
-            if (editingHomeMode) {
-                modelConfig.setHomeChatPreset(chatPreset ?: "")
-                modelConfig.setHomeThreadNamingPreset(threadNamingPreset ?: "")
-                modelConfig.setHomeSearchPreset(searchPreset ?: "")
-                modelConfig.setHomeSummaryPreset(summaryPreset ?: "")
-                modelConfig.setHomeNovelSharpPreset(novelSharpPreset ?: "")
-                modelConfig.setHomeEmbeddingPreset(embeddingPreset ?: "")
-            } else {
-                modelConfig.setAwayChatPreset(chatPreset ?: "")
-                modelConfig.setAwayThreadNamingPreset(threadNamingPreset ?: "")
-                modelConfig.setAwaySearchPreset(searchPreset ?: "")
-                modelConfig.setAwaySummaryPreset(summaryPreset ?: "")
-                modelConfig.setAwayNovelSharpPreset(novelSharpPreset ?: "")
-                modelConfig.setAwayEmbeddingPreset(embeddingPreset ?: "")
+        findViewById<MaterialButton>(R.id.btnSave).setOnClickListener {
+            for (scene in ModelConfig.Scene.values()) {
+                val sceneDraft = drafts[scene] ?: continue
+                for (field in ModelConfig.Field.values()) {
+                    modelConfig.setPreset(scene, field, sceneDraft[field] ?: "")
+                }
             }
-            modelConfig.setHomeModeEnabled(editingHomeMode)
+            modelConfig.setActiveScene(editingScene)
             syncToConfigManager()
             finish()
         }
@@ -93,31 +79,34 @@ class ModelConfigActivity : ThemedActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Re-sync drafts in case provider/model list changed externally; preserve user's tab.
+        loadAllScenesIntoDrafts()
         refreshDisplay()
     }
 
-    private fun refreshDisplay() {
-        if (editingHomeMode) {
-            chatPreset = modelConfig.getHomeChatPreset()
-            threadNamingPreset = modelConfig.getHomeThreadNamingPreset()
-            searchPreset = modelConfig.getHomeSearchPreset()
-            summaryPreset = modelConfig.getHomeSummaryPreset()
-            novelSharpPreset = modelConfig.getHomeNovelSharpPreset()
-            embeddingPreset = modelConfig.getHomeEmbeddingPreset()
-        } else {
-            chatPreset = modelConfig.getAwayChatPreset()
-            threadNamingPreset = modelConfig.getAwayThreadNamingPreset()
-            searchPreset = modelConfig.getAwaySearchPreset()
-            summaryPreset = modelConfig.getAwaySummaryPreset()
-            novelSharpPreset = modelConfig.getAwayNovelSharpPreset()
-            embeddingPreset = modelConfig.getAwayEmbeddingPreset()
+    private fun loadAllScenesIntoDrafts() {
+        for (scene in ModelConfig.Scene.values()) {
+            val map = drafts.getOrPut(scene) { EnumMap(ModelConfig.Field::class.java) }
+            for (field in ModelConfig.Field.values()) {
+                map[field] = modelConfig.getPreset(scene, field)
+            }
         }
-        updateText(textChatModel, chatPreset)
-        updateText(textThreadNamingModel, threadNamingPreset)
-        updateText(textSearchModel, searchPreset)
-        updateText(textSummaryModel, summaryPreset)
-        updateText(textNovelSharpModel, novelSharpPreset)
-        updateText(textEmbeddingModel, embeddingPreset)
+    }
+
+    private fun draftFor(field: ModelConfig.Field): String =
+        drafts[editingScene]?.get(field) ?: ""
+
+    private fun setDraft(field: ModelConfig.Field, value: String) {
+        drafts.getOrPut(editingScene) { EnumMap(ModelConfig.Field::class.java) }[field] = value
+    }
+
+    private fun refreshDisplay() {
+        updateText(textChatModel, draftFor(ModelConfig.Field.CHAT))
+        updateText(textThreadNamingModel, draftFor(ModelConfig.Field.THREAD_NAMING))
+        updateText(textSearchModel, draftFor(ModelConfig.Field.SEARCH))
+        updateText(textSummaryModel, draftFor(ModelConfig.Field.SUMMARY))
+        updateText(textNovelSharpModel, draftFor(ModelConfig.Field.NOVEL_SHARP))
+        updateText(textEmbeddingModel, draftFor(ModelConfig.Field.EMBEDDING))
     }
 
     private fun updateText(tv: TextView?, storageKey: String?) {
@@ -129,8 +118,8 @@ class ModelConfigActivity : ThemedActivity() {
         }
         try {
             val o = ConfiguredModelPicker.Option.fromStorageKey(storageKey, this)
-            if (o != null && o.displayName != null && o.providerName != null) {
-                tv.text = "${o.displayName} (${o.providerName})"
+            if (o != null && !o.displayName.isNullOrEmpty()) {
+                tv.text = o.displayName
                 val a: TypedArray = tv.context.theme.obtainStyledAttributes(intArrayOf(android.R.attr.textColorPrimary))
                 tv.setTextColor(a.getColor(0, 0xFF212121.toInt()))
                 a.recycle()
@@ -144,7 +133,7 @@ class ModelConfigActivity : ThemedActivity() {
         }
     }
 
-    private fun showPicker(field: Int) {
+    private fun showPicker(field: ModelConfig.Field) {
         val options = ConfiguredModelPicker.getConfiguredModels(this)
         if (options.isEmpty()) {
             Toast.makeText(this, "请先在「模型管理」中添加厂商并配置 API Key、获取并添加模型", Toast.LENGTH_LONG).show()
@@ -155,35 +144,60 @@ class ModelConfigActivity : ThemedActivity() {
         val recycler = dialogView.findViewById<RecyclerView>(R.id.recyclerOptions)
         recycler.layoutManager = LinearLayoutManager(this)
 
-        val titles = arrayOf("对话选用", "话题命名选用", "搜索选用", "总结选用", "小说敏锐选用", "嵌入模型选用")
-        val currentKey = when (field) {
-            0 -> chatPreset
-            1 -> threadNamingPreset
-            2 -> searchPreset
-            3 -> summaryPreset
-            4 -> novelSharpPreset
-            else -> embeddingPreset
-        }
+        val title = "${sceneTitle(editingScene)} · ${fieldTitle(field)}"
+        val currentKey = draftFor(field)
 
         val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle(titles[field])
+            .setTitle(title)
             .setView(dialogView)
             .setNegativeButton(android.R.string.cancel, null)
             .create()
 
-        val adapter = ModelPickerAdapter(options, currentKey) { option ->
-            when (field) {
-                0 -> { chatPreset = option.getStorageKey(); updateText(textChatModel, chatPreset) }
-                1 -> { threadNamingPreset = option.getStorageKey(); updateText(textThreadNamingModel, threadNamingPreset) }
-                2 -> { searchPreset = option.getStorageKey(); updateText(textSearchModel, searchPreset) }
-                3 -> { summaryPreset = option.getStorageKey(); updateText(textSummaryModel, summaryPreset) }
-                4 -> { novelSharpPreset = option.getStorageKey(); updateText(textNovelSharpModel, novelSharpPreset) }
-                else -> { embeddingPreset = option.getStorageKey(); updateText(textEmbeddingModel, embeddingPreset) }
-            }
+        val targetTextView = textViewFor(field)
+        recycler.adapter = ModelPickerAdapter(options, currentKey) { option ->
+            val key = option.getStorageKey()
+            setDraft(field, key)
+            updateText(targetTextView, key)
             dialog.dismiss()
         }
-        recycler.adapter = adapter
         dialog.show()
+    }
+
+    private fun textViewFor(field: ModelConfig.Field): TextView? = when (field) {
+        ModelConfig.Field.CHAT -> textChatModel
+        ModelConfig.Field.THREAD_NAMING -> textThreadNamingModel
+        ModelConfig.Field.SEARCH -> textSearchModel
+        ModelConfig.Field.SUMMARY -> textSummaryModel
+        ModelConfig.Field.NOVEL_SHARP -> textNovelSharpModel
+        ModelConfig.Field.EMBEDDING -> textEmbeddingModel
+    }
+
+    private fun fieldTitle(field: ModelConfig.Field): String = when (field) {
+        ModelConfig.Field.CHAT -> "对话选用"
+        ModelConfig.Field.THREAD_NAMING -> "话题命名选用"
+        ModelConfig.Field.SEARCH -> "搜索选用"
+        ModelConfig.Field.SUMMARY -> "总结选用"
+        ModelConfig.Field.NOVEL_SHARP -> "小说敏锐选用"
+        ModelConfig.Field.EMBEDDING -> "嵌入模型选用"
+    }
+
+    private fun sceneTitle(scene: ModelConfig.Scene): String = when (scene) {
+        ModelConfig.Scene.HOME -> getString(R.string.scene_home)
+        ModelConfig.Scene.AWAY -> getString(R.string.scene_away)
+        ModelConfig.Scene.CUSTOM -> getString(R.string.scene_custom)
+    }
+
+    private fun buttonIdForScene(scene: ModelConfig.Scene): Int = when (scene) {
+        ModelConfig.Scene.HOME -> R.id.sceneTabHome
+        ModelConfig.Scene.AWAY -> R.id.sceneTabAway
+        ModelConfig.Scene.CUSTOM -> R.id.sceneTabCustom
+    }
+
+    private fun sceneForButtonId(id: Int): ModelConfig.Scene? = when (id) {
+        R.id.sceneTabHome -> ModelConfig.Scene.HOME
+        R.id.sceneTabAway -> ModelConfig.Scene.AWAY
+        R.id.sceneTabCustom -> ModelConfig.Scene.CUSTOM
+        else -> null
     }
 
     private fun syncToConfigManager() {
@@ -194,3 +208,5 @@ class ModelConfigActivity : ThemedActivity() {
         cm.setSummaryModel(modelConfig.getSummaryPreset())
     }
 }
+
+private typealias EnumMap<K, V> = java.util.EnumMap<K, V>

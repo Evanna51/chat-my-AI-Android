@@ -14,66 +14,106 @@ class ModelConfig(context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    /** 对话选用的预设 (providerId:modelId) */
-    fun getChatPreset(): String =
-        if (isHomeModeEnabled()) getHomeChatPreset() else getAwayChatPreset()
+    enum class Scene(val key: String) {
+        HOME("home"), AWAY("away"), CUSTOM("custom");
+        companion object {
+            fun fromKey(key: String?): Scene = when (key) {
+                AWAY.key -> AWAY
+                CUSTOM.key -> CUSTOM
+                else -> HOME
+            }
+        }
+    }
 
+    /** 当前生效的场景 */
+    fun getActiveScene(): Scene {
+        val raw = prefs.getString(KEY_ACTIVE_SCENE, null)
+        if (!raw.isNullOrEmpty()) return Scene.fromKey(raw)
+        // Legacy migration: home_mode_enabled boolean → home/away
+        if (prefs.contains(KEY_HOME_MODE_ENABLED)) {
+            return if (prefs.getBoolean(KEY_HOME_MODE_ENABLED, true)) Scene.HOME else Scene.AWAY
+        }
+        return Scene.HOME
+    }
+
+    fun setActiveScene(scene: Scene) = prefs.edit {
+        putString(KEY_ACTIVE_SCENE, scene.key)
+        // Keep legacy boolean roughly in sync so any code still reading it
+        // (and external SP dumps) doesn't drift wildly. CUSTOM maps to false.
+        putBoolean(KEY_HOME_MODE_ENABLED, scene == Scene.HOME)
+    }
+
+    /** 对话选用的预设 (providerId:modelId) */
+    fun getChatPreset(): String = getPreset(getActiveScene(), Field.CHAT)
     fun setChatPreset(modelKey: String?) {
-        if (isHomeModeEnabled()) setHomeChatPreset(modelKey) else setAwayChatPreset(modelKey)
+        setPreset(getActiveScene(), Field.CHAT, modelKey)
         if (!modelKey.isNullOrEmpty()) put(KEY_PRIMARY, modelKey)
     }
 
     /** 话题命名选用的预设 */
-    fun getThreadNamingPreset(): String =
-        if (isHomeModeEnabled()) getHomeThreadNamingPreset() else getAwayThreadNamingPreset()
-
-    fun setThreadNamingPreset(modelKey: String?) {
-        if (isHomeModeEnabled()) setHomeThreadNamingPreset(modelKey) else setAwayThreadNamingPreset(modelKey)
-    }
+    fun getThreadNamingPreset(): String = getPreset(getActiveScene(), Field.THREAD_NAMING)
+    fun setThreadNamingPreset(modelKey: String?) =
+        setPreset(getActiveScene(), Field.THREAD_NAMING, modelKey)
 
     /** 搜索选用的预设 */
-    fun getSearchPreset(): String =
-        if (isHomeModeEnabled()) getHomeSearchPreset() else getAwaySearchPreset()
-
-    fun setSearchPreset(modelKey: String?) {
-        if (isHomeModeEnabled()) setHomeSearchPreset(modelKey) else setAwaySearchPreset(modelKey)
-    }
+    fun getSearchPreset(): String = getPreset(getActiveScene(), Field.SEARCH)
+    fun setSearchPreset(modelKey: String?) =
+        setPreset(getActiveScene(), Field.SEARCH, modelKey)
 
     /** 嵌入选用的预设 */
-    fun getEmbeddingPreset(): String =
-        if (isHomeModeEnabled()) getHomeEmbeddingPreset() else getAwayEmbeddingPreset()
-
-    fun setEmbeddingPreset(modelKey: String?) {
-        if (isHomeModeEnabled()) setHomeEmbeddingPreset(modelKey) else setAwayEmbeddingPreset(modelKey)
-    }
+    fun getEmbeddingPreset(): String = getPreset(getActiveScene(), Field.EMBEDDING)
+    fun setEmbeddingPreset(modelKey: String?) =
+        setPreset(getActiveScene(), Field.EMBEDDING, modelKey)
 
     /** 总结选用的预设 */
-    fun getSummaryPreset(): String =
-        if (isHomeModeEnabled()) getHomeSummaryPreset() else getAwaySummaryPreset()
+    fun getSummaryPreset(): String = getPreset(getActiveScene(), Field.SUMMARY)
+    fun setSummaryPreset(modelKey: String?) =
+        setPreset(getActiveScene(), Field.SUMMARY, modelKey)
 
-    fun setSummaryPreset(modelKey: String?) {
-        if (isHomeModeEnabled()) setHomeSummaryPreset(modelKey) else setAwaySummaryPreset(modelKey)
-    }
-
-    /** 小说敏锐选用的预设 */
+    /** 小说敏锐选用的预设：当前 scene 没设 → 其他 scene → primary */
     fun getNovelSharpPreset(): String {
-        val home = isHomeModeEnabled()
-        val current = if (home) prefs.getString(KEY_NOVEL_SHARP, "") else prefs.getString(KEY_NOVEL_SHARP_AWAY, "")
-        if (!current.isNullOrEmpty()) return current
-
-        // Fallback to the other scene's novel preset first, then primary.
-        val other = if (home) prefs.getString(KEY_NOVEL_SHARP_AWAY, "") else prefs.getString(KEY_NOVEL_SHARP, "")
-        if (!other.isNullOrEmpty()) return other
+        val active = getActiveScene()
+        val current = prefs.getString(prefKey(active, Field.NOVEL_SHARP), "") ?: ""
+        if (current.isNotEmpty()) return current
+        for (s in Scene.values()) {
+            if (s == active) continue
+            val v = prefs.getString(prefKey(s, Field.NOVEL_SHARP), "") ?: ""
+            if (v.isNotEmpty()) return v
+        }
         return getPrimaryPreset()
     }
 
-    fun setNovelSharpPreset(modelKey: String?) {
-        if (isHomeModeEnabled()) setHomeNovelSharpPreset(modelKey) else setAwayNovelSharpPreset(modelKey)
+    fun setNovelSharpPreset(modelKey: String?) =
+        setPreset(getActiveScene(), Field.NOVEL_SHARP, modelKey)
+
+    /** Scene-scoped accessor. */
+    fun getPreset(scene: Scene, field: Field): String =
+        getWithPrimary(prefKey(scene, field))
+
+    fun setPreset(scene: Scene, field: Field, modelKey: String?) =
+        put(prefKey(scene, field), modelKey)
+
+    @Deprecated("Use getActiveScene() == Scene.HOME", ReplaceWith("getActiveScene() == ModelConfig.Scene.HOME"))
+    fun isHomeModeEnabled(): Boolean = getActiveScene() == Scene.HOME
+
+    @Deprecated("Use setActiveScene(...)", ReplaceWith("setActiveScene(if (enabled) ModelConfig.Scene.HOME else ModelConfig.Scene.AWAY)"))
+    fun setHomeModeEnabled(enabled: Boolean) =
+        setActiveScene(if (enabled) Scene.HOME else Scene.AWAY)
+
+    enum class Field(val keyChat: String, val keyAway: String, val keyCustom: String) {
+        CHAT(KEY_CHAT, KEY_CHAT_AWAY, KEY_CHAT_CUSTOM),
+        THREAD_NAMING(KEY_THREAD_NAMING, KEY_THREAD_NAMING_AWAY, KEY_THREAD_NAMING_CUSTOM),
+        SEARCH(KEY_SEARCH, KEY_SEARCH_AWAY, KEY_SEARCH_CUSTOM),
+        SUMMARY(KEY_SUMMARY, KEY_SUMMARY_AWAY, KEY_SUMMARY_CUSTOM),
+        NOVEL_SHARP(KEY_NOVEL_SHARP, KEY_NOVEL_SHARP_AWAY, KEY_NOVEL_SHARP_CUSTOM),
+        EMBEDDING(KEY_EMBEDDING, KEY_EMBEDDING_AWAY, KEY_EMBEDDING_CUSTOM);
     }
 
-    fun isHomeModeEnabled(): Boolean = prefs.getBoolean(KEY_HOME_MODE_ENABLED, true)
-
-    fun setHomeModeEnabled(enabled: Boolean) = prefs.edit { putBoolean(KEY_HOME_MODE_ENABLED, enabled) }
+    private fun prefKey(scene: Scene, field: Field): String = when (scene) {
+        Scene.HOME -> field.keyChat
+        Scene.AWAY -> field.keyAway
+        Scene.CUSTOM -> field.keyCustom
+    }
 
     fun getHomeChatPreset(): String = getWithPrimary(KEY_CHAT)
     fun setHomeChatPreset(modelKey: String?) = put(KEY_CHAT, modelKey)
@@ -143,19 +183,26 @@ class ModelConfig(context: Context) {
 
     companion object {
         private const val PREFS = "aichat_model_config"
-        private const val KEY_CHAT = "preset_chat"
-        private const val KEY_THREAD_NAMING = "preset_thread_naming"
-        private const val KEY_SEARCH = "preset_search"
-        private const val KEY_SUMMARY = "preset_summary"
-        private const val KEY_NOVEL_SHARP = "preset_novel_sharp"
-        private const val KEY_EMBEDDING = "preset_embedding"
-        private const val KEY_CHAT_AWAY = "preset_chat_away"
-        private const val KEY_THREAD_NAMING_AWAY = "preset_thread_naming_away"
-        private const val KEY_SEARCH_AWAY = "preset_search_away"
-        private const val KEY_SUMMARY_AWAY = "preset_summary_away"
-        private const val KEY_NOVEL_SHARP_AWAY = "preset_novel_sharp_away"
-        private const val KEY_EMBEDDING_AWAY = "preset_embedding_away"
-        private const val KEY_HOME_MODE_ENABLED = "home_mode_enabled"
+        const val KEY_CHAT = "preset_chat"
+        const val KEY_THREAD_NAMING = "preset_thread_naming"
+        const val KEY_SEARCH = "preset_search"
+        const val KEY_SUMMARY = "preset_summary"
+        const val KEY_NOVEL_SHARP = "preset_novel_sharp"
+        const val KEY_EMBEDDING = "preset_embedding"
+        const val KEY_CHAT_AWAY = "preset_chat_away"
+        const val KEY_THREAD_NAMING_AWAY = "preset_thread_naming_away"
+        const val KEY_SEARCH_AWAY = "preset_search_away"
+        const val KEY_SUMMARY_AWAY = "preset_summary_away"
+        const val KEY_NOVEL_SHARP_AWAY = "preset_novel_sharp_away"
+        const val KEY_EMBEDDING_AWAY = "preset_embedding_away"
+        const val KEY_CHAT_CUSTOM = "preset_chat_custom"
+        const val KEY_THREAD_NAMING_CUSTOM = "preset_thread_naming_custom"
+        const val KEY_SEARCH_CUSTOM = "preset_search_custom"
+        const val KEY_SUMMARY_CUSTOM = "preset_summary_custom"
+        const val KEY_NOVEL_SHARP_CUSTOM = "preset_novel_sharp_custom"
+        const val KEY_EMBEDDING_CUSTOM = "preset_embedding_custom"
+        const val KEY_HOME_MODE_ENABLED = "home_mode_enabled"
+        const val KEY_ACTIVE_SCENE = "active_scene"
 
         /** 主预设：当某任务未单独设置时，回退到此 */
         private const val KEY_PRIMARY = "preset_primary"

@@ -222,4 +222,10 @@
     <string name="remote_sync_tools_section">工具调用</string>
     <string name="remote_sync_tool_search_memory">允许 LLM 调用 search_memory</string>
     <string name="remote_sync_tool_search_memory_hint">启用后，模型可在对话中检索 wi-chat-server 上的个人记忆库。需先填写服务器地址与 API Key。</string>
+
+    <!-- Model config scene tabs -->
+    <string name="scene_home">居家</string>
+    <string name="scene_away">外出</string>
+    <string name="scene_custom">自定义</string>
+    <string name="scene_hint">三套独立预设。切换 Tab 修改对应场景；当前生效场景为高亮项，保存后立即生效。</string>
 </resources>
