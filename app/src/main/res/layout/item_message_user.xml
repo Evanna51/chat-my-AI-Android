@@ -14,6 +14,10 @@
         android:textSize="12sp"
         android:textColor="@color/chat_meta_text_color" />
 
+    <!-- User message bubble.
+         Long-pressing the bubble opens a floating action toolbar
+         (MessageActionPopup) with copy / edit / regenerate / outline / delete.
+         No persistent action row underneath — keeps the chat surface clean. -->
     <TextView
         android:id="@+id/textContent"
         android:layout_width="wrap_content"
@@ -24,105 +28,4 @@
         android:textColor="@color/chat_user_text_color"
         android:textSize="16sp"
         android:textIsSelectable="true" />
-
-    <!-- 用户消息底部操作区：3 级展开 -->
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
-        android:orientation="horizontal">
-
-        <!-- 展开按钮：Level 0 显示 <<，Level 1/2 显示 < → 主题色区分 -->
-        <ImageButton
-            android:id="@+id/actionExpand"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:padding="6dp"
-            android:background="@drawable/bg_action_button"
-            android:scaleType="centerInside"
-            android:src="@drawable/ic_action_expand_left_double"
-            android:tint="?attr/colorPrimary"
-            android:contentDescription="展开操作" />
-
-        <!-- Level 1：主操作（重新生成、复制） -->
-        <LinearLayout
-            android:id="@+id/layoutActions"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
-            android:orientation="horizontal"
-            android:visibility="gone">
-
-            <ImageButton
-                android:id="@+id/actionRegenerate"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
-                android:padding="7dp"
-                android:background="@drawable/bg_action_button"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_action_regenerate"
-                android:tint="@color/action_button_icon_tint"
-                android:contentDescription="重新生成" />
-
-            <ImageButton
-                android:id="@+id/actionCopy"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
-                android:layout_marginStart="4dp"
-                android:padding="7dp"
-                android:background="@drawable/bg_action_button"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_action_copy"
-                android:tint="@color/action_button_icon_tint"
-                android:contentDescription="复制" />
-        </LinearLayout>
-
-        <!-- Level 2：次级操作（删除、编辑） -->
-        <LinearLayout
-            android:id="@+id/layoutSecondaryActions"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:orientation="horizontal"
-            android:visibility="gone">
-
-            <ImageButton
-                android:id="@+id/actionDelete"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
-                android:padding="7dp"
-                android:background="@drawable/bg_action_button"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_action_delete"
-                android:tint="@color/ios_destructive"
-                android:contentDescription="删除" />
-
-            <ImageButton
-                android:id="@+id/actionEdit"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
-                android:layout_marginStart="4dp"
-                android:padding="7dp"
-                android:background="@drawable/bg_action_button"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_action_edit"
-                android:tint="@color/action_button_icon_tint"
-                android:contentDescription="编辑" />
-
-            <!-- 小说大纲（仅写作模式显示） -->
-            <ImageButton
-                android:id="@+id/actionOutline"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
-                android:layout_marginStart="4dp"
-                android:padding="7dp"
-                android:background="@drawable/bg_action_button"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_action_outline"
-                android:tint="@color/action_button_icon_tint"
-                android:contentDescription="小说大纲"
-                android:visibility="gone" />
-        </LinearLayout>
-
-    </LinearLayout>
 </LinearLayout>

@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/bg_message_actions_popup"
+    android:elevation="6dp"
+    android:paddingHorizontal="6dp"
+    android:paddingVertical="4dp">
+
+    <ImageButton
+        android:id="@+id/popupActionCopy"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:padding="9dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_action_copy"
+        android:tint="@color/action_button_icon_tint"
+        android:contentDescription="复制" />
+
+    <ImageButton
+        android:id="@+id/popupActionEdit"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:padding="9dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_action_edit"
+        android:tint="@color/action_button_icon_tint"
+        android:contentDescription="编辑" />
+
+    <ImageButton
+        android:id="@+id/popupActionRegenerate"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:padding="9dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_action_regenerate"
+        android:tint="@color/action_button_icon_tint"
+        android:contentDescription="重新生成" />
+
+    <ImageButton
+        android:id="@+id/popupActionOutline"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:padding="9dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_action_outline"
+        android:tint="@color/action_button_icon_tint"
+        android:contentDescription="提取到大纲"
+        android:visibility="gone" />
+
+    <ImageButton
+        android:id="@+id/popupActionDelete"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:padding="9dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:scaleType="centerInside"
+        android:src="@drawable/ic_action_delete"
+        android:tint="@color/ios_destructive"
+        android:contentDescription="删除" />
+</LinearLayout>
