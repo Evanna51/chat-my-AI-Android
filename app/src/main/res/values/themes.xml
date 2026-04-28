@@ -10,6 +10,9 @@
         <item name="colorPrimaryDeep">@color/primary_blue_deep</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.AIChat.MaterialAlertDialog</item>
         <item name="alertDialogTheme">@style/ThemeOverlay.AIChat.MaterialAlertDialog</item>
+        <!-- Unified controls: switches + radio buttons follow theme color. -->
+        <item name="materialSwitchStyle">@style/Widget.AIChat.Switch</item>
+        <item name="radioButtonStyle">@style/Widget.AIChat.RadioButton</item>
     </style>
 
     <style name="Theme.AIChat.Blue" parent="Theme.AIChat">
@@ -55,6 +58,19 @@
         <item name="boxCornerRadiusBottomEnd">14dp</item>
         <item name="boxStrokeWidth">1dp</item>
         <item name="boxStrokeWidthFocused">2dp</item>
+    </style>
+
+    <!-- Theme-tinted MaterialSwitch: track + thumb follow colorPrimary when on. -->
+    <style name="Widget.AIChat.Switch" parent="Widget.Material3.CompoundButton.MaterialSwitch">
+        <item name="trackTint">@color/aichat_switch_track</item>
+        <item name="trackDecorationTint">@android:color/transparent</item>
+        <item name="thumbTint">@color/aichat_switch_thumb</item>
+        <item name="thumbIconTint">@android:color/transparent</item>
+    </style>
+
+    <!-- Theme-tinted RadioButton: ring + dot follow colorPrimary when checked. -->
+    <style name="Widget.AIChat.RadioButton" parent="Widget.Material3.CompoundButton.RadioButton">
+        <item name="buttonTint">@color/aichat_radio_tint</item>
     </style>
 
     <!-- Liquid-glass input: rim highlight + soft bottom shadow drawn by
