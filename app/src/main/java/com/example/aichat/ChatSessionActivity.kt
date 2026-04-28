@@ -419,6 +419,11 @@ class ChatSessionActivity : ThemedActivity() {
         val sendButton: ImageButton? = findViewById(R.id.sendButton)
         inputEditView = inputEdit
         sendButtonView = sendButton
+        inputEdit?.addTextChangedListener(object : android.text.TextWatcher {
+            override fun afterTextChanged(s: android.text.Editable?) { updateSendButtonState() }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+        })
         val btnAdd: View? = findViewById(R.id.btnAdd)
         val layoutAddActions: View? = findViewById(R.id.layoutAddActions)
         val btnAddFile: View? = findViewById(R.id.btnAddFile)
@@ -2328,10 +2333,13 @@ class ChatSessionActivity : ThemedActivity() {
 
     private fun updateSendButtonState() {
         val btn = sendButtonView ?: return
-        btn.setImageResource(
-            if (assistantResponseInProgress) R.drawable.ic_action_stop
-            else R.drawable.ic_arrow_up
-        )
+        if (assistantResponseInProgress) {
+            btn.setImageResource(R.drawable.ic_action_stop)
+            btn.isEnabled = true
+        } else {
+            btn.setImageResource(R.drawable.ic_arrow_up)
+            btn.isEnabled = !inputEditView?.text?.toString()?.trim().isNullOrEmpty()
+        }
     }
 
     private fun stopLatestResponse() {

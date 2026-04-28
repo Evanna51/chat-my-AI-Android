@@ -227,11 +227,11 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         // Aliases kept for call sites
         fun getUserLevel(message: Message?): Int = getLevel(message)
 
-        /** Cycles level: 0 → 1 → 2 → 0, with LRU eviction for assistant messages */
+        /** Toggle: 0 (collapsed) ↔ 1 (expanded). Single-level fold, no cycle. */
         fun cycleLevel(message: Message?): List<Message> {
             val changed: MutableList<Message> = ArrayList()
             if (message == null) return changed
-            val next = (getLevel(message) + 1) % 3
+            val next = if (getLevel(message) == 0) 1 else 0
             levels[message] = next
             userTouched.add(message)
             changed.add(message)
@@ -478,35 +478,35 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             }
             val isLatest = isLatestAssistantMessage(m)
             var expanded = assistantStateStore.isExpanded(m)
-            if (disableAssistantCollapseToggle || isLatest) expanded = true
+            if (disableAssistantCollapseToggle) expanded = true
             val hasVisibleContent = content.trim().isNotEmpty()
             // 3-level: 0(>>) → 1(> + open/voice/outline) → 2(< + delete/edit/copy) → 0
             val rawLevel = if (pinnedAssistant && !hidePinnedAssistantActions)
                 maxOf(actionPanelStateStore.getLevel(m), 1)
             else actionPanelStateStore.getLevel(m)
-            // Latest assistant message: actions always shown, no expand toggle.
-            val assistantLevel = if (isLatest) maxOf(rawLevel, 1) else rawLevel
-            when (assistantLevel) {
-                0 -> { holder.actionExpand.setImageResource(R.drawable.ic_action_expand_left_double); holder.actionExpand.scaleX = -1f }
-                1 -> { holder.actionExpand.setImageResource(R.drawable.ic_action_expand_left); holder.actionExpand.scaleX = -1f }
-                else -> { holder.actionExpand.setImageResource(R.drawable.ic_action_expand_left); holder.actionExpand.scaleX = 1f }
-            }
-            holder.actionExpand.visibility = if (isLatest) View.GONE else View.VISIBLE
-            holder.layoutActions.visibility = if (assistantLevel >= 1) View.VISIBLE else View.GONE
-            holder.layoutSecondaryActions.visibility = if (assistantLevel >= 2) View.VISIBLE else View.GONE
-            holder.actionOutline.visibility = if (writerMode && assistantLevel >= 1) View.VISIBLE else View.GONE
+            // Single-level fold: latest is always expanded (rawLevel forced to 1).
+            val toolbarExpanded = isLatest || rawLevel >= 1
+            holder.actionExpand.setImageResource(
+                if (toolbarExpanded) R.drawable.ic_collapse_expand_less
+                else R.drawable.ic_collapse_expand_more
+            )
+            holder.actionExpand.scaleX = 1f
+            holder.actionExpand.visibility = View.VISIBLE
+            holder.layoutActions.visibility = if (toolbarExpanded) View.VISIBLE else View.GONE
+            holder.actionOutline.visibility = if (writerMode && toolbarExpanded) View.VISIBLE else View.GONE
+            holder.actionVoicePlay.visibility = if (characterMode && toolbarExpanded) View.VISIBLE else View.GONE
             if (fullBind || holder.lastHasVisibleContent != hasVisibleContent) {
-                if (disableAssistantCollapseToggle || isLatest) {
+                if (disableAssistantCollapseToggle) {
                     holder.textCollapseToggle.visibility = View.GONE
                 } else {
                     holder.textCollapseToggle.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
                 }
                 holder.lastHasVisibleContent = hasVisibleContent
             }
-            if (!disableAssistantCollapseToggle && !isLatest) {
+            if (!disableAssistantCollapseToggle) {
                 setCollapseToggleLabel(holder.textCollapseToggle, expanded)
             }
-            if (disableAssistantCollapseToggle || isLatest) {
+            if (disableAssistantCollapseToggle) {
                 holder.textCollapseToggle.setOnClickListener(null)
             }
             holder.textContent.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
@@ -588,7 +588,6 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         val layoutAssistantBubble: View = itemView.findViewById(R.id.layoutAssistantBubble)
         val actionExpand: ImageView = itemView.findViewById(R.id.actionExpand)
         val layoutActions: View = itemView.findViewById(R.id.layoutActions)
-        val layoutSecondaryActions: View = itemView.findViewById(R.id.layoutSecondaryActions)
         val layoutReasoning: View = itemView.findViewById(R.id.layoutReasoning)
         val textReasoningHeader: TextView = itemView.findViewById(R.id.textReasoningHeader)
         val textReasoningContent: TextView = itemView.findViewById(R.id.textReasoningContent)

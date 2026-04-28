@@ -93,91 +93,67 @@
         android:textColor="@color/chat_meta_text_color"
         android:visibility="gone" />
 
-    <!-- 助手消息底部操作区：3 级展开 -->
+    <!-- 助手消息底部操作区：单层折叠 + 单条工具栏。
+         顺序: [折叠按钮] 删除 / 复制 / 编辑 / 打开 / 大纲(writer) / 语音(character) -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="2dp"
+        android:layout_marginTop="4dp"
         android:orientation="horizontal"
         android:gravity="center_vertical">
 
-        <!-- 展开按钮：Level 0=>>，Level 1=>，Level 2=< → 主题色区分 -->
+        <!-- Toggle: collapsed -> expand_more (▼) / expanded -> expand_less (▲).
+             No background; sits flush with the row. -->
         <ImageButton
             android:id="@+id/actionExpand"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:padding="6dp"
-            android:background="@drawable/bg_action_button"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:padding="5dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_action_expand_left_double"
-            android:scaleX="-1"
-            android:tint="?attr/colorPrimary"
+            android:src="@drawable/ic_collapse_expand_more"
+            android:tint="@color/action_button_icon_tint"
             android:contentDescription="展开操作" />
 
-        <!-- Level 1：主操作（打开、语音、大纲） -->
         <LinearLayout
             android:id="@+id/layoutActions"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginStart="4dp"
+            android:layout_marginStart="6dp"
             android:minHeight="32dp"
             android:orientation="horizontal"
             android:gravity="center_vertical"
             android:visibility="gone">
 
             <ImageButton
-                android:id="@+id/actionOpen"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
-                android:padding="7dp"
+                android:id="@+id/actionDelete"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:padding="6dp"
                 android:background="@drawable/bg_action_button"
                 android:scaleType="centerInside"
-                android:src="@drawable/ic_action_open"
+                android:src="@drawable/ic_action_delete"
                 android:tint="@color/action_button_icon_tint"
-                android:contentDescription="打开" />
+                android:contentDescription="删除" />
 
             <ImageButton
-                android:id="@+id/actionVoicePlay"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
+                android:id="@+id/actionCopy"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_marginStart="4dp"
-                android:padding="7dp"
+                android:padding="6dp"
                 android:background="@drawable/bg_action_button"
                 android:scaleType="centerInside"
-                android:src="@drawable/ic_action_voice_play"
+                android:src="@drawable/ic_action_copy"
                 android:tint="@color/action_button_icon_tint"
-                android:contentDescription="朗读" />
-
-            <!-- 大纲：仅写作模式显示 -->
-            <ImageButton
-                android:id="@+id/actionOutline"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
-                android:layout_marginStart="4dp"
-                android:padding="7dp"
-                android:background="@drawable/bg_action_button"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_action_outline"
-                android:tint="@color/action_button_icon_tint"
-                android:contentDescription="提取到大纲"
-                android:visibility="gone" />
-        </LinearLayout>
-
-        <!-- Level 2：次级操作（编辑、复制、删除） -->
-        <LinearLayout
-            android:id="@+id/layoutSecondaryActions"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="8dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical"
-            android:visibility="gone">
+                android:contentDescription="复制" />
 
             <ImageButton
                 android:id="@+id/actionEdit"
                 android:layout_width="32dp"
                 android:layout_height="32dp"
-                android:padding="7dp"
+                android:layout_marginStart="4dp"
+                android:padding="6dp"
                 android:background="@drawable/bg_action_button"
                 android:scaleType="centerInside"
                 android:src="@drawable/ic_action_edit"
@@ -185,29 +161,43 @@
                 android:contentDescription="编辑" />
 
             <ImageButton
-                android:id="@+id/actionCopy"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
+                android:id="@+id/actionOpen"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
                 android:layout_marginStart="4dp"
-                android:padding="7dp"
+                android:padding="6dp"
                 android:background="@drawable/bg_action_button"
                 android:scaleType="centerInside"
-                android:src="@drawable/ic_action_copy"
+                android:src="@drawable/ic_action_open"
                 android:tint="@color/action_button_icon_tint"
-                android:contentDescription="复制" />
+                android:contentDescription="打开" />
 
-            <!-- 删除放最后，间距稍大以示警示 -->
+            <!-- 大纲：仅写作模式显示，主题色 -->
             <ImageButton
-                android:id="@+id/actionDelete"
-                android:layout_width="34dp"
-                android:layout_height="34dp"
-                android:layout_marginStart="8dp"
-                android:padding="7dp"
+                android:id="@+id/actionOutline"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:padding="6dp"
                 android:background="@drawable/bg_action_button"
                 android:scaleType="centerInside"
-                android:src="@drawable/ic_action_delete"
-                android:tint="@color/ios_destructive"
-                android:contentDescription="删除" />
+                android:src="@drawable/ic_action_outline"
+                android:tint="?attr/colorPrimary"
+                android:contentDescription="提取到大纲"
+                android:visibility="gone" />
+
+            <!-- 语音：仅角色模式显示，主题色 -->
+            <ImageButton
+                android:id="@+id/actionVoicePlay"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="4dp"
+                android:padding="6dp"
+                android:background="@drawable/bg_action_button"
+                android:scaleType="centerInside"
+                android:src="@drawable/ic_action_voice_play"
+                android:tint="?attr/colorPrimary"
+                android:contentDescription="朗读" />
         </LinearLayout>
 
     </LinearLayout>

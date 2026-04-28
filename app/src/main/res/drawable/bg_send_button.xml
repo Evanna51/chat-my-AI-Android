@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Round filled background for the send button (uses theme primary). -->
+<!-- Round filled background for the send button.
+     Color is set via android:backgroundTint (@color/send_button_bg) so the
+     same shape can shift between enabled / disabled tints. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android"
     android:shape="oval">
-    <solid android:color="?attr/colorPrimary" />
+    <solid android:color="@android:color/white" />
 </shape>
