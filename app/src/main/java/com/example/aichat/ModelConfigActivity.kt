@@ -10,7 +10,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /** 模型配置：为各任务选用模型预设，按场景（居家/外出/自定义）三套独立维护 */
@@ -27,6 +26,9 @@ class ModelConfigActivity : ThemedActivity() {
     private val drafts: MutableMap<ModelConfig.Scene, MutableMap<ModelConfig.Field, String>> =
         EnumMap(ModelConfig.Scene::class.java)
     private var editingScene: ModelConfig.Scene = ModelConfig.Scene.HOME
+    private val sceneTabViews: MutableMap<ModelConfig.Scene, TextView> =
+        EnumMap(ModelConfig.Scene::class.java)
+    private var sceneTabIndicator: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,13 +49,7 @@ class ModelConfigActivity : ThemedActivity() {
         textNovelSharpModel = findViewById(R.id.textNovelSharpModel)
         textEmbeddingModel = findViewById(R.id.textEmbeddingModel)
 
-        val toggleGroup = findViewById<MaterialButtonToggleGroup>(R.id.sceneToggleGroup)
-        toggleGroup.check(buttonIdForScene(editingScene))
-        toggleGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked) return@addOnButtonCheckedListener
-            editingScene = sceneForButtonId(checkedId) ?: ModelConfig.Scene.HOME
-            refreshDisplay()
-        }
+        setupSceneTabs()
 
         refreshDisplay()
 
@@ -187,17 +183,57 @@ class ModelConfigActivity : ThemedActivity() {
         ModelConfig.Scene.CUSTOM -> getString(R.string.scene_custom)
     }
 
-    private fun buttonIdForScene(scene: ModelConfig.Scene): Int = when (scene) {
-        ModelConfig.Scene.HOME -> R.id.sceneTabHome
-        ModelConfig.Scene.AWAY -> R.id.sceneTabAway
-        ModelConfig.Scene.CUSTOM -> R.id.sceneTabCustom
+    private fun setupSceneTabs() {
+        sceneTabViews[ModelConfig.Scene.HOME] = findViewById(R.id.sceneTabHome)
+        sceneTabViews[ModelConfig.Scene.AWAY] = findViewById(R.id.sceneTabAway)
+        sceneTabViews[ModelConfig.Scene.CUSTOM] = findViewById(R.id.sceneTabCustom)
+        sceneTabIndicator = findViewById(R.id.sceneTabIndicator)
+        sceneTabViews.forEach { (scene, view) ->
+            view.setOnClickListener { selectScene(scene) }
+        }
+        applySceneTabSelection()
+        // Position indicator after layout pass.
+        sceneTabViews[editingScene]?.post { positionSceneIndicator(editingScene, animate = false) }
     }
 
-    private fun sceneForButtonId(id: Int): ModelConfig.Scene? = when (id) {
-        R.id.sceneTabHome -> ModelConfig.Scene.HOME
-        R.id.sceneTabAway -> ModelConfig.Scene.AWAY
-        R.id.sceneTabCustom -> ModelConfig.Scene.CUSTOM
-        else -> null
+    private fun selectScene(scene: ModelConfig.Scene) {
+        if (editingScene == scene) return
+        editingScene = scene
+        applySceneTabSelection()
+        positionSceneIndicator(scene, animate = true)
+        refreshDisplay()
+    }
+
+    private fun applySceneTabSelection() {
+        sceneTabViews.forEach { (scene, view) ->
+            val selected = scene == editingScene
+            view.isSelected = selected
+            view.typeface = if (selected) android.graphics.Typeface.DEFAULT_BOLD else android.graphics.Typeface.DEFAULT
+        }
+    }
+
+    private fun positionSceneIndicator(scene: ModelConfig.Scene, animate: Boolean) {
+        val indicator = sceneTabIndicator ?: return
+        val target = sceneTabViews[scene] ?: return
+        if (target.width == 0) {
+            target.post { positionSceneIndicator(scene, animate) }
+            return
+        }
+        val params = indicator.layoutParams
+        if (params.width != target.width) {
+            params.width = target.width
+            indicator.layoutParams = params
+        }
+        val targetX = target.left.toFloat()
+        if (animate) {
+            indicator.animate()
+                .translationX(targetX)
+                .setDuration(260)
+                .setInterpolator(android.view.animation.PathInterpolator(0.25f, 0.1f, 0.25f, 1f))
+                .start()
+        } else {
+            indicator.translationX = targetX
+        }
     }
 
     private fun syncToConfigManager() {

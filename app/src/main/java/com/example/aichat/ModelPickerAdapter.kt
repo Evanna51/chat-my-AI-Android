@@ -24,9 +24,10 @@ class ModelPickerAdapter(
     override fun onBindViewHolder(h: Holder, position: Int) {
         val o = items[position] ?: return
         val display = o.displayName ?: ""
-        val sub = "${o.modelId ?: ""} · ${o.providerName ?: ""}"
-        h.modelDisplay.setText(display)
-        h.modelSub.setText(sub)
+        val provider = o.providerName ?: ""
+        h.modelDisplay.text = display
+        h.modelSub.text = provider
+        h.modelSub.visibility = if (provider.isEmpty()) View.GONE else View.VISIBLE
         h.itemView.isSelected = selectedKey != null && selectedKey == o.getStorageKey()
         h.itemView.setOnClickListener { listener?.onSelect(o) }
     }
