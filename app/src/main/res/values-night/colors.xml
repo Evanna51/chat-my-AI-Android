@@ -66,4 +66,10 @@
     <color name="shadow_spot">#20000000</color>
     <!-- iOS destructive (dark) -->
     <color name="ios_destructive">#FF453A</color>
+    <!-- Glass input (dark) -->
+    <color name="glass_input_fill">#1AFFFFFF</color>
+    <color name="glass_input_stroke_idle">#3DFFFFFF</color>
+    <color name="glass_input_highlight_top">#33FFFFFF</color>
+    <color name="glass_input_shadow_bottom">#33000000</color>
+    <color name="glass_input_hint_idle">#80FFFFFF</color>
 </resources>

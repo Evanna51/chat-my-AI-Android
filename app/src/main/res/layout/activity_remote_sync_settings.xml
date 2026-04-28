@@ -124,35 +124,37 @@
                     android:paddingTop="12dp"
                     android:paddingBottom="12dp">
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.GlassTextInputLayout
+                        style="@style/Widget.AIChat.GlassInput"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:hint="@string/remote_sync_base_url_hint"
-                        app:boxBackgroundMode="outline">
+                        android:hint="@string/remote_sync_base_url_hint">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/editRemoteSyncBaseUrl"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="textUri"
-                            android:singleLine="true" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                            android:singleLine="true"
+                            android:textIsSelectable="true" />
+                    </com.example.aichat.widget.GlassTextInputLayout>
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.GlassTextInputLayout
+                        style="@style/Widget.AIChat.GlassInput"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:hint="@string/remote_sync_api_key_hint"
-                        app:boxBackgroundMode="outline"
-                        app:passwordToggleEnabled="true">
+                        app:endIconMode="password_toggle">
 
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/editRemoteSyncApiKey"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="textPassword"
-                            android:singleLine="true" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                            android:singleLine="true"
+                            android:textIsSelectable="true" />
+                    </com.example.aichat.widget.GlassTextInputLayout>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

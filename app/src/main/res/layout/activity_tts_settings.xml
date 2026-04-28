@@ -135,8 +135,8 @@
                         android:orientation="vertical"
                         android:visibility="gone">
 
-                        <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.AIChat.TextInputLayout"
+                        <com.example.aichat.widget.GlassTextInputLayout
+                            style="@style/Widget.AIChat.GlassInput"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:hint="App ID">
@@ -146,11 +146,12 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:inputType="text"
-                                android:singleLine="true" />
-                        </com.google.android.material.textfield.TextInputLayout>
+                                android:singleLine="true"
+                                android:textIsSelectable="true" />
+                        </com.example.aichat.widget.GlassTextInputLayout>
 
-                        <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.AIChat.TextInputLayout"
+                        <com.example.aichat.widget.GlassTextInputLayout
+                            style="@style/Widget.AIChat.GlassInput"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="12dp"
@@ -162,8 +163,9 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:inputType="textPassword"
-                                android:singleLine="true" />
-                        </com.google.android.material.textfield.TextInputLayout>
+                                android:singleLine="true"
+                                android:textIsSelectable="true" />
+                        </com.example.aichat.widget.GlassTextInputLayout>
                     </LinearLayout>
 
                     <!-- HTTP V3 API fields -->
@@ -173,8 +175,8 @@
                         android:layout_height="wrap_content"
                         android:orientation="vertical">
 
-                        <com.google.android.material.textfield.TextInputLayout
-                            style="@style/Widget.AIChat.TextInputLayout"
+                        <com.example.aichat.widget.GlassTextInputLayout
+                            style="@style/Widget.AIChat.GlassInput"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:hint="API Key (X-Api-Key)"
@@ -185,8 +187,9 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:inputType="textPassword"
-                                android:singleLine="true" />
-                        </com.google.android.material.textfield.TextInputLayout>
+                                android:singleLine="true"
+                                android:textIsSelectable="true" />
+                        </com.example.aichat.widget.GlassTextInputLayout>
 
                         <com.google.android.material.textfield.TextInputLayout
                             style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
@@ -255,17 +258,13 @@
                             android:singleLine="true" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.GlassTextInputLayout
                         android:id="@+id/layoutTTSVoiceType"
-                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        style="@style/Widget.AIChat.GlassInput"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="12dp"
                         android:hint="Voice Type"
-                        app:boxCornerRadiusBottomEnd="14dp"
-                        app:boxCornerRadiusBottomStart="14dp"
-                        app:boxCornerRadiusTopEnd="14dp"
-                        app:boxCornerRadiusTopStart="14dp"
                         app:endIconDrawable="@drawable/ic_action_menu"
                         app:endIconMode="custom"
                         app:endIconContentDescription="选择预设音色"
@@ -277,8 +276,9 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="text"
-                            android:singleLine="true" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                            android:singleLine="true"
+                            android:textIsSelectable="true" />
+                    </com.example.aichat.widget.GlassTextInputLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

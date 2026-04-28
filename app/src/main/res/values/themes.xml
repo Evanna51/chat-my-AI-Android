@@ -57,6 +57,19 @@
         <item name="boxStrokeWidthFocused">2dp</item>
     </style>
 
+    <!-- Liquid-glass input: rim highlight + soft bottom shadow drawn by
+         GlassTextInputLayout; theme colorPrimary feeds focused stroke. -->
+    <style name="Widget.AIChat.GlassInput" parent="Widget.AIChat.TextInputLayout">
+        <item name="boxBackgroundMode">outline</item>
+        <item name="boxBackgroundColor">@color/glass_input_fill</item>
+        <item name="boxStrokeColor">@color/glass_input_stroke</item>
+        <item name="hintTextColor">@color/glass_input_hint</item>
+        <item name="android:textColorHint">@color/glass_input_hint_idle</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="boxStrokeWidthFocused">1.5dp</item>
+        <item name="errorIconDrawable">@null</item>
+    </style>
+
     <!-- iOS 2026 公共 styles -->
     <style name="Widget.AIChat" parent="" />
 
