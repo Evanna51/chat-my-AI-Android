@@ -243,11 +243,10 @@ class ProactiveFollowUpWorker(
         val raw = resultRef[0].orEmpty()
         if (raw.isEmpty()) return Result.success()
 
-        // META 由 ChatService.onSuccess 回调前已经 strip 了; raw 即 cleanContent.
-        // 但 follow-up 也可能输出 META, 因为 Worker 的 callback 没经过 ChatService 的 onSuccess
-        // 抽取前置链路 (我们传的是空 callback). 实际 ChatService 在 onSuccess 之前已抽过, 此处 raw 就是 cleanContent.
+        // ChatService 已在 onSuccess 之前 strip 过 META, raw 即 cleanContent.
         val cleaned = raw.trim()
-        if (cleaned.isEmpty() || cleaned.equals("[SKIP]", ignoreCase = true)) {
+        // [SKIP] 检测: 容忍模型加 backtick / 标点 (e.g. `[SKIP]`, "[SKIP].", "[skip]!")
+        if (cleaned.isEmpty() || isSkipResponse(cleaned)) {
             Log.i(TAG, "follow-up SKIP / empty")
             return Result.success()
         }
@@ -308,5 +307,25 @@ class ProactiveFollowUpWorker(
         if (lastTs <= 0) return 60
         val diff = (System.currentTimeMillis() - lastTs) / 1000L
         return diff.coerceIn(30L, 1800L).toInt()
+    }
+
+    /**
+     * 容错地识别 "AI 说不发了" 的标记. 模型常见包装:
+     *   `[SKIP]`  → backtick 包
+     *   [SKIP]   → 标准
+     *   [skip]   → 小写
+     *   [SKIP].  → 句号尾巴
+     *   SKIP     → 不带括号
+     */
+    private fun isSkipResponse(s: String): Boolean {
+        if (s.length > 30) return false  // 太长就别假定 SKIP, 当真消息处理
+        val normalized = s.trim()
+            .trim('`', '"', '\'', '“', '”', '‘', '’')
+            .trim()
+            .trimEnd('.', '。', '!', '！', '?', '？')
+            .trim()
+            .lowercase(java.util.Locale.ROOT)
+        return normalized == "[skip]" || normalized == "skip" ||
+            normalized == "(skip)" || normalized == "<skip>"
     }
 }
