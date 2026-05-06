@@ -1512,6 +1512,16 @@ class ChatService(context: Context) {
         } else {
             messages.add(ChatApi.ChatMessage("user", finalUser))
         }
+        // Pass 3: 历史的第一条 (system 之后) 必须是 user, 否则 Qwen / llama.cpp 等
+        // jinja 模板会报 "No user query found in messages.". 自动对话场景下, follow-up
+        // 是连续 assistant 行, contextMessageCount 截断恰好可能把对应的 user 切掉,
+        // 留下"以 assistant 起头"的窗口. 此处把 system 之后所有领头的 assistant 行删掉,
+        // 确保模板看到的 conversation 总是 user-first 交替.
+        var systemEnd = 0
+        while (systemEnd < messages.size && messages[systemEnd].role == "system") systemEnd++
+        while (systemEnd < messages.size && messages[systemEnd].role != "user") {
+            messages.removeAt(systemEnd)
+        }
         return messages
     }
 
