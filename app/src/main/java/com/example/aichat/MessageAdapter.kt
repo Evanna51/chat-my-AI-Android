@@ -489,7 +489,9 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 if (fullBind) holder.itemView.setOnClickListener(null)
                 return
             }
-            val isLatest = isLatestAssistantMessage(m)
+            // 把"最新一条 AI 消息"扩展成"最新一段连续 AI 消息" — 自动对话 split /
+            // follow-up 会产生 ≥2 条相邻 assistant 行, 它们都应当各自展开工具栏.
+            val isLatest = isInLatestAssistantRun(m)
             var expanded = assistantStateStore.isExpanded(m)
             if (disableAssistantCollapseToggle) expanded = true
             val hasVisibleContent = content.trim().isNotEmpty()
@@ -499,7 +501,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             else actionPanelStateStore.getLevel(m)
             // Single-level fold: latest is always expanded (rawLevel forced to 1).
             val toolbarExpanded = isLatest || rawLevel >= 1
-            // 最新一条 AI 消息工具栏永远展开，折叠箭头无意义 → 隐藏；
+            // 最新一段 AI 消息工具栏永远展开，折叠箭头无意义 → 隐藏；
             // 流式生成中的 AI 消息整条工具栏隐藏。
             val isStreaming = streamingAssistantMessage != null && m === streamingAssistantMessage
             val showActions = toolbarExpanded && !isStreaming
@@ -572,6 +574,29 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         for (i in messages.indices.reversed()) {
             val mm = messages[i]
             if (mm.role == Message.ROLE_ASSISTANT) return mm === m
+        }
+        return false
+    }
+
+    /**
+     * 自动对话 V3: split / follow-up 会产生连续多条 assistant 消息. 工具栏
+     * 显示逻辑应该把"最近一段连续 assistant 行"全部视为最新, 而不是只展开
+     * 末尾那一条 — 否则 split[0] / split[1] 在 split[2] 出现后立即折叠, 用户
+     * 想 copy / delete / 朗读这些气泡都得先点展开.
+     *
+     * 行为:
+     *   - 末尾不是 assistant → 没有"最新连续段" → 全部按旧规则 (用户可手动展开)
+     *   - 末尾是 assistant → 从末尾向前数到第一个非 assistant 行, 这段所有
+     *     assistant 都视为"最新", m 在其中就 true.
+     */
+    private fun isInLatestAssistantRun(m: Message): Boolean {
+        val list = messages
+        if (list.isEmpty()) return false
+        if (list[list.size - 1].role != Message.ROLE_ASSISTANT) return false
+        for (i in list.indices.reversed()) {
+            val one = list[i]
+            if (one.role != Message.ROLE_ASSISTANT) return false
+            if (one === m) return true
         }
         return false
     }

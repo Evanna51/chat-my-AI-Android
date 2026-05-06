@@ -44,8 +44,31 @@ class ProactiveChatPlanner(
     companion object {
         private const val TAG = "ProactiveChatPlanner"
 
-        /** 同一段回复内 split 各部分的渲染间隔. */
-        private const val SPLIT_INTERVAL_MS = 1500L
+        /** Split parts 间的最小间隔 (固定 "对方读 + 重新打字" 缓冲). */
+        private const val SPLIT_MIN_INTERVAL_MS = 2500L
+
+        /** 单段最长间隔, 防止 AI 写一大段然后等很久. */
+        private const val SPLIT_MAX_INTERVAL_MS = 8000L
+
+        /** 每个字符模拟打字时长. 中文 ~80ms 接近真人. */
+        private const val SPLIT_PER_CHAR_MS = 80L
+    }
+
+    /**
+     * 第 i 段 (i ≥ 1) 应该在 split[0] 渲染完之后多久出现.
+     * 累积逻辑: split[1] 等 split[0] 长度 * perChar; split[2] 等 split[0] + split[1].
+     * 每段都被 clamp 到 [MIN, MAX], 保证既不太快也不太长.
+     */
+    private fun computeSplitDelayMs(parts: List<String>, idx: Int): Long {
+        if (idx <= 0) return 0L
+        var cumulative = 0L
+        for (i in 0 until idx) {
+            val len = parts.getOrNull(i)?.length ?: 0
+            val one = (SPLIT_MIN_INTERVAL_MS + SPLIT_PER_CHAR_MS * len)
+                .coerceAtMost(SPLIT_MAX_INTERVAL_MS)
+            cumulative += one
+        }
+        return cumulative
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -131,7 +154,7 @@ class ProactiveChatPlanner(
 
         for (i in 1 until split.size) {
             val part = split[i]
-            val delay = i * SPLIT_INTERVAL_MS
+            val delay = computeSplitDelayMs(split, i)
             val r = Runnable {
                 executor.execute {
                     try {
