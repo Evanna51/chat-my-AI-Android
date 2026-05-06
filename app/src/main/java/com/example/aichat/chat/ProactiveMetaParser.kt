@@ -66,8 +66,9 @@ object ProactiveMetaParser {
 
             val split = parseSplit(obj)
             val followUp = parseFollowUp(obj)
+            val autoStop = parseAutoStop(obj)
             // 都为 null = 模型显式表态都不要; 仍然返回 meta 对象, 让上游知道协议被遵守了.
-            ProactiveMeta(split = split, followUp = followUp)
+            ProactiveMeta(split = split, followUp = followUp, autoStop = autoStop)
         } catch (_: Exception) {
             null
         }
@@ -90,6 +91,16 @@ object ProactiveMetaParser {
             if (trimmed.isNotEmpty()) out.add(trimmed)
         }
         return if (out.isEmpty()) null else out
+    }
+
+    private fun parseAutoStop(obj: com.google.gson.JsonObject): Boolean {
+        if (!obj.has("autoStop")) return false
+        return try {
+            val raw = obj.get("autoStop")
+            if (raw == null || raw.isJsonNull) false
+            else if (raw.isJsonPrimitive) raw.asBoolean
+            else false
+        } catch (_: Exception) { false }
     }
 
     private fun parseFollowUp(obj: com.google.gson.JsonObject): ProactiveFollowUp? {

@@ -62,9 +62,6 @@ class ProactiveFollowUpWorker(
         /** Follow-up history depth (与 in-process planner 对齐). */
         private const val FOLLOWUP_HISTORY_LIMIT = 10
 
-        /** 同一沉默期最多发起的 follow-up 链长度. */
-        private const val MAX_FOLLOWUP_CHAIN = 2
-
         fun tagFor(sessionId: String): String = "proactive_followup_$sessionId"
 
         /**
@@ -125,8 +122,8 @@ class ProactiveFollowUpWorker(
         val lastUserTsAtSchedule = inputData.getLong(KEY_LAST_USER_MESSAGE_TS, 0L)
 
         if (sessionId.isEmpty()) return Result.success()
-        if (chainDepth > MAX_FOLLOWUP_CHAIN) {
-            Log.i(TAG, "chain too deep ($chainDepth); aborting")
+        if (chainDepth > ProactiveBudget.HARD_FOLLOWUP_CHAIN_MAX) {
+            Log.i(TAG, "chain hard ceiling ($chainDepth); aborting")
             return Result.success()
         }
 
@@ -135,6 +132,28 @@ class ProactiveFollowUpWorker(
         val opts = optsStore.get(sessionId)
         if (!opts.autoChatEnabled) {
             Log.i(TAG, "autoChat disabled for $sessionId; skip")
+            return Result.success()
+        }
+
+        // 决定本轮用哪个模型: 云端 chain ≤ CLOUD_FOLLOWUP_CHAIN_MAX, 之后切本地 fallback.
+        // 没有本地 provider 就此停链, 不再继续.
+        val effectiveModelKey: String?
+        val tier: String
+        if (chainDepth <= ProactiveBudget.CLOUD_FOLLOWUP_CHAIN_MAX) {
+            effectiveModelKey = opts.modelKey.takeIf { it.isNotEmpty() }
+            tier = "cloud"
+        } else {
+            val local = ProactiveBudget.findLocalFallbackModelKey(ctx)
+            if (local == null) {
+                Log.i(TAG, "chain $chainDepth > cloud max but no local fallback; stop")
+                return Result.success()
+            }
+            effectiveModelKey = local
+            tier = "local"
+            Log.i(TAG, "chain $chainDepth → switching to local provider (modelKey=$local)")
+        }
+        if (effectiveModelKey.isNullOrEmpty()) {
+            Log.w(TAG, "no usable modelKey; skip")
             return Result.success()
         }
 
@@ -157,8 +176,10 @@ class ProactiveFollowUpWorker(
             return Result.success()
         }
 
-        // 注入 system 后缀, 让 follow-up 这次模型也走 META 协议.
+        // 注入 system 后缀, 让 follow-up 这次模型也走 META 协议. 同时把 modelKey
+        // 替换为本轮决策的那个 (云端 / 本地), opts.copy 不动其它字段.
         val effective = opts.copy(
+            modelKey = effectiveModelKey,
             systemPrompt = opts.systemPrompt.trimEnd() + "\n" +
                 ProactivePromptBuilder.buildSystemSuffix()
         )
@@ -171,7 +192,19 @@ class ProactiveFollowUpWorker(
         }
         val historyAsc = ArrayList(historyDesc).also { it.reverse() }
         val silenceSec = computeSilenceSec(historyAsc)
-        val instruction = ProactivePromptBuilder.buildFollowUpInstruction(silenceSec, previousIntent)
+        val budgetUsed = if (opts.proactiveResetDate == ProactiveBudget.todayStamp())
+            opts.proactiveCountToday else 0
+        val budgetLimit = ProactiveBudget.effectiveLimit(opts.proactiveDailyBudget)
+        val instruction = ProactivePromptBuilder.buildFollowUpInstruction(
+            silenceSec = silenceSec,
+            previousIntent = previousIntent,
+            chainDepth = chainDepth,
+            cloudChainMax = ProactiveBudget.CLOUD_FOLLOWUP_CHAIN_MAX,
+            hardChainMax = ProactiveBudget.HARD_FOLLOWUP_CHAIN_MAX,
+            tier = tier,
+            budgetUsed = budgetUsed,
+            budgetLimit = budgetLimit,
+        )
 
         // Synchronously fire chat call.
         val chatService = ChatService(ctx)
@@ -251,9 +284,12 @@ class ProactiveFollowUpWorker(
             Log.w(TAG, "notify failed", e)
         }
 
-        // chain
+        // chain. AI 的 META.autoStop=true 是硬刹车, 即便 followUp 非 null 也不再排.
+        val autoStop = extract.meta?.autoStop == true
         val nextFollow = extract.meta?.followUp
-        if (nextFollow != null && chainDepth + 1 <= MAX_FOLLOWUP_CHAIN) {
+        if (autoStop) {
+            Log.i(TAG, "model emitted autoStop=true; chain ends at $chainDepth")
+        } else if (nextFollow != null && chainDepth + 1 <= ProactiveBudget.HARD_FOLLOWUP_CHAIN_MAX) {
             schedule(
                 ctx,
                 sessionId,

@@ -46,9 +46,6 @@ class ProactiveChatPlanner(
 
         /** 同一段回复内 split 各部分的渲染间隔. */
         private const val SPLIT_INTERVAL_MS = 1500L
-
-        /** Follow-up chain 最大长度 (含触发那一条). 与 Worker 内部限制对齐. */
-        private const val MAX_FOLLOWUP_CHAIN = 2
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -75,6 +72,11 @@ class ProactiveChatPlanner(
         cancelPendingSplits(sessionId)
 
         applySplit(sessionId, assistantId, insertedMessageId, meta.split)
+        // autoStop 是硬刹车: 即便 followUp 非 null, 模型已声明本次不再追问.
+        if (meta.autoStop) {
+            Log.i(TAG, "model emitted autoStop=true on user-driven turn; no follow-up scheduled")
+            return
+        }
         scheduleFollowUp(
             sessionId = sessionId,
             assistantId = assistantId,
@@ -163,7 +165,7 @@ class ProactiveChatPlanner(
         chainDepth: Int,
     ) {
         if (followUp == null) return
-        if (chainDepth > MAX_FOLLOWUP_CHAIN) return
+        if (chainDepth > ProactiveBudget.HARD_FOLLOWUP_CHAIN_MAX) return
         ProactiveFollowUpWorker.schedule(
             context = context,
             sessionId = sessionId,

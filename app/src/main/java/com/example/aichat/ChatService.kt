@@ -1473,12 +1473,45 @@ class ChatService(context: Context) {
         val limit = using.contextMessageCount
         var start = 0
         if (limit >= 0 && source.size > limit) start = source.size - limit
+
+        // Pass 1: pull canonical user/assistant turns from history.
+        // - 自动对话 split / follow-up 在 DB 表现为连续 ROLE_ASSISTANT 行;
+        //   原代码把它们直接展开成 N 条 "assistant" message → 部分本地模型 jinja
+        //   模板 (Qwen / llama.cpp) 因为 user/assistant 不再交替严格而崩, 报
+        //   "No user query found in messages".
+        // - tool_call (3) / tool_result (4) 由别的链路 (precomputedMessagesJson)
+        //   处理; 这条普通路径直接过滤掉, 防止当成空 assistant 发出去搞乱模板.
+        // - System (2) 也忽略, system prompt 已经 prepend.
+        val raw = ArrayList<ChatApi.ChatMessage>()
         for (i in start until source.size) {
             val m = source[i] ?: continue
+            if (m.role != Message.ROLE_USER && m.role != Message.ROLE_ASSISTANT) continue
+            val content = (m.content ?: "")
+            if (content.isEmpty()) continue
             val role = if (m.role == Message.ROLE_USER) "user" else "assistant"
-            messages.add(ChatApi.ChatMessage(role, m.content ?: ""))
+            raw.add(ChatApi.ChatMessage(role, content))
         }
-        messages.add(ChatApi.ChatMessage("user", userMessage ?: ""))
+        // Pass 2: merge consecutive same-role with double-newline (visually合并自然语流).
+        // 这是 Phase 2 自动对话上线后 DB 里出现连续 assistant 行的副作用补丁.
+        var lastRole = ""
+        for (one in raw) {
+            if (one.role == lastRole && messages.isNotEmpty()) {
+                val tail = messages[messages.size - 1]
+                tail.content = (tail.content ?: "") + "\n\n" + (one.content ?: "")
+            } else {
+                messages.add(ChatApi.ChatMessage(one.role, one.content ?: ""))
+                lastRole = one.role
+            }
+        }
+        // 最后追加本轮 user 消息 (调用方传入的实际 prompt / follow-up instruction).
+        // 若上一条已是 user, 则同样合并, 避免再次出现 user/user 连贯.
+        val finalUser = userMessage ?: ""
+        if ("user" == lastRole && messages.isNotEmpty()) {
+            val tail = messages[messages.size - 1]
+            tail.content = (tail.content ?: "") + "\n\n" + finalUser
+        } else {
+            messages.add(ChatApi.ChatMessage("user", finalUser))
+        }
         return messages
     }
 

@@ -29,6 +29,13 @@ data class ProactiveMetaExtractResult(
 data class ProactiveMeta(
     @JvmField val split: List<String>?,
     @JvmField val followUp: ProactiveFollowUp?,
+    /**
+     * 模型主动声明 "我已经说够了" 的硬停止信号.
+     * 为 true 时 planner / Worker 立即停止 follow-up 链, 即使 [followUp] 字段非 null.
+     * 用于让 AI 自己判断"对话节奏可以收尾", 比如已经发了好几条都没回应,
+     * 或者意识到用户已离开, 不再尝试. 默认 false.
+     */
+    @JvmField val autoStop: Boolean = false,
 )
 
 /**
