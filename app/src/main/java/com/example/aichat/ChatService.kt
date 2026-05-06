@@ -2,6 +2,15 @@ package com.example.aichat
 
 import android.content.Context
 import android.util.Log
+import com.example.aichat.chat.ChatJsonHelpers.firstNonEmpty
+import com.example.aichat.chat.ChatJsonHelpers.getInt
+import com.example.aichat.chat.ChatJsonHelpers.getString
+import com.example.aichat.chat.ChatJsonHelpers.getStringFlexible
+import com.example.aichat.chat.ChatReasoningExtractor
+import com.example.aichat.chat.ChatToolCallAccumulator
+import com.example.aichat.chat.InlineThinkProcessor
+import com.example.aichat.chat.InlineThinkState
+import com.example.aichat.chat.ToolCallBuilder
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -30,6 +39,48 @@ class ChatService(context: Context) {
     }
 
     private val context: Context = context.applicationContext
+
+    /**
+     * 子任务（话题命名 / 大纲生成 / 总结 / 章节计划 / 知情边界）走这条：
+     * 用户在「编辑模型」里设的默认参数会覆盖调用方写死的 hardcoded 值。
+     * 没设就保持调用方原值。
+     */
+    private fun applyModelDefaultsToRequest(
+        request: ChatApi.ChatRequest,
+        providerId: String?,
+        modelId: String?,
+    ) {
+        val params = lookupModelDefaultParams(providerId, modelId) ?: return
+        params.temperature?.let { request.temperature = it.toDouble() }
+        params.topP?.let { request.topP = it.toDouble() }
+        params.maxTokens?.let { request.maxTokens = it }
+        params.frequencyPenalty?.let { request.frequencyPenalty = it.toDouble() }
+        params.presencePenalty?.let { request.presencePenalty = it.toDouble() }
+        params.topK?.let { request.topK = it }
+    }
+
+    private fun lookupModelDefaultParams(providerId: String?, modelId: String?): ModelDefaultParams? {
+        if (providerId.isNullOrEmpty() || modelId.isNullOrEmpty()) return null
+        val provider = ProviderManager(context).getProvider(providerId) ?: return null
+        val model = provider.models.firstOrNull { it.modelId == modelId } ?: return null
+        return model.defaultParams
+    }
+
+    /**
+     * 主对话路径走这条：会话已经显式写了哪些字段就保留，没写（null）的字段才回退到模型默认。
+     * temperature/topP 在 SessionChatOptions 里是 primitive 一定有值，所以不在这里覆盖。
+     */
+    private fun applyModelDefaultsToRequestForNullFields(
+        request: ChatApi.ChatRequest,
+        providerId: String?,
+        modelId: String?,
+    ) {
+        val params = lookupModelDefaultParams(providerId, modelId) ?: return
+        if (request.maxTokens == null) request.maxTokens = params.maxTokens
+        if (request.frequencyPenalty == null) request.frequencyPenalty = params.frequencyPenalty?.toDouble()
+        if (request.presencePenalty == null) request.presencePenalty = params.presencePenalty?.toDouble()
+        if (request.topK == null) request.topK = params.topK
+    }
 
     interface ChatHandle {
         fun cancel()
@@ -172,6 +223,12 @@ class ChatService(context: Context) {
         request.stream = false
         request.temperature = using.temperature.toString().toDouble()
         request.topP = using.topP.toString().toDouble()
+        // 会话级新参数：用户填了就用，留空时走模型默认 fallback。
+        request.maxTokens = using.maxTokens
+        request.frequencyPenalty = using.frequencyPenalty?.toDouble()
+        request.presencePenalty = using.presencePenalty?.toDouble()
+        request.topK = using.topK
+        applyModelDefaultsToRequestForNullFields(request, selectedProviderId, config.modelId)
         request.stop = parseStopSequences(using.stop)
         request.thinking = null
         request.reasoning = ProviderRequestOptionsBuilder.buildReasoningConfig(selectedProviderId, using)
@@ -302,6 +359,7 @@ class ChatService(context: Context) {
         request.maxTokens = 512
         request.temperature = 0.0
         request.topP = 0.2
+        applyModelDefaultsToRequest(request, providerId, config.modelId)
         request.stop = null
         request.thinking = if (localOpenAiCompat) java.lang.Boolean.FALSE else null
         request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat)
@@ -442,6 +500,7 @@ class ChatService(context: Context) {
         request.maxTokens = 620
         request.temperature = 0.2
         request.topP = 0.8
+        applyModelDefaultsToRequest(request, providerId, config.modelId)
         request.stop = null
         request.thinking = if (localOpenAiCompat) java.lang.Boolean.FALSE else null
         request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat)
@@ -563,6 +622,7 @@ class ChatService(context: Context) {
         request.maxTokens = 520
         request.temperature = 0.2
         request.topP = 0.8
+        applyModelDefaultsToRequest(request, providerId, config.modelId)
         request.stop = null
         request.thinking = if (localOpenAiCompat) java.lang.Boolean.FALSE else null
         request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat)
@@ -615,15 +675,11 @@ class ChatService(context: Context) {
             })
     }
 
-    fun generateChapterPlanJson(userInput: String?, storyContext: String?, callback: ChatCallback) {
-        val input = userInput?.trim() ?: ""
-        var contextText = storyContext?.trim() ?: ""
-        if (input.isEmpty()) {
-            callback.onError("输入为空，无法生成章节计划")
+    fun generateChapterPlanJson(ctx: ChapterPlanContext, callback: ChatCallback) {
+        val targetTitle = ctx.targetTitle.trim()
+        if (targetTitle.isEmpty()) {
+            callback.onError("目标章节标题为空")
             return
-        }
-        if (contextText.length > 2800) {
-            contextText = contextText.substring(0, 2800)
         }
 
         val config: AiModelConfig.ResolvedConfig
@@ -665,18 +721,31 @@ class ChatService(context: Context) {
 
         val requestMessages = ArrayList<ChatApi.ChatMessage>()
         requestMessages.add(ChatApi.ChatMessage("system",
-            "你是小说章节规划助手。请为\u201C本轮写作\u201D生成可执行计划，并严格输出 JSON 对象。\n" +
-                    "仅输出一个JSON对象，不要任何额外文本。\n" +
-                    "严格键集合:\n" +
-                    "{\"chapterGoal\":\"\",\"startState\":\"\",\"endState\":\"\",\"characterDrives\":[],\"knowledgeBoundary\":[],\"eventChain\":[],\"foreshadow\":[],\"payoff\":[],\"forbidden\":[],\"styleGuide\":\"\"}\n" +
-                    "约束:\n" +
-                    "1) 输出必须以 { 开始、以 } 结束。\n" +
-                    "2) 必须保留全部键，禁止新增或删除键。\n" +
-                    "3) 除 characterDrives 外，数组元素都用字符串；characterDrives 用对象数组，结构为 {\"name\":\"\",\"goal\":\"\",\"misbelief\":\"\",\"emotion\":\"\"}。\n" +
-                    "4) 内容具体可执行，避免空话。"))
-        requestMessages.add(ChatApi.ChatMessage("user",
-            "【用户本轮输入】\n" + input +
-                    if (contextText.isEmpty()) "" else ("\n\n【当前写作上下文】\n" + contextText)))
+            "你是小说章节规划助手。\n" +
+                    "你将收到：(a) 一段按类型分组的大纲上下文（含章节序列、人物、世界、知情等），(b) 一个明确的【本次必须规划的章节】标题。\n" +
+                    "你的唯一任务：为【该目标章节本身】（不是它的前一章，也不是它的下一章）输出一个结构化写作计划。\n\n" +
+                    "仅输出一个 JSON 对象（绝对禁止 Markdown 代码块、解释、Thinking 文本）：\n" +
+                    "{\"chapterGoal\":\"\",\"startState\":\"\",\"endState\":\"\",\"characterDrives\":[],\"knowledgeBoundary\":[],\"eventChain\":[],\"foreshadow\":[],\"payoff\":[],\"forbidden\":[],\"styleGuide\":\"\",\"targetLength\":\"\"}\n\n" +
+                    "字段语义（务必严格匹配，前端会一一回填到对应输入框）：\n" +
+                    "- chapterGoal: 字符串，本章核心目标（≤120字）。\n" +
+                    "- startState: 字符串，本章开场时的人物/局面状态。\n" +
+                    "- endState: 字符串，本章收尾时的状态，需与 startState 形成可见对比。\n" +
+                    "- characterDrives: 对象数组 [{\"name\":\"\",\"goal\":\"\",\"misbelief\":\"\",\"emotion\":\"\"}]，每个出场关键角色一项；name 必填。\n" +
+                    "- knowledgeBoundary: 字符串数组；每条一行短陈述，形如 \"X 知道/不知道/误以为 Y\"。\n" +
+                    "- eventChain: 字符串数组（3-7 项），按时间顺序，每条形如 \"起因 → 行为 → 结果\"，不得照抄前文已发生事件。\n" +
+                    "- foreshadow: 字符串数组，本章埋下的伏笔。\n" +
+                    "- payoff: 字符串数组，本章兑现/回收的伏笔。\n" +
+                    "- forbidden: 字符串数组，本章不应写的内容（剧透、违反人设的动作、跳跃式叙述等）。\n" +
+                    "- styleGuide: 字符串，文风 / 节奏 / 视角提示。\n" +
+                    "- targetLength: 字符串（即使是数字也用引号），例如 \"3000\"。\n\n" +
+                    "强约束（违反任意一条都视为失败）：\n" +
+                    "1) 输出必须以 { 开头、以 } 结尾，必须保留全部 11 个键；空值用 \"\" 或 [] 占位。\n" +
+                    "2) 严禁把目标章节误解成「下一章 / 续写章节」——你输出的计划就是用户指定的那一章本身。\n" +
+                    "3) 若是【覆盖】模式，请基于「目标章节当前大纲」做重写或细化；不是为后续章节做规划。\n" +
+                    "4) 计划要呼应章节序列中【本次必须规划的章节】所在位置——之前章节是已发生事实，之后章节（如有）是未来约束。\n" +
+                    "5) 不得违背【知情约束】：角色只能基于其已知信息行动；让某角色得知新信息需在 eventChain 中给出获取路径。\n" +
+                    "6) 内容具体可执行；避免「角色继续推进剧情」之类的空话。"))
+        requestMessages.add(ChatApi.ChatMessage("user", buildChapterPlanUserPrompt(ctx)))
 
         val request = ChatApi.ChatRequest()
         request.model = config.modelId
@@ -686,6 +755,7 @@ class ChatService(context: Context) {
         request.maxTokens = 800
         request.temperature = 0.15
         request.topP = 0.6
+        applyModelDefaultsToRequest(request, providerId, config.modelId)
         request.stop = null
         // Keep chapter-plan request minimal for broad compatibility and lower latency.
         request.thinking = null
@@ -704,6 +774,112 @@ class ChatService(context: Context) {
                 + ", responseFormat=${request.responseFormat?.toString() ?: "null"}")
         callback.onPartial("正在请求章节计划模型…")
         requestChapterPlanWithFallback(api, chatUrl, auth, request, callback, true)
+    }
+
+    /**
+     * 构建 user prompt：把目标章节、章节序列、人物/世界/知情/资料、最近对话、用户提示
+     * 按结构化段落输出，让模型既知道要规划哪一章、又能锚定到大纲位置。
+     */
+    private fun buildChapterPlanUserPrompt(ctx: ChapterPlanContext): String {
+        val targetTitle = ctx.targetTitle.trim()
+        val mode = if (ctx.isExisting) "覆盖已有计划" else "新建续写章节"
+        val sb = StringBuilder()
+        // 把目标章节定为头条信息 + 醒目箭头 + 重复声明，避免模型把它误解为「下一章」。
+        sb.append("============================\n")
+        sb.append("【本次必须规划的章节】").append(targetTitle).append("\n")
+        sb.append("【模式】").append(mode).append("\n")
+        sb.append("⚠️ 你的所有输出仅围绕上面这一章；不是它的前一章，不是它的下一章。\n")
+        sb.append("============================\n")
+
+        if (ctx.isExisting && ctx.existingContent.trim().isNotEmpty()) {
+            sb.append("\n【目标章节当前大纲（你需要重写/细化的内容）】\n")
+                .append(truncate(ctx.existingContent.trim(), 800))
+                .append("\n")
+        }
+
+        if (ctx.allChapters.isNotEmpty()) {
+            sb.append("\n【章节序列上下文 — 仅供定位，不是规划目标】\n")
+            var matchedTarget = false
+            val perChapterCap = 240
+            for ((idx, item) in ctx.allChapters.withIndex()) {
+                val itemTitle = item.title?.trim().orEmpty()
+                val itemContent = item.content?.trim().orEmpty()
+                val isTarget = ctx.isExisting && itemTitle == targetTitle && !matchedTarget
+                if (isTarget) matchedTarget = true
+                sb.append(idx + 1).append(". ")
+                if (isTarget) sb.append("◆◆ 这就是目标章节 ◆◆ ")
+                sb.append(if (itemTitle.isEmpty()) "(无标题)" else itemTitle)
+                if (itemContent.isNotEmpty()) {
+                    sb.append("：").append(truncate(itemContent.replace("\n", " "), perChapterCap))
+                }
+                sb.append("\n")
+            }
+            if (!ctx.isExisting) {
+                sb.append(ctx.allChapters.size + 1).append(". ◆◆ 这就是目标章节（新建续写） ◆◆ ").append(targetTitle).append("\n")
+            }
+        } else if (!ctx.isExisting) {
+            sb.append("\n【章节序列上下文】（暂无章节，本章为开篇）\n")
+        }
+
+        appendOutlineSection(sb, "人物资料", ctx.characters, perItemCap = 320)
+        appendOutlineSection(sb, "世界背景", ctx.worlds, perItemCap = 320, hideTitle = true)
+        appendOutlineSection(sb, "知情约束", ctx.knowledgeConstraints, perItemCap = 240)
+        appendOutlineSection(sb, "其他资料", ctx.materials, perItemCap = 240, hideTitle = true)
+
+        val dlg = ctx.recentDialogue.trim()
+        if (dlg.isNotEmpty()) {
+            sb.append("\n【最近对话节选（按时间顺序）】\n").append(truncate(dlg, 1500)).append("\n")
+        }
+
+        val hint = ctx.userHint.trim()
+        if (hint.isNotEmpty()) {
+            sb.append("\n【本章用户补充指示】\n").append(truncate(hint, 600)).append("\n")
+        }
+
+        val target = ctx.targetLength.trim()
+        if (target.isNotEmpty()) {
+            sb.append("\n【期望篇幅】").append(target).append("（请将此值写入 targetLength 字段）\n")
+        }
+
+        // 末尾再强调一次目标章节，模型在长 prompt 中往往关注首尾。
+        sb.append("\n============================\n")
+        sb.append("提醒：现在请输出【").append(targetTitle).append("】这一章的写作计划 JSON。\n")
+        sb.append("============================\n")
+
+        // Soft cap to keep request reasonable; keep head + tail to preserve target+latest context.
+        return softCap(sb.toString(), 7800)
+    }
+
+    private fun appendOutlineSection(
+        sb: StringBuilder,
+        label: String,
+        items: List<SessionOutlineItem>,
+        perItemCap: Int,
+        hideTitle: Boolean = false,
+    ) {
+        if (items.isEmpty()) return
+        sb.append("\n【").append(label).append("】\n")
+        for (item in items) {
+            val title = item.title?.trim().orEmpty()
+            val content = item.content?.trim().orEmpty()
+            if (title.isEmpty() && content.isEmpty()) continue
+            sb.append("- ")
+            if (!hideTitle && title.isNotEmpty()) sb.append(title).append("：")
+            if (content.isNotEmpty()) sb.append(truncate(content.replace("\n", " "), perItemCap))
+            sb.append("\n")
+        }
+    }
+
+    private fun truncate(s: String, max: Int): String {
+        if (s.length <= max) return s
+        return s.substring(0, max) + "…"
+    }
+
+    private fun softCap(s: String, max: Int): String {
+        if (s.length <= max) return s
+        val head = s.substring(0, max - 200)
+        val tail = s.substring(s.length - 200)
+        return head + "\n…(中段省略)…\n" + tail
     }
 
     private fun requestChapterPlanWithFallback(
@@ -1042,34 +1218,40 @@ class ChatService(context: Context) {
         return fixed
     }
 
-    fun auditNovelLeakage(knowledgeConstraints: String?, assistantContent: String?, callback: ChatCallback) {
-        val constraints = knowledgeConstraints?.trim() ?: ""
-        var aiText = assistantContent?.trim() ?: ""
-        if (constraints.isEmpty()) {
-            callback.onError("知情约束为空")
+
+    /**
+     * 基于一段章节计划（含人物/世界/知情等上下文）生成一篇卷大纲。
+     * 输出纯文本（不强 JSON），方便用户编辑、AI 复读时阅读。
+     *
+     * @param volumeTitle 卷标题，用于 prompt 中明确目标范围
+     * @param coverageRange 形如 "章节1 ~ 章节10"
+     * @param promptContext OutlinePromptBuilder.buildFull 输出的上下文
+     */
+    fun generateVolumeOutline(
+        volumeTitle: String,
+        coverageRange: String,
+        promptContext: String,
+        callback: ChatCallback,
+    ) {
+        val context0 = promptContext.trim()
+        if (context0.isEmpty()) {
+            callback.onError("上下文为空，无法生成卷纲")
             return
-        }
-        if (aiText.isEmpty()) {
-            callback.onError("待审计内容为空")
-            return
-        }
-        if (aiText.length > 4000) {
-            aiText = aiText.substring(0, 4000)
         }
         val config: AiModelConfig.ResolvedConfig
         try {
             config = AiModelConfig(context).getConfigForSummary()
         } catch (e: Exception) {
-            callback.onError(context.getString(R.string.error_config_parse_failed, ""))
+            callback.onError(this.context.getString(R.string.error_config_parse_failed, ""))
             return
         }
         if (config == null || !config.isValid()) {
-            callback.onError(context.getString(R.string.error_no_summary_model_selected))
+            callback.onError(this.context.getString(R.string.error_no_summary_model_selected))
             return
         }
 
         var providerId = ""
-        val summaryPreset = ModelConfig(context).getSummaryPreset()
+        val summaryPreset = ModelConfig(this.context).getSummaryPreset()
         if (summaryPreset != null && summaryPreset.contains(":")) {
             providerId = summaryPreset.substring(0, summaryPreset.indexOf(':'))
         }
@@ -1079,7 +1261,7 @@ class ChatService(context: Context) {
         if (!baseUrl.endsWith("/")) baseUrl += "/"
 
         val localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId)
-        val timeoutSec = if (localOpenAiCompat) 60 else 20
+        val timeoutSec = if (localOpenAiCompat) 60 else 30
 
         val client = OkHttpClient.Builder()
             .connectTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
@@ -1095,35 +1277,31 @@ class ChatService(context: Context) {
 
         val requestMessages = ArrayList<ChatApi.ChatMessage>()
         requestMessages.add(ChatApi.ChatMessage("system",
-            "你是小说写作审计员。请依据\u201C知情约束\u201D检查文本是否存在角色越权知情（泄密）问题。\n" +
-                    "仅输出一个JSON对象，不要任何额外文本。\n" +
-                    "严格格式:{\"report\":\"结论：通过/不通过\\n风险点：...\\n修复建议：...\"}\n" +
-                    "强约束:\n" +
-                    "1) 输出必须以 { 开始、以 } 结束。\n" +
-                    "2) 只允许一个键 report，不要额外键。\n" +
-                    "3) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。\n" +
-                    "4) 风险点逐条列出（若无写\u201C无\u201D），修复建议需可执行（若通过可写\u201C保持当前写法\u201D）。"))
+            "你是小说写作助手。请把以下覆盖范围内的章节计划合并成一篇“卷大纲”。\n" +
+                    "目标：替代多章细节，保留主线推进、人物状态、关键事件、伏笔/回收、知情边界关键变化。\n" +
+                    "硬约束：\n" +
+                    "1) 输出纯文本中文，不要 Markdown 代码块。\n" +
+                    "2) 控制在 600 字以内，分段使用【小标题】方式（如【主线推进】【人物状态】【关键事件】【伏笔】【知情边界变化】）。\n" +
+                    "3) 不要凭空添加未在输入中提到的事件或角色。\n" +
+                    "4) 不要 Thinking/Reasoning 文本。"))
         requestMessages.add(ChatApi.ChatMessage("user",
-            "【知情约束】\n" + constraints + "\n\n【待审计文本】\n" + aiText))
+            "【目标卷标题】" + volumeTitle + "\n" +
+                    "【覆盖范围】" + coverageRange + "\n\n" +
+                    context0))
 
         val request = ChatApi.ChatRequest()
         request.model = config.modelId
         request.messages = requestMessages
         request.stream = false
         request.n = 1
-        request.maxTokens = 520
-        request.temperature = 0.1
-        request.topP = 0.8
+        request.maxTokens = 1200
+        request.temperature = 0.2
+        request.topP = 0.7
+        applyModelDefaultsToRequest(request, providerId, config.modelId)
         request.stop = null
         request.thinking = if (localOpenAiCompat) java.lang.Boolean.FALSE else null
         request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat)
-        if (!localOpenAiCompat) {
-            val auditResponseFormat = JsonObject()
-            auditResponseFormat.addProperty("type", "json_object")
-            request.responseFormat = auditResponseFormat
-        } else {
-            request.responseFormat = null
-        }
+        request.responseFormat = null
         request.providerOptions = null
 
         val auth = if (config.apiKey != null && config.apiKey.trim().isNotEmpty())
@@ -1135,46 +1313,40 @@ class ChatService(context: Context) {
                     call: retrofit2.Call<ChatApi.ChatResponse>,
                     response: retrofit2.Response<ChatApi.ChatResponse>
                 ) {
-                    val body1122 = response.body()
-                    val choices1122 = body1122?.choices
-                    if (!response.isSuccessful || body1122 == null || choices1122 == null
-                        || choices1122.isEmpty() || choices1122[0] == null
-                        || choices1122[0].message == null) {
+                    val body = response.body()
+                    val choices = body?.choices
+                    if (!response.isSuccessful || body == null || choices == null
+                        || choices.isEmpty() || choices[0] == null
+                        || choices[0].message == null) {
                         var detail = ""
                         try {
-                            if (response.errorBody() != null) {
-                                detail = response.errorBody()!!.string()
-                            }
+                            if (response.errorBody() != null) detail = response.errorBody()!!.string()
                         } catch (ignored: Exception) {}
-                        callback.onError("审计失败: " + response.code()
+                        callback.onError("卷纲生成失败: " + response.code()
                                 + if (detail.isEmpty()) "" else ("\n" + detail))
                         return
                     }
-                    var report = extractAssistantContent(body1122)
-                    report = extractTextFieldFromJsonOrText(report, "report", "summary", "content", "result")
-                    report = stripThinkTags(report).trim()
-                    if (report.isEmpty()) {
-                        callback.onError("审计失败")
-                        return
-                    }
-                    callback.onSuccess(report)
+                    var result = extractAssistantContent(body)
+                    result = stripThinkTags(result).trim()
+                    if (result.isEmpty()) { callback.onError("卷纲生成失败"); return }
+                    callback.onSuccess(result)
                 }
 
                 override fun onFailure(call: retrofit2.Call<ChatApi.ChatResponse>, t: Throwable) {
-                    callback.onError(t.message ?: "审计失败")
+                    callback.onError(t.message ?: "卷纲生成失败")
                 }
             })
     }
 
     /**
-     * 从大纲和最近对话中提取「知情约束」，输出 JSON 数组。
-     * 与 auditNovelLeakage 使用同一个 Summary 模型配置。
+     * 从已有大纲（章节计划 + 人物 + 世界）提取每章的知情约束。
+     * 输入是结构化大纲文本（由 OutlinePromptBuilder 构造）。
+     * 输出 JSON 数组，每条带 chapter 字段标明所属章节（"通用"=跨章节）。
      */
-    fun extractKnowledgeConstraints(outlineContext: String?, recentDialogue: String?, callback: ChatCallback) {
-        val outline = outlineContext?.trim() ?: ""
-        val dialogue = recentDialogue?.trim() ?: ""
-        if (outline.isEmpty() && dialogue.isEmpty()) {
-            callback.onError("无可分析内容")
+    fun extractKnowledgeConstraints(outlineText: String?, callback: ChatCallback) {
+        val outline = outlineText?.trim() ?: ""
+        if (outline.isEmpty()) {
+            callback.onError("大纲为空，无法提取知情约束")
             return
         }
 
@@ -1217,25 +1389,20 @@ class ChatService(context: Context) {
 
         val requestMessages = ArrayList<ChatApi.ChatMessage>()
         requestMessages.add(ChatApi.ChatMessage("system",
-            "你是小说写作助手。请根据以下大纲和对话内容，提取所有角色的知情约束。\n" +
-                    "知情约束 = 某角色在某个时间点知道/不知道哪些关键信息。\n" +
-                    "仅输出一个JSON数组，不要任何额外文本。\n" +
-                    "格式：[{\"title\":\"角色名 - 信息点\",\"content\":\"描述该角色对此信息的知情状态\"}, ...]\n" +
-                    "约束：\n" +
-                    "1) 输出必须以 [ 开始、以 ] 结束。\n" +
-                    "2) 每条约束需明确指出角色名称。\n" +
-                    "3) 重点关注：秘密、隐藏信息、角色间的信息差。\n" +
-                    "4) 不要重复、不要输出与知情无关的内容。\n" +
-                    "5) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。"))
-
-        val userMsg = StringBuilder()
-        if (outline.isNotEmpty()) {
-            userMsg.append("【大纲内容】\n").append(outline).append("\n\n")
-        }
-        if (dialogue.isNotEmpty()) {
-            userMsg.append("【最近对话】\n").append(dialogue)
-        }
-        requestMessages.add(ChatApi.ChatMessage("user", userMsg.toString().trim()))
+            "你是小说写作的【知情边界提取助手】。我会给你一段按类型分组的小说大纲（章节大纲 / 人物资料 / 世界背景 / 已有知情约束）。\n" +
+                    "你的任务：基于其中事实，为大纲中实际出现的章节生成「知情边界条目」，作为主写作模型生成正文时必须严守的硬约束。\n\n" +
+                    "仅输出一个 JSON 对象（不要 Markdown、不要解释、不要 Thinking 文本）：\n" +
+                    "{\"items\":[{\"chapter\":\"章节标题或'通用'\",\"title\":\"角色名 - 信息点\",\"content\":\"陈述句\"}, ...]}\n\n" +
+                    "强约束：\n" +
+                    "1) 输出必须以 { 开头、以 } 结尾。\n" +
+                    "2) chapter 必须是大纲【章节大纲】里真实出现的标题原文；适用于多章/跨时段写「通用」。\n" +
+                    "3) title 严格形式：\"角色名 - 信息点\"。信息点为名词短语，不要带「知道/不知道」等动词。\n" +
+                    "4) content 是单句陈述，主语为 title 中的角色，结构为 \"X 知道 Y\" / \"X 不知道 Y\" / \"X 误以为 Y\"，不要解释推理过程。\n" +
+                    "5) 重点抓：秘密、伏笔、信息差、需某事件后才得知的事；忽略全员常识与无悬念的公开事件。\n" +
+                    "6) 同一 (chapter, 角色名, 信息点) 不得重复；items 总数 ≤ 15；单条 content ≤ 60 字。\n" +
+                    "7) 推不出的条目不要输出；不要捏造大纲未提到的信息。\n" +
+                    "8) 若提供了【目标章节范围】小节，items 的 chapter 字段必须取自该范围（外加可选的「通用」）。"))
+        requestMessages.add(ChatApi.ChatMessage("user", outline))
 
         val request = ChatApi.ChatRequest()
         request.model = config.modelId
@@ -1245,6 +1412,7 @@ class ChatService(context: Context) {
         request.maxTokens = 1500
         request.temperature = 0.3
         request.topP = 0.8
+        applyModelDefaultsToRequest(request, providerId, config.modelId)
         request.stop = null
         request.thinking = if (localOpenAiCompat) java.lang.Boolean.FALSE else null
         request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat)
@@ -1332,6 +1500,12 @@ class ChatService(context: Context) {
         request.addProperty("stream", true)
         request.addProperty("temperature", using.temperature)
         request.addProperty("top_p", using.topP)
+        // 新参数：会话填了直接用，否则查模型默认；都没就不传。
+        val streamModelDefaults = lookupModelDefaultParams(providerId, config.modelId)
+        (using.maxTokens ?: streamModelDefaults?.maxTokens)?.let { request.addProperty("max_tokens", it) }
+        (using.frequencyPenalty ?: streamModelDefaults?.frequencyPenalty)?.let { request.addProperty("frequency_penalty", it) }
+        (using.presencePenalty ?: streamModelDefaults?.presencePenalty)?.let { request.addProperty("presence_penalty", it) }
+        (using.topK ?: streamModelDefaults?.topK)?.let { request.addProperty("top_k", it) }
         val arr = precomputedMessagesJson ?: JsonArray().also { acc ->
             for (m in messages) {
                 val one = JsonObject()
@@ -1404,7 +1578,7 @@ class ChatService(context: Context) {
                 val fullContent = StringBuilder()
                 val fullReasoning = StringBuilder()
                 val inlineThinkState = InlineThinkState()
-                val normalizeInlineThink = shouldNormalizeInlineThink(providerId)
+                val normalizeInlineThink = InlineThinkProcessor.shouldNormalize(providerId)
                 var promptTokens = 0
                 var completionTokens = 0
                 var totalTokens = 0
@@ -1460,7 +1634,7 @@ class ChatService(context: Context) {
                                 var emittedInlineReasoning = false
                                 if (contentDelta.isNotEmpty()) {
                                     if (normalizeInlineThink) {
-                                        val parts = splitInlineThink(contentDelta, inlineThinkState, false)
+                                        val parts = InlineThinkProcessor.splitInlineThink(contentDelta, inlineThinkState, false)
                                         if (parts.content.isNotEmpty()) {
                                             fullContent.append(parts.content)
                                             callback.onPartial(parts.content)
@@ -1475,13 +1649,13 @@ class ChatService(context: Context) {
                                         callback.onPartial(contentDelta)
                                     }
                                 }
-                                val reasoningDelta = extractReasoningDelta(obj, first, delta)
+                                val reasoningDelta = ChatReasoningExtractor.extract(obj, first, delta)
                                 if (reasoningDelta.isNotEmpty() && !emittedInlineReasoning) {
                                     fullReasoning.append(reasoningDelta)
                                     callback.onReasoning(fullReasoning.toString())
                                 }
                                 if (delta.has("tool_calls") && delta.get("tool_calls").isJsonArray) {
-                                    accumulateToolCallDelta(delta.getAsJsonArray("tool_calls"), toolCallsByIndex)
+                                    ChatToolCallAccumulator.accumulateDelta(delta.getAsJsonArray("tool_calls"), toolCallsByIndex)
                                 }
                                 val finishReason = getString(first, "finish_reason")
                                 if (finishReason == "tool_calls") sawToolCallFinish = true
@@ -1497,7 +1671,7 @@ class ChatService(context: Context) {
                     return
                 }
                 if (normalizeInlineThink) {
-                    val tail = splitInlineThink("", inlineThinkState, true)
+                    val tail = InlineThinkProcessor.splitInlineThink("", inlineThinkState, true)
                     if (tail.content.isNotEmpty()) {
                         fullContent.append(tail.content)
                         callback.onPartial(tail.content)
@@ -1520,9 +1694,26 @@ class ChatService(context: Context) {
                 ) {
                     val toolCalls = toolCallsByIndex.values.toList()
                     if (toolCalls.isNotEmpty()) {
-                        // 1. append assistant turn carrying tool_calls
-                        arr.add(buildAssistantToolCallMessage(toolCalls))
-                        // 2. invoke each tool, append role=tool message per call
+                        // 1. append assistant turn carrying tool_calls (LLM-bound JSON arr).
+                        val assistantToolCallMsg = ChatToolCallAccumulator.buildAssistantToolCallMessage(toolCalls)
+                        arr.add(assistantToolCallMsg)
+                        // 1b. emit a persistable record for the same row so the consumer
+                        //     (ViewModel) can write it to the local message log.
+                        try {
+                            val callsArrJson = if (assistantToolCallMsg.has("tool_calls"))
+                                assistantToolCallMsg.getAsJsonArray("tool_calls").toString() else "[]"
+                            callback.onToolMessageRecorded(
+                                ToolMessageRecord(
+                                    role = Message.ROLE_TOOL_CALL,
+                                    content = "",
+                                    toolCallsJson = callsArrJson,
+                                    toolCallId = "",
+                                    toolName = "",
+                                    createdAt = System.currentTimeMillis(),
+                                )
+                            )
+                        } catch (_: Exception) {}
+                        // 2. invoke each tool, append role=tool message per call.
                         for (tc in toolCalls) {
                             if (handle.isCancelled()) {
                                 fireCancelledOnce(callback, handle)
@@ -1532,7 +1723,21 @@ class ChatService(context: Context) {
                                 callback.onToolCallStart(tc.name)
                             } catch (_: Exception) {}
                             val resultJson = toolBridge.invoke(tc.name, tc.argumentsBuilder.toString())
-                            arr.add(buildToolResultMessage(tc.id, tc.name, resultJson))
+                            val resolvedCallId = tc.id.ifEmpty { "call_${System.nanoTime()}" }
+                            arr.add(ChatToolCallAccumulator.buildToolResultMessage(resolvedCallId, tc.name, resultJson))
+                            // 2b. persistable record for this tool result.
+                            try {
+                                callback.onToolMessageRecorded(
+                                    ToolMessageRecord(
+                                        role = Message.ROLE_TOOL_RESULT,
+                                        content = resultJson,
+                                        toolCallsJson = "",
+                                        toolCallId = resolvedCallId,
+                                        toolName = tc.name,
+                                        createdAt = System.currentTimeMillis(),
+                                    )
+                                )
+                            } catch (_: Exception) {}
                         }
                         // 3. recurse with the extended message log; same handle so
                         // cancellation still works through to the new request
@@ -1550,89 +1755,10 @@ class ChatService(context: Context) {
         })
     }
 
-    private fun accumulateToolCallDelta(deltas: JsonArray, accum: LinkedHashMap<Int, ToolCallBuilder>) {
-        for (i in 0 until deltas.size()) {
-            val el = deltas[i]
-            if (!el.isJsonObject) continue
-            val obj = el.asJsonObject
-            val index = if (obj.has("index") && obj.get("index").isJsonPrimitive)
-                obj.get("index").asInt else i
-            val builder = accum.getOrPut(index) { ToolCallBuilder() }
-            if (obj.has("id") && obj.get("id").isJsonPrimitive) {
-                val newId = obj.get("id").asString
-                if (newId.isNotEmpty()) builder.id = newId
-            }
-            if (obj.has("type") && obj.get("type").isJsonPrimitive) {
-                builder.type = obj.get("type").asString
-            }
-            if (obj.has("function") && obj.get("function").isJsonObject) {
-                val fn = obj.getAsJsonObject("function")
-                if (fn.has("name") && fn.get("name").isJsonPrimitive) {
-                    val newName = fn.get("name").asString
-                    if (newName.isNotEmpty()) builder.name = newName
-                }
-                if (fn.has("arguments") && fn.get("arguments").isJsonPrimitive) {
-                    builder.argumentsBuilder.append(fn.get("arguments").asString)
-                }
-            }
-        }
-    }
-
-    private fun buildAssistantToolCallMessage(calls: List<ToolCallBuilder>): JsonObject = JsonObject().apply {
-        addProperty("role", "assistant")
-        // OpenAI compat: when assistant emits tool_calls, content is null.
-        add("content", com.google.gson.JsonNull.INSTANCE)
-        val arr = JsonArray()
-        for (tc in calls) {
-            arr.add(JsonObject().apply {
-                addProperty("id", tc.id.ifEmpty { "call_${System.nanoTime()}" })
-                addProperty("type", tc.type.ifEmpty { "function" })
-                add("function", JsonObject().apply {
-                    addProperty("name", tc.name)
-                    addProperty("arguments", tc.argumentsBuilder.toString())
-                })
-            })
-        }
-        add("tool_calls", arr)
-    }
-
-    private fun buildToolResultMessage(callId: String, name: String, content: String): JsonObject =
-        JsonObject().apply {
-            addProperty("role", "tool")
-            addProperty("tool_call_id", callId.ifEmpty { "call_${System.nanoTime()}" })
-            addProperty("name", name)
-            addProperty("content", content)
-        }
-
-    private class ToolCallBuilder {
-        var id: String = ""
-        var type: String = "function"
-        var name: String = ""
-        val argumentsBuilder: StringBuilder = StringBuilder()
-    }
-
     private fun fireCancelledOnce(callback: ChatCallback?, handle: ChatHandleImpl?) {
         if (callback == null || handle == null) return
         if (!handle.tryFireCancelled()) return
         callback.onCancelled()
-    }
-
-    private fun getInt(obj: JsonObject, key: String): Int {
-        return try {
-            val e = obj.get(key)
-            if (e == null || e.isJsonNull) 0 else e.asInt
-        } catch (ex: Exception) {
-            0
-        }
-    }
-
-    private fun getString(obj: JsonObject, key: String): String {
-        return try {
-            val e = obj.get(key)
-            if (e == null || e.isJsonNull) "" else e.asString
-        } catch (ex: Exception) {
-            ""
-        }
     }
 
     private fun parseStopSequences(raw: String?): List<String>? {
@@ -1680,56 +1806,6 @@ class ChatService(context: Context) {
         if (mid.matches(Regex(".*(^|[-_/])r1([-. _/]|$).*"))) return true
         // Keep provider hint as fallback for renamed reasoner deployments.
         return "deepseek" == pid && mid.contains("r1")
-    }
-
-    private fun extractReasoningDelta(root: JsonObject, choice: JsonObject?, delta: JsonObject?): String {
-        var v = firstNonEmpty(
-            getStringFlexible(delta, "reasoning_content"),
-            getStringFlexible(delta, "reasoning"),
-            getStringFlexible(delta, "thinking")
-        )
-        if (v.isNotEmpty()) return v
-
-        val messageObj = if (choice != null && choice.has("message") && choice.get("message").isJsonObject)
-            choice.getAsJsonObject("message") else null
-        v = firstNonEmpty(
-            getStringFlexible(choice, "reasoning_content"),
-            getStringFlexible(choice, "reasoning"),
-            getStringFlexible(choice, "thinking"),
-            getStringFlexible(messageObj, "reasoning_content"),
-            getStringFlexible(messageObj, "reasoning"),
-            getStringFlexible(messageObj, "thinking"),
-            getStringFlexible(root, "reasoning_content"),
-            getStringFlexible(root, "reasoning"),
-            getStringFlexible(root, "thinking")
-        )
-        return v
-    }
-
-    private fun getStringFlexible(obj: JsonObject?, key: String?): String {
-        return try {
-            if (obj == null || key == null || key.isEmpty()) return ""
-            val e = obj.get(key) ?: return ""
-            if (e.isJsonNull) return ""
-            if (e.isJsonPrimitive) return e.asString
-            // Some gateways return reasoning as array/object chunks; keep textual representation.
-            e.toString()
-        } catch (ex: Exception) {
-            ""
-        }
-    }
-
-    private fun firstNonEmpty(vararg values: String?): String {
-        for (one in values) {
-            if (one != null && one.isNotEmpty()) return one
-        }
-        return ""
-    }
-
-    private fun shouldNormalizeInlineThink(@Suppress("UNUSED_PARAMETER") providerId: String?): Boolean {
-        // Always normalize: models like Qwen3 emit <think>…</think> tags inline regardless of provider.
-        // splitInlineThink() is a no-op when no tags appear, so enabling for all providers is safe.
-        return true
     }
 
     private fun isLocalOpenAiCompatibleProvider(providerId: String?): Boolean {
@@ -2002,90 +2078,6 @@ class ChatService(context: Context) {
         return fallback
     }
 
-    private class InlineThinkState {
-        var inThink: Boolean = false
-        var carry: String = ""
-    }
-
-    private class ContentReasoningParts(content: String?, reasoning: String?) {
-        val content: String = content ?: ""
-        val reasoning: String = reasoning ?: ""
-    }
-
-    private fun splitInlineThink(delta: String?, state: InlineThinkState?, flushTail: Boolean): ContentReasoningParts {
-        if (state == null) {
-            return ContentReasoningParts(delta ?: "", "")
-        }
-        val chunk = delta ?: ""
-        val input = state.carry + chunk
-        state.carry = ""
-        if (input.isEmpty()) return ContentReasoningParts("", "")
-
-        val carryLen = if (flushTail) 0 else computeThinkTagCarry(input)
-        val parse = input.substring(0, input.length - carryLen)
-        if (!flushTail && carryLen > 0) {
-            state.carry = input.substring(input.length - carryLen)
-        }
-
-        val outContent = StringBuilder()
-        val outReasoning = StringBuilder()
-        var i = 0
-        val openTag = "<think>"
-        val closeTag = "</think>"
-        while (i < parse.length) {
-            if (state.inThink) {
-                val close = indexOfIgnoreCase(parse, closeTag, i)
-                if (close < 0) {
-                    outReasoning.append(parse.substring(i))
-                    i = parse.length
-                } else {
-                    outReasoning.append(parse, i, close)
-                    i = close + closeTag.length
-                    state.inThink = false
-                }
-            } else {
-                val open = indexOfIgnoreCase(parse, openTag, i)
-                if (open < 0) {
-                    outContent.append(parse.substring(i))
-                    i = parse.length
-                } else {
-                    outContent.append(parse, i, open)
-                    i = open + openTag.length
-                    state.inThink = true
-                }
-            }
-        }
-
-        if (flushTail && state.carry.isNotEmpty()) {
-            if (state.inThink) outReasoning.append(state.carry)
-            else outContent.append(state.carry)
-            state.carry = ""
-        }
-        return ContentReasoningParts(outContent.toString(), outReasoning.toString())
-    }
-
-    private fun computeThinkTagCarry(input: String?): Int {
-        if (input == null || input.isEmpty()) return 0
-        val lower = input.lowercase(java.util.Locale.ROOT)
-        val tags = arrayOf("<think>", "</think>")
-        var best = 0
-        for (tag in tags) {
-            for (len in 1 until tag.length) {
-                if (lower.endsWith(tag.substring(0, len))) {
-                    if (len > best) best = len
-                }
-            }
-        }
-        return best
-    }
-
-    private fun indexOfIgnoreCase(text: String?, needle: String?, fromIndex: Int): Int {
-        if (text == null || needle == null) return -1
-        val lowerText = text.lowercase(java.util.Locale.ROOT)
-        val lowerNeedle = needle.lowercase(java.util.Locale.ROOT)
-        return lowerText.indexOf(lowerNeedle, Math.max(0, fromIndex))
-    }
-
     interface ChatCallback {
         fun onSuccess(content: String)
         fun onError(message: String)
@@ -2099,5 +2091,32 @@ class ChatService(context: Context) {
          * onPartial/onReasoning (next round) or onError (tool loop aborted).
          */
         fun onToolCallStart(toolName: String) {}
+        /**
+         * Fired once for each persistable tool round message: first the
+         * assistant(tool_calls) wrapper (role=ROLE_TOOL_CALL), then one row per
+         * executed tool (role=ROLE_TOOL_RESULT). Consumers should write these
+         * to the local message log so chat history is a faithful audit trail
+         * of every LLM round.
+         *
+         * Phase A2 contract: rows persisted via this callback MUST NOT be
+         * pushed to the remote sync server — server schema does not yet
+         * accept role=tool_call / tool_result. Implementations should leave
+         * `turnId`/`assistantId` empty on the inserted row so
+         * SyncQueueDrainer's `WHERE turnId != ''` filter skips it.
+         */
+        fun onToolMessageRecorded(record: ToolMessageRecord) {}
     }
+
+    /**
+     * Snapshot of a single tool-round message ready to be persisted.
+     * See [ChatCallback.onToolMessageRecorded] for the contract.
+     */
+    data class ToolMessageRecord(
+        @JvmField val role: Int,
+        @JvmField val content: String,
+        @JvmField val toolCallsJson: String,
+        @JvmField val toolCallId: String,
+        @JvmField val toolName: String,
+        @JvmField val createdAt: Long,
+    )
 }

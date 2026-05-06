@@ -17,6 +17,11 @@ class Message {
     companion object {
         @JvmField val ROLE_USER = 0
         @JvmField val ROLE_ASSISTANT = 1
+        @JvmField val ROLE_SYSTEM = 2
+        // Assistant turn that emits tool_calls (content 为空, toolCallsJson 装 OpenAI 风格 tool_calls 数组).
+        @JvmField val ROLE_TOOL_CALL = 3
+        // Single tool execution result (toolCallId + toolName + content=结果 JSON).
+        @JvmField val ROLE_TOOL_RESULT = 4
     }
 
     @PrimaryKey(autoGenerate = true)
@@ -70,6 +75,25 @@ class Message {
     @JvmField
     @ColumnInfo(defaultValue = "''")
     var lastError: String = ""
+
+    /**
+     * 仅 role=ROLE_TOOL_CALL 行使用：序列化的 OpenAI tool_calls 数组
+     * (e.g. `[{"id":"call_xxx","type":"function","function":{"name":..., "arguments":...}}]`).
+     * 其它 role 留空。
+     */
+    @JvmField
+    @ColumnInfo(defaultValue = "''")
+    var toolCallsJson: String = ""
+
+    /** 仅 role=ROLE_TOOL_RESULT 行使用：对应 assistant 行 tool_calls 里的 id (用于 server 回查). */
+    @JvmField
+    @ColumnInfo(defaultValue = "''")
+    var toolCallId: String = ""
+
+    /** 仅 role=ROLE_TOOL_RESULT 行使用：被调用的 tool 名 (e.g. `search_memory`). */
+    @JvmField
+    @ColumnInfo(defaultValue = "''")
+    var toolName: String = ""
 
     @Ignore
     @JvmField

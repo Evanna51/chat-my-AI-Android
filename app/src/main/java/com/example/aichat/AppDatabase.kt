@@ -13,9 +13,10 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SessionMetaEntity::class,
         SessionChatOptionsEntity::class,
         MyAssistantEntity::class,
-        SessionAssistantBindingEntity::class
+        SessionAssistantBindingEntity::class,
+        RelationshipStateEntity::class
     ],
-    version = 6,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -25,6 +26,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun sessionChatOptionsDao(): SessionChatOptionsDao
     abstract fun myAssistantDao(): MyAssistantDao
     abstract fun sessionAssistantBindingDao(): SessionAssistantBindingDao
+    abstract fun relationshipStateDao(): RelationshipStateDao
 
     companion object {
 
@@ -144,6 +146,53 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v7：session_chat_options 加 sessionAvatarImageBase64 列，让会话级别可覆盖助手头像图片。 */
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `sessionAvatarImageBase64` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        /**
+         * v8：session_chat_options 加 maxTokens / frequencyPenalty / presencePenalty / topK，
+         * 都是 NULL 表示「未设置 → 走 ChatParamsResolver 回退到角色 / 模型默认 / 代码默认」。
+         */
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `maxTokens` INTEGER")
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `frequencyPenalty` REAL")
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `presencePenalty` REAL")
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `topK` INTEGER")
+            }
+        }
+
+        /**
+         * v9 (Memory Graph Phase A1):
+         *  - message 表加 toolCallsJson / toolCallId / toolName, 让 OpenAI 风格的
+         *    assistant(tool_calls) 与 role=tool 结果可以入库; 现有行默认空字符串。
+         *  - 新增 relationship_state 表, 作为 wi-chat-server 关系状态的客户端冷缓存。
+         *
+         * 配套常量见 Message.ROLE_SYSTEM=2 / ROLE_TOOL_CALL=3 / ROLE_TOOL_RESULT=4。
+         */
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `message` ADD COLUMN `toolCallsJson` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `message` ADD COLUMN `toolCallId` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `message` ADD COLUMN `toolName` TEXT NOT NULL DEFAULT ''")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `relationship_state` (" +
+                    "`assistantId` TEXT NOT NULL PRIMARY KEY, " +
+                    "`closeness` INTEGER NOT NULL DEFAULT 0, " +
+                    "`trustLevel` TEXT NOT NULL DEFAULT '', " +
+                    "`sharedTopicsJson` TEXT NOT NULL DEFAULT '[]', " +
+                    "`lastEmotionalTone` TEXT NOT NULL DEFAULT '', " +
+                    "`lastInteractionAt` INTEGER NOT NULL DEFAULT 0, " +
+                    "`fetchedAt` INTEGER NOT NULL DEFAULT 0, " +
+                    "`rawJson` TEXT NOT NULL DEFAULT '')"
+                )
+            }
+        }
+
         @JvmStatic
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -152,7 +201,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "ai_chat_db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .allowMainThreadQueries() // 临时：待优化2(ViewModel)完成后移除
                 .build()
                 .also { INSTANCE = it }

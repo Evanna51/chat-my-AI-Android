@@ -383,6 +383,26 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     event.toolCallStarted = toolName
                     postStreamEvent(event)
                 }
+
+                override fun onToolMessageRecorded(record: ChatService.ToolMessageRecord) {
+                    if (isStale()) return
+                    // Persist tool-round messages to the local log for audit / replay.
+                    // Intentionally bypass stampForSync: server schema doesn't yet
+                    // accept role=tool_call/tool_result, so we leave turnId empty and
+                    // SyncQueueDrainer's `WHERE turnId != ''` filter will skip it.
+                    executor.execute {
+                        try {
+                            val msg = Message(sid, record.role, record.content)
+                            msg.createdAt = record.createdAt
+                            msg.toolCallsJson = record.toolCallsJson
+                            msg.toolCallId = record.toolCallId
+                            msg.toolName = record.toolName
+                            db.messageDao().insert(msg)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "persist tool message failed", e)
+                        }
+                    }
+                }
             }, toolBridge)
         activeChatHandle = handle
         return handle
