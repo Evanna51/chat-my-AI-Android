@@ -5,6 +5,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.materialswitch.MaterialSwitch
 import java.util.ArrayList
 
 class SessionOutlineAdapter : RecyclerView.Adapter<SessionOutlineAdapter.OutlineHolder>() {
@@ -12,6 +13,8 @@ class SessionOutlineAdapter : RecyclerView.Adapter<SessionOutlineAdapter.Outline
     interface OnItemActionListener {
         fun onEdit(item: SessionOutlineItem)
         fun onDelete(item: SessionOutlineItem)
+        /** Volume 类型才会触发：用户拨动 selected 开关时回调。 */
+        fun onSelectedChanged(item: SessionOutlineItem, selected: Boolean) {}
     }
 
     private val items: MutableList<SessionOutlineItem> = ArrayList()
@@ -35,11 +38,24 @@ class SessionOutlineAdapter : RecyclerView.Adapter<SessionOutlineAdapter.Outline
     override fun onBindViewHolder(holder: OutlineHolder, position: Int) {
         if (position < 0 || position >= items.size) return
         val item = items[position]
-        holder.textType.setText(displayType(item?.type ?: ""))
-        holder.textTitle.setText(if (item != null) safe(item.title) else "")
-        holder.textContent.setText(if (item != null) safe(item.content) else "")
+        holder.textType.text = displayType(item.type)
+        holder.textTitle.text = safe(item.title)
+        holder.textContent.text = safe(item.content)
         holder.btnEdit.setOnClickListener { listener?.onEdit(item) }
         holder.btnDelete.setOnClickListener { listener?.onDelete(item) }
+        // selected 开关：仅 volume 显示
+        if (item.type == "volume") {
+            holder.switchSelected.visibility = View.VISIBLE
+            holder.switchSelected.setOnCheckedChangeListener(null)
+            holder.switchSelected.isChecked = item.selected
+            holder.switchSelected.setOnCheckedChangeListener { _, checked ->
+                item.selected = checked
+                listener?.onSelectedChanged(item, checked)
+            }
+        } else {
+            holder.switchSelected.setOnCheckedChangeListener(null)
+            holder.switchSelected.visibility = View.GONE
+        }
     }
 
     override fun getItemCount(): Int = items.size
@@ -50,6 +66,7 @@ class SessionOutlineAdapter : RecyclerView.Adapter<SessionOutlineAdapter.Outline
         val textContent: TextView = itemView.findViewById(R.id.textOutlineContent)
         val btnEdit: View = itemView.findViewById(R.id.btnOutlineEdit)
         val btnDelete: View = itemView.findViewById(R.id.btnOutlineDelete)
+        val switchSelected: MaterialSwitch = itemView.findViewById(R.id.switchOutlineSelected)
     }
 
     private fun safe(text: String?): String = text ?: ""
@@ -60,6 +77,7 @@ class SessionOutlineAdapter : RecyclerView.Adapter<SessionOutlineAdapter.Outline
             "task" -> "人物资料"
             "world" -> "世界背景"
             "knowledge" -> "知情约束"
+            "volume" -> "卷大纲"
             else -> "章节"
         }
     }

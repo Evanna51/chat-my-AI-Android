@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 大纲条目卡片（暗色变体）：深灰底 + 顶部柔和高光 + 偏移阴影。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:top="2dp" android:left="0dp" android:right="0dp" android:bottom="0dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#40000000" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/ios_cell_bg" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#15FFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:centerY="0.22" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="0.5dp" android:color="#1AFFFFFF" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+
+</layer-list>

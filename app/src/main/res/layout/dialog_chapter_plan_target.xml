@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_glass_dialog">
+
+    <!-- 标题 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="生成章节计划"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="?attr/colorOnSurface"
+        android:gravity="center"
+        android:paddingTop="18dp"
+        android:paddingBottom="14dp"
+        android:paddingHorizontal="20dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="?attr/colorOutline"
+        android:alpha="0.3" />
+
+    <!-- 目标章节：续写新章 + 覆盖已有章节 互斥 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="14dp"
+        android:paddingBottom="6dp"
+        android:text="目标章节"
+        android:textSize="13sp"
+        android:textColor="@color/ios_section_label" />
+
+    <!-- 续写新章节 — CheckBox 风行 -->
+    <LinearLayout
+        android:id="@+id/rowContinueNew"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginHorizontal="16dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="14dp"
+        android:background="@drawable/bg_knowledge_picker"
+        android:clickable="true"
+        android:focusable="true">
+
+        <com.google.android.material.checkbox.MaterialCheckBox
+            android:id="@+id/checkContinueNew"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:clickable="false"
+            android:focusable="false"
+            android:layout_marginEnd="8dp" />
+
+        <TextView
+            android:id="@+id/textContinueNewLabel"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="?attr/colorOnSurface"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="新建续写章节" />
+    </LinearLayout>
+
+    <!-- 覆盖已有章节 — Spinner 行 -->
+    <LinearLayout
+        android:id="@+id/rowOverwrite"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="14dp"
+        android:paddingEnd="10dp"
+        android:background="@drawable/bg_knowledge_picker"
+        android:clickable="true"
+        android:focusable="true">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:text="覆盖："
+            android:textSize="15sp"
+            android:textColor="?attr/colorOnSurface" />
+
+        <TextView
+            android:id="@+id/textOverwriteSelected"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:textSize="15sp"
+            android:textColor="@color/ios_section_label"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:text="未选择" />
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_action_expand_left"
+            android:rotation="270"
+            android:layout_marginStart="6dp"
+            app:tint="@color/ios_section_label" />
+    </LinearLayout>
+
+    <!-- 用户提示输入 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="6dp"
+        android:text="本章用户补充指示（可选）"
+        android:textSize="13sp"
+        android:textColor="@color/ios_section_label" />
+
+    <com.example.aichat.widget.GlassTextInputLayout
+        style="@style/Widget.AIChat.TextInputLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:hint="例如：本章主角发现真相">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editTargetHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textMultiLine"
+            android:minLines="2"
+            android:maxLines="4"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+    </com.example.aichat.widget.GlassTextInputLayout>
+
+    <!-- 期望篇幅 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="20dp"
+        android:paddingTop="12dp"
+        android:paddingBottom="6dp"
+        android:text="期望篇幅（字数，可选）"
+        android:textSize="13sp"
+        android:textColor="@color/ios_section_label" />
+
+    <com.example.aichat.widget.GlassTextInputLayout
+        style="@style/Widget.AIChat.TextInputLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="14dp"
+        android:hint="例如：3000">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editTargetLength"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="number"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp" />
+    </com.example.aichat.widget.GlassTextInputLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="?attr/colorOutline"
+        android:alpha="0.3" />
+
+    <!-- iOS 式按钮行 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btnTargetCancel"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="取消"
+            android:textSize="16sp"
+            android:textColor="@color/ios_section_label"
+            android:gravity="center"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <View
+            android:layout_width="0.5dp"
+            android:layout_height="match_parent"
+            android:background="?attr/colorOutline"
+            android:alpha="0.3" />
+
+        <TextView
+            android:id="@+id/btnTargetConfirm"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="继续"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorPrimary"
+            android:gravity="center"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true" />
+
+    </LinearLayout>
+
+</LinearLayout>

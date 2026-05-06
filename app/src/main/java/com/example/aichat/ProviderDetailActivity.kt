@@ -158,21 +158,39 @@ class ProviderDetailActivity : ThemedActivity() {
         val view = layoutInflater.inflate(R.layout.dialog_model_alias, null)
         val editAlias: TextInputEditText = view.findViewById(R.id.editAlias)
         val switchThinking = view.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.switchModelThinking)
+        val editTemp: TextInputEditText = view.findViewById(R.id.editModelTemperature)
+        val editTopP: TextInputEditText = view.findViewById(R.id.editModelTopP)
+        val editMaxTokens: TextInputEditText = view.findViewById(R.id.editModelMaxTokens)
+        val editTopK: TextInputEditText = view.findViewById(R.id.editModelTopK)
+        val editFreq: TextInputEditText = view.findViewById(R.id.editModelFrequencyPenalty)
+        val editPres: TextInputEditText = view.findViewById(R.id.editModelPresencePenalty)
         view.findViewById<android.widget.TextView>(R.id.textModelId).text = "模型: ${model.modelId}"
         if (isEdit && model.nickname.isNotEmpty()) {
             editAlias.setText(model.nickname)
         }
         switchThinking?.isChecked = if (isEdit) model.thinkingEnabled else false
+
+        // 用户已存的默认参数回填；老数据 defaultParams=null，全部留空。
+        val existing = if (isEdit) model.defaultParams else null
+        editTemp.setText(existing?.temperature?.toString().orEmpty())
+        editTopP.setText(existing?.topP?.toString().orEmpty())
+        editMaxTokens.setText(existing?.maxTokens?.toString().orEmpty())
+        editTopK.setText(existing?.topK?.toString().orEmpty())
+        editFreq.setText(existing?.frequencyPenalty?.toString().orEmpty())
+        editPres.setText(existing?.presencePenalty?.toString().orEmpty())
+
         MaterialAlertDialogBuilder(this)
             .setView(view)
-            .setTitle(if (isEdit) "编辑别名" else "添加模型")
+            .setTitle(if (isEdit) "编辑" else "添加模型")
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val alias = editAlias.text?.toString()?.trim() ?: ""
                 val thinkingOn = switchThinking?.isChecked == true
+                val params = collectDefaultParams(editTemp, editTopP, editMaxTokens, editTopK, editFreq, editPres)
                 if (!isEdit) {
                     val added = ProviderInfo.ProviderModelInfo(model.modelId)
                     added.nickname = alias
                     added.thinkingEnabled = thinkingOn
+                    added.defaultParams = params
                     provider.models.add(added)
                     addedAdapter.setModels(provider.models)
                     refreshAvailableAdapter()
@@ -180,11 +198,32 @@ class ProviderDetailActivity : ThemedActivity() {
                 } else {
                     model.nickname = alias
                     model.thinkingEnabled = thinkingOn
+                    model.defaultParams = params
                     addedAdapter.setModels(provider.models)
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
+    }
+
+    /** 把 6 个输入框聚合成 ModelDefaultParams；全部留空时返回 null（避免存空对象）。 */
+    private fun collectDefaultParams(
+        temp: TextInputEditText,
+        topP: TextInputEditText,
+        maxTokens: TextInputEditText,
+        topK: TextInputEditText,
+        freq: TextInputEditText,
+        pres: TextInputEditText,
+    ): ModelDefaultParams? {
+        val out = ModelDefaultParams(
+            temperature = temp.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.toFloatOrNull(),
+            topP = topP.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.toFloatOrNull(),
+            maxTokens = maxTokens.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.toIntOrNull(),
+            topK = topK.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.toIntOrNull(),
+            frequencyPenalty = freq.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.toFloatOrNull(),
+            presencePenalty = pres.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.toFloatOrNull(),
+        )
+        return if (out.isEmpty()) null else out
     }
 
     private fun fetchModels() {

@@ -80,6 +80,7 @@ object RoomMigrationHelper {
             entity.sessionId = sessionId
             entity.sessionTitle = opts.sessionTitle ?: ""
             entity.sessionAvatar = opts.sessionAvatar ?: ""
+            entity.sessionAvatarImageBase64 = opts.sessionAvatarImageBase64
             entity.modelKey = opts.modelKey ?: ""
             entity.systemPrompt = opts.systemPrompt ?: ""
             entity.stop = opts.stop ?: ""

@@ -7,7 +7,9 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.example.aichat.chat.ProactiveChatPlanner
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
 import com.google.android.material.textfield.TextInputEditText
 
@@ -49,8 +51,14 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
     private val editSystemPrompt: TextInputEditText? = root.findViewById(R.id.editSystemPrompt)
     private val editTemperature: TextInputEditText? = root.findViewById(R.id.editTemperature)
     private val editTopP: TextInputEditText? = root.findViewById(R.id.editTopP)
+    private val editMaxTokens: TextInputEditText? = root.findViewById(R.id.editMaxTokens)
+    private val editTopK: TextInputEditText? = root.findViewById(R.id.editTopK)
+    private val editFrequencyPenalty: TextInputEditText? = root.findViewById(R.id.editFrequencyPenalty)
+    private val editPresencePenalty: TextInputEditText? = root.findViewById(R.id.editPresencePenalty)
     private val sliderContextCount: Slider? = root.findViewById(R.id.sliderContextCount)
     private val textContextCountValue: TextView? = root.findViewById(R.id.textContextCountValue)
+    private val switchAutoChat: MaterialSwitch? = root.findViewById(R.id.switchAutoChat)
+    private val textAutoChatBudgetHint: TextView? = root.findViewById(R.id.textAutoChatBudgetHint)
 
     private var current = SessionChatOptions()
 
@@ -77,6 +85,11 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         }
 
         btnPickModel?.setOnClickListener { showModelPicker() }
+
+        switchAutoChat?.setOnCheckedChangeListener { _, checked ->
+            current.autoChatEnabled = checked
+            updateAutoChatBudgetHint()
+        }
     }
 
     fun setOptions(options: SessionChatOptions?) {
@@ -85,12 +98,38 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         editSystemPrompt?.setText(current.systemPrompt)
         editTemperature?.setText(current.temperature.toString())
         editTopP?.setText(current.topP.toString())
+        editMaxTokens?.setText(current.maxTokens?.toString().orEmpty())
+        editTopK?.setText(current.topK?.toString().orEmpty())
+        editFrequencyPenalty?.setText(current.frequencyPenalty?.toString().orEmpty())
+        editPresencePenalty?.setText(current.presencePenalty?.toString().orEmpty())
         sliderContextCount?.let { slider ->
             val count = current.contextMessageCount
             val position = mapContextValueToSliderPosition(count)
             slider.value = position
             updateContextCountValue(mapSliderPositionToContextValue(position))
         }
+        switchAutoChat?.isChecked = current.autoChatEnabled
+        updateAutoChatBudgetHint()
+    }
+
+    private fun updateAutoChatBudgetHint() {
+        val hintView = textAutoChatBudgetHint ?: return
+        val today = todayStamp()
+        val used = if (current.proactiveResetDate == today) current.proactiveCountToday else 0
+        if (current.autoChatEnabled) {
+            hintView.text = activity.getString(
+                R.string.auto_chat_budget_used, used, ProactiveChatPlanner.DAILY_PROACTIVE_BUDGET
+            )
+        } else {
+            hintView.setText(R.string.auto_chat_toggle_hint)
+        }
+    }
+
+    private fun todayStamp(): Int {
+        val cal = java.util.Calendar.getInstance()
+        return cal.get(java.util.Calendar.YEAR) * 10000 +
+            (cal.get(java.util.Calendar.MONTH) + 1) * 100 +
+            cal.get(java.util.Calendar.DAY_OF_MONTH)
     }
 
     fun collect(): SessionChatOptions {
@@ -101,6 +140,11 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         out.stop = current.stop ?: ""
         out.temperature = parseFloat(editTemperature, 0.7f)
         out.topP = parseFloat(editTopP, 1.0f)
+        // 留空 = null = 跟随上游
+        out.maxTokens = parseNullableInt(editMaxTokens)
+        out.topK = parseNullableInt(editTopK)
+        out.frequencyPenalty = parseNullableFloat(editFrequencyPenalty)
+        out.presencePenalty = parseNullableFloat(editPresencePenalty)
         out.contextMessageCount = getContextCount()
         out.streamOutput = true
         // autoChapterPlan is deprecated: chapter plan is now triggered manually from outline page.
@@ -110,7 +154,23 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         // Preserve the stored value so existing sessions with thinking=true keep working.
         out.thinking = current.thinking
         out.googleThinkingBudget = current.googleThinkingBudget
+        // 自动对话: 用户控制的开关; 预算计数器原样保留 (跨会话写回不会被清零).
+        out.autoChatEnabled = switchAutoChat?.isChecked ?: current.autoChatEnabled
+        out.proactiveCountToday = current.proactiveCountToday
+        out.proactiveResetDate = current.proactiveResetDate
         return out
+    }
+
+    private fun parseNullableInt(edit: TextInputEditText?): Int? {
+        val s = edit?.text?.toString()?.trim().orEmpty()
+        if (s.isEmpty()) return null
+        return s.toIntOrNull()
+    }
+
+    private fun parseNullableFloat(edit: TextInputEditText?): Float? {
+        val s = edit?.text?.toString()?.trim().orEmpty()
+        if (s.isEmpty()) return null
+        return s.toFloatOrNull()
     }
 
     private fun getContextCount(): Int {

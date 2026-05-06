@@ -63,6 +63,10 @@ interface MessageDao {
     @Query("UPDATE message SET embedding = :embedding WHERE id = :id")
     fun updateEmbedding(id: Long, embedding: String)
 
+    /** 自动对话 split 改写: 把刚保存的 consolidated 消息切成 split[0]. */
+    @Query("UPDATE message SET content = :content, proactiveKind = :kind WHERE id = :id")
+    fun updateContentAndProactiveKind(id: Long, content: String, kind: Int)
+
     @Query("SELECT * FROM message WHERE embedding = '' AND content != '' LIMIT :limit")
     fun getMessagesNeedingEmbedding(limit: Int): List<Message>
 

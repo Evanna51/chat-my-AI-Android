@@ -3,8 +3,10 @@ package com.example.aichat
 /**
  * 火山引擎 TTS 音色预设。选中预设时会同步把 [resourceId] 填入 ResourceID 输入框。
  *
- * 公版多情感音色（emo_v2_mars_bigtts）和大模型 2.0（uranus_bigtts）都走
- * `volc.service_type.10029` 这一个语音合成大模型资源；声音复刻才用 `volc.megatts.default`。
+ * 通道对应关系：
+ * - emo_v2_mars_bigtts（情感）/ moon_bigtts（经典）→ `volc.service_type.10029`（语音合成大模型）
+ * - uranus_bigtts（大模型 2.0）→ `seed-tts-2.0`
+ * - 声音复刻 → `volc.megatts.default`
  *
  * 这里只列了角色对话场景比较合用的几个；用户也可以直接在输入框里手输自定义 speaker。
  */
@@ -20,6 +22,7 @@ data class TTSVoicePreset(
 object TTSVoicePresets {
 
     private const val RES_BIG = "volc.service_type.10029"
+    private const val RES_SEED_TTS_2 = "seed-tts-2.0"
 
     val all: List<TTSVoicePreset> = listOf(
         // ---- 公版情感音色（emo_v2，支持 emotion 参数）----
@@ -28,9 +31,9 @@ object TTSVoicePresets {
         TTSVoicePreset("柔美女友（女 · 情感）", "zh_female_roumeinvyou_emo_v2_mars_bigtts", RES_BIG),
         TTSVoicePreset("爽快思思（女 · 情感）", "zh_female_shuangkuaisisi_emo_v2_mars_bigtts", RES_BIG),
         TTSVoicePreset("邻家女孩（女 · 情感）", "zh_female_linjianvhai_emo_v2_mars_bigtts", RES_BIG),
-        // ---- 大模型 2.0（uranus，模型自动推情绪，不吃 emotion 参数）----
-        TTSVoicePreset("微微（女 · 大模型 2.0）", "zh_female_vv_uranus_bigtts", RES_BIG),
-        TTSVoicePreset("如雅亦辰（男 · 大模型 2.0）", "zh_male_ruyayichen_uranus_bigtts", RES_BIG),
+        // ---- 大模型 2.0（uranus，模型自动推情绪，走 seed-tts-2.0 通道）----
+        TTSVoicePreset("微微（女 · 大模型 2.0）", "zh_female_vv_uranus_bigtts", RES_SEED_TTS_2),
+        TTSVoicePreset("如雅亦辰（男 · 大模型 2.0）", "zh_male_ruyayichen_uranus_bigtts", RES_SEED_TTS_2),
         // ---- 经典 moon 系列 ----
         TTSVoicePreset("爽快思思（女 · 经典）", "zh_female_shuangkuaisisi_moon_bigtts", RES_BIG),
     )

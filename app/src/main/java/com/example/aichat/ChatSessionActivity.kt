@@ -58,9 +58,6 @@ class ChatSessionActivity : ThemedActivity() {
 
     companion object {
         private const val TAG = "ChatSessionActivity"
-        private const val PREFS_CHAPTER_PLAN = "chapter_plan_prefs"
-        private const val KEY_LAST_TARGET_LENGTH = "last_target_length"
-        private const val DEFAULT_TARGET_LENGTH = "3000"
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_INITIAL_MESSAGE = "initial_message"
         const val EXTRA_ASSISTANT_ID = "assistant_id"
@@ -205,14 +202,45 @@ class ChatSessionActivity : ThemedActivity() {
     // Single reusable Runnable — posted via scroll.post() and cancelled via scroll.removeCallbacks().
     // Using a named field (instead of anonymous lambdas) lets removeCallbacks reliably dequeue it,
     // preventing stale scrollTo calls after activity destruction.
+    /**
+     * 自动滚到底部 — 修复版。两个老 bug：
+     *  1) 老版本在 post 后立刻读 child.measuredHeight，那时 TextView 的 requestLayout 还没跑，
+     *     拿到 stale 高度 → scrollTo 到旧底部 → 末尾的 updateAutoScrollStateFromPosition 看到
+     *     ΔH > 32dp 就把 flag 翻 false，之后再也跟不动了。
+     *  2) 程序化 scrollTo 同步触发 setOnScrollChangeListener，原 listener 又会写 flag，导致
+     *     跟用户向上拖的手势打架，用户卡在「每拽一下就被拉回底」。
+     * 修复：等 layout 完（OneShotPreDrawListener）再读高度；runnable 不再写 flag；listener 用
+     * inProgrammaticScroll 闸门跳过我们自己引发的滚动；userGesturing 时直接 bail。
+     */
     private val autoScrollRunnable = Runnable {
         val scroll = scrollMessagesView ?: return@Runnable
         if (isFinishing || isDestroyed) return@Runnable
-        val child = scroll.getChildAt(0) ?: return@Runnable
-        val y = maxOf(0, child.measuredHeight - scroll.height)
-        scroll.scrollTo(0, y)
-        updateAutoScrollStateFromPosition()
-        updateLoadEarlierEntryVisibility()
+        val forced = pendingAutoScrollForce
+        pendingAutoScrollForce = false
+        if (!forced) {
+            if (userGesturing) return@Runnable
+            if (!autoScrollToBottomEnabled) return@Runnable
+        }
+        androidx.core.view.OneShotPreDrawListener.add(scroll, Runnable {
+            if (isFinishing || isDestroyed) return@Runnable
+            if (!forced) {
+                if (userGesturing) return@Runnable
+                if (!autoScrollToBottomEnabled) return@Runnable
+            }
+            val child = scroll.getChildAt(0) ?: return@Runnable
+            val y = maxOf(0, child.measuredHeight - scroll.height)
+            if (scroll.scrollY != y) {
+                inProgrammaticScroll = true
+                try {
+                    scroll.scrollTo(0, y)
+                } finally {
+                    inProgrammaticScroll = false
+                }
+            }
+            // forced（用户发新消息等）显式重置跟随状态，否则不再写 flag — flag 由用户手势独占。
+            if (forced) autoScrollToBottomEnabled = true
+            updateLoadEarlierEntryVisibility()
+        })
     }
 
     private var historyExpanded = false
@@ -220,6 +248,12 @@ class ChatSessionActivity : ThemedActivity() {
     private var allMessages: MutableList<Message> = ArrayList()
     private var scrollMessagesView: NestedScrollView? = null
     private var autoScrollToBottomEnabled = true
+    /** True 当 autoScrollRunnable 正在做程序化 scrollTo，让 ScrollChangeListener 跳过这次回调。 */
+    private var inProgrammaticScroll = false
+    /** True 当用户的手指还在 NestedScrollView / RecyclerView 上（DOWN..UP/CANCEL）。 */
+    private var userGesturing = false
+    /** maybeAutoScrollToBottom(force=true) 时置位，runnable 看到后忽略 flag/手势限制并把 flag 重置为 true。 */
+    @Volatile private var pendingAutoScrollForce = false
     private var pendingInitialMessage: String? = null
     private var assistantId: String? = null
     private var writerAssistant = false
@@ -237,6 +271,12 @@ class ChatSessionActivity : ThemedActivity() {
     private var lastStreamRenderAt = 0L
     private var activeChatHandle: ChatService.ChatHandle? = null
     private var activeStreamingMessage: Message? = null
+        set(value) {
+            field = value
+            // 同步给 adapter，让流式消息底部工具栏在生成期间隐藏。
+            if (::historyAdapter.isInitialized) historyAdapter.setStreamingAssistantMessage(value)
+            if (::currentAdapter.isInitialized) currentAdapter.setStreamingAssistantMessage(value)
+        }
     private var activeResponseToken = 0L
     private var lastStreamAutoScrollAt = 0L
     private var streamingTargetMessage: Message? = null
@@ -589,6 +629,8 @@ class ChatSessionActivity : ThemedActivity() {
 
         val userMsg = Message(sessionId, Message.ROLE_USER, text)
         viewModel.insertMessageAsync(userMsg, assistantId)
+        // 自动对话: 用户发新消息 → 取消任何 pending 的 follow-up timer
+        viewModel.cancelPendingProactive()
         allMessages.add(userMsg)
         applyMessagesAndTitle()
         maybeAutoScrollToBottom(true)
@@ -608,88 +650,6 @@ class ChatSessionActivity : ThemedActivity() {
         val finalOptions = options
         // Chapter plan auto-trigger removed; plan is now generated manually from the outline page "更多" menu.
         dispatchChatRequestWithOptionalMemory(finalHistoryForApi, plainApiUserMessage, finalOptions, responseToken, shouldUseCharacterMemory)
-    }
-
-    private fun startChapterPlanFlow(
-        historyForApi: List<Message>,
-        originalInput: String,
-        plainApiUserMessage: String,
-        options: SessionChatOptions,
-        responseToken: Long,
-        shouldUseCharacterMemory: Boolean
-    ) {
-        if (isFinishing || isDestroyed) return
-        val resolved = booleanArrayOf(false)
-        val dialogController = showChapterPlanDialog(
-            ChapterPlanDraft(),
-            "正在生成章节计划…",
-            object : ChapterPlanDialogCallback {
-                override fun onCancel() {
-                    resolved[0] = true
-                    if (responseToken != activeResponseToken) return
-                    setAssistantResponseInProgress(false)
-                    activeChatHandle = null
-                    activeStreamingMessage = null
-                    removeCharacterMemoryLoadingPlaceholder()
-                }
-
-                override fun onConfirm(edited: ChapterPlanDraft?, addOutline: Boolean) {
-                    resolved[0] = true
-                    if (responseToken != activeResponseToken) return
-                    if (edited == null || !edited.hasAnyContent()) {
-                        dispatchChatRequestWithOptionalMemory(historyForApi, plainApiUserMessage, options, responseToken, shouldUseCharacterMemory)
-                        return
-                    }
-                    persistLastTargetLength(edited.targetLength)
-                    if (addOutline) {
-                        addChapterPlanToOutline(edited)
-                    }
-                    val finalUserMessage = composeUserMessageWithChapterPlan(plainApiUserMessage, edited)
-                    dispatchChatRequestWithOptionalMemory(historyForApi, finalUserMessage, options, responseToken, shouldUseCharacterMemory)
-                }
-            })
-        chatService.generateChapterPlanJson(originalInput, plainApiUserMessage, object : ChatService.ChatCallback {
-            override fun onPartial(delta: String) {
-                mainHandler.post {
-                    if (resolved[0]) return@post
-                    if (responseToken != activeResponseToken) return@post
-                    if (isFinishing || isDestroyed) return@post
-                    dialogController?.setStatus(
-                        if (delta.trim().isNotEmpty()) delta.trim()
-                        else "正在生成章节计划…"
-                    )
-                }
-            }
-
-            override fun onSuccess(content: String) {
-                mainHandler.post {
-                    if (resolved[0]) return@post
-                    if (responseToken != activeResponseToken) return@post
-                    if (isFinishing || isDestroyed) return@post
-                    val draft = parseChapterPlanDraft(content)
-                    if (draft == null) {
-                        dialogController?.setStatus("计划解析失败，可手动填写后确认继续")
-                        return@post
-                    }
-                    dialogController?.applyGeneratedDraft(draft)
-                    if (draft.hasAnyContent()) {
-                        dialogController?.setStatus("章节计划已生成，可编辑后确认")
-                    } else {
-                        dialogController?.setStatus("已解析到结构，但字段为空；可手动填写后确认")
-                    }
-                }
-            }
-
-            override fun onError(message: String) {
-                mainHandler.post {
-                    if (resolved[0]) return@post
-                    if (responseToken != activeResponseToken) return@post
-                    if (isFinishing || isDestroyed) return@post
-                    val msg = if (message.trim().isNotEmpty()) message.trim() else "章节计划生成失败"
-                    dialogController?.setStatus("$msg。可手动填写后确认，或直接确认跳过计划。")
-                }
-            }
-        })
     }
 
     private fun dispatchChatRequestWithOptionalMemory(
@@ -819,7 +779,12 @@ class ChatSessionActivity : ThemedActivity() {
                 finishThinking(streaming)
                 stopStreamTypewriter(true)
                 streaming.content = safeContent
-                viewModel.persistSessionMessagesAsync(allMessages)
+                // 自动对话路径下, ChatViewModel.onSuccess 已写库, ProactiveChatPlanner 还会做
+                // split rewrite + 后续 split / follow-up 插入. 这里若再 persistSessionMessagesAsync
+                // 会 deleteBySession 把 planner 的写入冲掉, 所以仅在非自动对话时调用.
+                if (!event.autoChatActive) {
+                    viewModel.persistSessionMessagesAsync(allMessages)
+                }
             } else {
                 val assistantMsg = Message(sessionId, Message.ROLE_ASSISTANT, safeContent)
                 allMessages.add(assistantMsg)
@@ -964,6 +929,16 @@ class ChatSessionActivity : ThemedActivity() {
             }
             out.modelKey = fallback ?: ""
         }
+
+        // 角色没有覆盖某项参数时，再回退到模型默认 — 一次性写入会话以保证后续行为稳定。
+        // 老语义：会话保存后是 source of truth；这里只是创建那一刻对空值做个种子填充。
+        val modelDefaults = ChatParamsResolver.lookupModelDefaults(this, out.modelKey)
+        if (modelDefaults != null) {
+            if (out.maxTokens == null) out.maxTokens = modelDefaults.maxTokens
+            if (out.frequencyPenalty == null) out.frequencyPenalty = modelDefaults.frequencyPenalty
+            if (out.presencePenalty == null) out.presencePenalty = modelDefaults.presencePenalty
+            if (out.topK == null) out.topK = modelDefaults.topK
+        }
         return out
     }
 
@@ -972,12 +947,17 @@ class ChatSessionActivity : ThemedActivity() {
         if (src == null) return out
         out.sessionTitle = src.sessionTitle ?: ""
         out.sessionAvatar = src.sessionAvatar ?: ""
+        out.sessionAvatarImageBase64 = src.sessionAvatarImageBase64
         out.contextMessageCount = src.contextMessageCount
         out.modelKey = src.modelKey ?: ""
         out.systemPrompt = src.systemPrompt ?: ""
         out.stop = src.stop ?: ""
         out.temperature = src.temperature
         out.topP = src.topP
+        out.maxTokens = src.maxTokens
+        out.frequencyPenalty = src.frequencyPenalty
+        out.presencePenalty = src.presencePenalty
+        out.topK = src.topK
         out.streamOutput = true
         out.autoChapterPlan = src.autoChapterPlan
         out.thinking = src.thinking
@@ -1459,217 +1439,18 @@ class ChatSessionActivity : ThemedActivity() {
         })
     }
 
-    private fun showChapterPlanDialog(
-        draft: ChapterPlanDraft,
-        initialStatus: String,
-        callback: ChapterPlanDialogCallback
-    ): ChapterPlanDialogController? {
-        if (draft.targetLength.isNullOrEmpty()) {
-            draft.targetLength = getDefaultTargetLength()
-        }
-        val view = layoutInflater.inflate(R.layout.dialog_chapter_plan, null)
-        val textStatus: TextView? = view.findViewById(R.id.textPlanGenerationStatus)
-        val editGoal: TextInputEditText? = view.findViewById(R.id.editPlanChapterGoal)
-        val editStart: TextInputEditText? = view.findViewById(R.id.editPlanStartState)
-        val editEnd: TextInputEditText? = view.findViewById(R.id.editPlanEndState)
-        val editDrives: TextInputEditText? = view.findViewById(R.id.editPlanCharacterDrives)
-        val editKnowledge: TextInputEditText? = view.findViewById(R.id.editPlanKnowledgeBoundary)
-        val editEvents: TextInputEditText? = view.findViewById(R.id.editPlanEventChain)
-        val editForeshadow: TextInputEditText? = view.findViewById(R.id.editPlanForeshadow)
-        val editPayoff: TextInputEditText? = view.findViewById(R.id.editPlanPayoff)
-        val editForbidden: TextInputEditText? = view.findViewById(R.id.editPlanForbidden)
-        val editStyle: TextInputEditText? = view.findViewById(R.id.editPlanStyleGuide)
-        val editLength: TextInputEditText? = view.findViewById(R.id.editPlanTargetLength)
-
-        val controller = ChapterPlanDialogController(
-            null, textStatus,
-            editGoal, editStart, editEnd, editDrives, editKnowledge, editEvents,
-            editForeshadow, editPayoff, editForbidden, editStyle, editLength
-        )
-        controller.applyDraft(draft, false)
-        controller.setStatus(initialStatus)
-
-        val dialog = MaterialAlertDialogBuilder(this)
-            .setTitle("本轮写作计划")
-            .setView(view)
-            .setNegativeButton("取消") { _, _ -> callback.onCancel() }
-            .setNeutralButton("确认并加入大纲") { _, _ ->
-                callback.onConfirm(
-                    collectChapterPlanDraft(
-                        controller.editGoal, controller.editStart, controller.editEnd,
-                        controller.editDrives, controller.editKnowledge, controller.editEvents,
-                        controller.editForeshadow, controller.editPayoff, controller.editForbidden,
-                        controller.editStyle, controller.editLength
-                    ), true
-                )
-            }
-            .setPositiveButton("确认") { _, _ ->
-                callback.onConfirm(
-                    collectChapterPlanDraft(
-                        controller.editGoal, controller.editStart, controller.editEnd,
-                        controller.editDrives, controller.editKnowledge, controller.editEvents,
-                        controller.editForeshadow, controller.editPayoff, controller.editForbidden,
-                        controller.editStyle, controller.editLength
-                    ), false
-                )
-            }
-            .show()
-        controller.dialog = dialog
-        return controller
-    }
-
-    private fun collectChapterPlanDraft(
-        editGoal: TextInputEditText?,
-        editStart: TextInputEditText?,
-        editEnd: TextInputEditText?,
-        editDrives: TextInputEditText?,
-        editKnowledge: TextInputEditText?,
-        editEvents: TextInputEditText?,
-        editForeshadow: TextInputEditText?,
-        editPayoff: TextInputEditText?,
-        editForbidden: TextInputEditText?,
-        editStyle: TextInputEditText?,
-        editLength: TextInputEditText?
-    ): ChapterPlanDraft {
-        val draft = ChapterPlanDraft()
-        draft.chapterGoal = textOf(editGoal)
-        draft.startState = textOf(editStart)
-        draft.endState = textOf(editEnd)
-        draft.characterDrives = ChapterPlanDraft.parseCharacterDrives(textOf(editDrives))
-        draft.knowledgeBoundary = parseLines(textOf(editKnowledge))
-        draft.eventChain = parseLines(textOf(editEvents))
-        draft.foreshadow = parseLines(textOf(editForeshadow))
-        draft.payoff = parseLines(textOf(editPayoff))
-        draft.forbidden = parseLines(textOf(editForbidden))
-        draft.styleGuide = textOf(editStyle)
-        draft.targetLength = textOf(editLength)
-        return draft
-    }
-
-    private fun composeUserMessageWithChapterPlan(plainApiUserMessage: String, draft: ChapterPlanDraft): String {
-        val base = plainApiUserMessage.trim()
-        val plan = draft.toJson()
-        val sb = StringBuilder()
-        if (base.isNotEmpty()) {
-            sb.append(base).append("\n\n")
-        }
-        sb.append("【本轮写作计划（必须遵循）】\n")
-            .append(plan.toString())
-            .append("\n\n")
-            .append("执行要求：优先遵循本轮计划推进剧情；不得违背知情约束与既有设定。")
-        return sb.toString().trim()
-    }
-
-    private fun addChapterPlanToOutline(draft: ChapterPlanDraft) {
-        val next = outlineStore!!.nextChapterIndex(sessionId)
-        val title = "章节$next"
-        val content = draft.toOutlineText()
-        outlineStore!!.add(sessionId, "chapter", title, content)
-        Toast.makeText(this, "已加入大纲：$title", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun parseChapterPlanDraft(json: String?): ChapterPlanDraft? {
-        val raw = json?.trim() ?: ""
-        if (raw.isEmpty()) return null
-        return try {
-            val obj = JsonParser().parse(raw).asJsonObject
-            ChapterPlanDraft.fromJson(obj)
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun textOf(edit: TextInputEditText?): String {
-        if (edit == null || edit.text == null) return ""
-        return edit.text.toString().trim()
-    }
-
-    private fun parseLines(text: String): List<String> {
-        val out = ArrayList<String>()
-        if (text.trim().isEmpty()) return out
-        val lines = text.split(Regex("\\r?\\n"))
-        for (line in lines) {
-            val one = line.trim()
-            if (one.isNotEmpty()) out.add(one)
-        }
-        return out
-    }
-
-    private fun joinLines(items: List<String>?): String {
-        if (items.isNullOrEmpty()) return ""
-        val sb = StringBuilder()
-        for (one in items) {
-            if (one.trim().isEmpty()) continue
-            if (sb.isNotEmpty()) sb.append("\n")
-            sb.append(one.trim())
-        }
-        return sb.toString()
-    }
-
-    private fun getDefaultTargetLength(): String {
-        val prefs: SharedPreferences = getSharedPreferences(PREFS_CHAPTER_PLAN, MODE_PRIVATE)
-        val saved = prefs.getString(KEY_LAST_TARGET_LENGTH, "")
-        if (!saved.isNullOrEmpty()) return saved.trim()
-        return DEFAULT_TARGET_LENGTH
-    }
-
-    private fun persistLastTargetLength(targetLength: String?) {
-        val value = targetLength?.trim() ?: ""
-        if (value.isEmpty()) return
-        getSharedPreferences(PREFS_CHAPTER_PLAN, MODE_PRIVATE)
-            .edit()
-            .putString(KEY_LAST_TARGET_LENGTH, value)
-            .apply()
-    }
-
     private fun buildUserMessageForApi(text: String): String {
         val source = text.trim()
         if (!writerAssistant || source.isEmpty()) return source
-        val outlines = outlineStore?.getAll(sessionId)
-        if (outlines.isNullOrEmpty()) return source
-        val sb = StringBuilder()
-        val knowledgeSb = StringBuilder()
-        sb.append(source).append("\n\n")
-        sb.append("【写作大纲与资料】\n")
-        for (one in outlines) {
-            if (one == null) continue
-            val type = when (one.type) {
-                "material" -> "资料"
-                "task" -> "人物资料"
-                "world" -> "世界背景"
-                "knowledge" -> "知情约束"
-                else -> "章节"
-            }
-            val title = one.title?.trim() ?: ""
-            val content = one.content?.trim() ?: ""
-            if (title.isEmpty() && content.isEmpty()) continue
-            sb.append("- [").append(type).append("] ")
-            if (title.isNotEmpty()) sb.append(title)
-            if (content.isNotEmpty()) {
-                if (title.isNotEmpty()) sb.append("：")
-                sb.append(content)
-            }
-            sb.append("\n")
-            if ("knowledge" == one.type) {
-                knowledgeSb.append("- ")
-                if (title.isNotEmpty()) knowledgeSb.append(title)
-                if (content.isNotEmpty()) {
-                    if (title.isNotEmpty()) knowledgeSb.append("：")
-                    knowledgeSb.append(content)
-                }
-                knowledgeSb.append("\n")
-            }
-        }
-        if (knowledgeSb.isNotEmpty()) {
-            sb.append("\n【知情约束（必须遵守）】\n")
-            sb.append(knowledgeSb)
-            sb.append("1) 角色只能使用其已知信息行动、发言与推理。\n")
-            sb.append("2) 未知信息不得被角色直接提及或据此决策。\n")
-            sb.append("3) 若需要让角色得知信息，必须先写出获取路径（目击/对话/文件/推理）。\n")
-            sb.append("4) 优先保证知情边界，不要把读者已知当成角色已知。\n")
-        }
-        sb.append("请严格参考以上内容，保持情节、设定、任务线索的一致性与准确性。")
-        return sb.toString().trim()
+        val outlines = outlineStore?.getAll(sessionId).orEmpty()
+        val outlineBlock = OutlinePromptBuilder.build(outlines, includeKnowledgeEnforcement = true)
+        if (outlineBlock.isEmpty()) return source
+        return buildString {
+            append(source).append("\n\n")
+            append("【写作大纲与资料】\n")
+            append(outlineBlock).append("\n\n")
+            append("请严格参考以上内容，保持情节、设定、任务线索的一致性与准确性。")
+        }.trim()
     }
 
     private fun buildUserMessageForApiWithMemory(
@@ -1729,259 +1510,6 @@ class ChatSessionActivity : ThemedActivity() {
                 "【前段】\n$start\n【中段】\n$middle\n【后段】\n$end"
     }
 
-    private interface ChapterPlanDialogCallback {
-        fun onCancel()
-        fun onConfirm(edited: ChapterPlanDraft?, addOutline: Boolean)
-    }
-
-    private class ChapterPlanDialogController(
-        var dialog: AlertDialog?,
-        val textStatus: TextView?,
-        val editGoal: TextInputEditText?,
-        val editStart: TextInputEditText?,
-        val editEnd: TextInputEditText?,
-        val editDrives: TextInputEditText?,
-        val editKnowledge: TextInputEditText?,
-        val editEvents: TextInputEditText?,
-        val editForeshadow: TextInputEditText?,
-        val editPayoff: TextInputEditText?,
-        val editForbidden: TextInputEditText?,
-        val editStyle: TextInputEditText?,
-        val editLength: TextInputEditText?
-    ) {
-        fun setStatus(status: String?) {
-            val text = status?.trim() ?: ""
-            textStatus?.text = if (text.isEmpty()) "正在生成章节计划…" else text
-        }
-
-        fun applyGeneratedDraft(draft: ChapterPlanDraft) {
-            applyDraft(draft, true)
-        }
-
-        fun applyDraft(draft: ChapterPlanDraft, fillOnlyEmpty: Boolean) {
-            applyText(editGoal, draft.chapterGoal, fillOnlyEmpty)
-            applyText(editStart, draft.startState, fillOnlyEmpty)
-            applyText(editEnd, draft.endState, fillOnlyEmpty)
-            applyText(editDrives, draft.characterDrivesToMultiline(), fillOnlyEmpty)
-            applyText(editKnowledge, joinLinesStatic(draft.knowledgeBoundary), fillOnlyEmpty)
-            applyText(editEvents, joinLinesStatic(draft.eventChain), fillOnlyEmpty)
-            applyText(editForeshadow, joinLinesStatic(draft.foreshadow), fillOnlyEmpty)
-            applyText(editPayoff, joinLinesStatic(draft.payoff), fillOnlyEmpty)
-            applyText(editForbidden, joinLinesStatic(draft.forbidden), fillOnlyEmpty)
-            applyText(editStyle, draft.styleGuide, fillOnlyEmpty)
-            applyText(editLength, draft.targetLength, fillOnlyEmpty)
-        }
-
-        private fun applyText(edit: TextInputEditText?, value: String?, fillOnlyEmpty: Boolean) {
-            if (edit == null) return
-            val incoming = value ?: ""
-            if (fillOnlyEmpty) {
-                val current = edit.text?.toString()?.trim() ?: ""
-                if (current.isNotEmpty()) return
-            }
-            edit.setText(incoming)
-        }
-
-        companion object {
-            fun joinLinesStatic(items: List<String>?): String {
-                if (items.isNullOrEmpty()) return ""
-                val sb = StringBuilder()
-                for (one in items) {
-                    if (one.trim().isEmpty()) continue
-                    if (sb.isNotEmpty()) sb.append("\n")
-                    sb.append(one.trim())
-                }
-                return sb.toString()
-            }
-        }
-    }
-
-    private class ChapterPlanDraft {
-        var chapterGoal: String = ""
-        var startState: String = ""
-        var endState: String = ""
-        var characterDrives: MutableList<CharacterDrive> = ArrayList()
-        var knowledgeBoundary: List<String> = ArrayList()
-        var eventChain: List<String> = ArrayList()
-        var foreshadow: List<String> = ArrayList()
-        var payoff: List<String> = ArrayList()
-        var forbidden: List<String> = ArrayList()
-        var styleGuide: String = ""
-        var targetLength: String = ""
-
-        companion object {
-            fun fromJson(obj: JsonObject?): ChapterPlanDraft {
-                val out = ChapterPlanDraft()
-                if (obj == null) return out
-                out.chapterGoal = getString(obj, "chapterGoal")
-                out.startState = getString(obj, "startState")
-                out.endState = getString(obj, "endState")
-                out.characterDrives = parseCharacterDrives(obj.get("characterDrives"))
-                out.knowledgeBoundary = parseStringArray(obj.get("knowledgeBoundary"))
-                out.eventChain = parseStringArray(obj.get("eventChain"))
-                out.foreshadow = parseStringArray(obj.get("foreshadow"))
-                out.payoff = parseStringArray(obj.get("payoff"))
-                out.forbidden = parseStringArray(obj.get("forbidden"))
-                out.styleGuide = getString(obj, "styleGuide")
-                out.targetLength = getString(obj, "targetLength")
-                return out
-            }
-
-            fun parseCharacterDrives(multiline: String?): MutableList<CharacterDrive> {
-                val out = ArrayList<CharacterDrive>()
-                if (multiline.isNullOrEmpty()) return out
-                val lines = multiline.split(Regex("\\r?\\n"))
-                for (line in lines) {
-                    if (line.trim().isEmpty()) continue
-                    val parts = line.split("|", limit = -1)  // -1 keeps trailing empty
-                    val drive = CharacterDrive()
-                    drive.name = if (parts.isNotEmpty()) parts[0].trim() else ""
-                    drive.goal = if (parts.size > 1) parts[1].trim() else ""
-                    drive.misbelief = if (parts.size > 2) parts[2].trim() else ""
-                    drive.emotion = if (parts.size > 3) parts[3].trim() else ""
-                    out.add(drive)
-                }
-                return out
-            }
-
-            fun parseCharacterDrives(element: JsonElement?): MutableList<CharacterDrive> {
-                val out = ArrayList<CharacterDrive>()
-                if (element == null || element.isJsonNull || !element.isJsonArray) return out
-                val arr = element.asJsonArray
-                for (i in 0 until arr.size()) {
-                    val one = arr[i]
-                    if (one == null || one.isJsonNull) continue
-                    val drive = CharacterDrive()
-                    if (one.isJsonObject) {
-                        val obj = one.asJsonObject
-                        drive.name = getString(obj, "name")
-                        drive.goal = getString(obj, "goal")
-                        drive.misbelief = getString(obj, "misbelief")
-                        drive.emotion = getString(obj, "emotion")
-                    } else {
-                        drive.goal = if (one.isJsonPrimitive) one.asString else one.toString()
-                    }
-                    out.add(drive)
-                }
-                return out
-            }
-
-            private fun parseStringArray(element: JsonElement?): List<String> {
-                val out = ArrayList<String>()
-                if (element == null || element.isJsonNull || !element.isJsonArray) return out
-                val arr = element.asJsonArray
-                for (i in 0 until arr.size()) {
-                    val one = arr[i]
-                    if (one == null || one.isJsonNull) continue
-                    val text = if (one.isJsonPrimitive) one.asString else one.toString()
-                    if (text.trim().isNotEmpty()) out.add(text.trim())
-                }
-                return out
-            }
-
-            private fun toJsonArray(source: List<String>?): JsonArray {
-                val out = JsonArray()
-                if (source == null) return out
-                for (one in source) {
-                    if (one.trim().isEmpty()) continue
-                    out.add(one.trim())
-                }
-                return out
-            }
-
-            private fun getString(obj: JsonObject?, key: String): String {
-                if (obj == null || !obj.has(key)) return ""
-                return try {
-                    val e = obj.get(key)
-                    if (e == null || e.isJsonNull) ""
-                    else if (e.isJsonPrimitive) e.asString
-                    else e.toString()
-                } catch (ignored: Exception) {
-                    ""
-                }
-            }
-        }
-
-        fun toJson(): JsonObject {
-            val out = JsonObject()
-            out.addProperty("chapterGoal", chapterGoal)
-            out.addProperty("startState", startState)
-            out.addProperty("endState", endState)
-            val drives = JsonArray()
-            for (one in characterDrives) {
-                val item = JsonObject()
-                item.addProperty("name", one.name)
-                item.addProperty("goal", one.goal)
-                item.addProperty("misbelief", one.misbelief)
-                item.addProperty("emotion", one.emotion)
-                drives.add(item)
-            }
-            out.add("characterDrives", drives)
-            out.add("knowledgeBoundary", Companion.toJsonArray(knowledgeBoundary))
-            out.add("eventChain", Companion.toJsonArray(eventChain))
-            out.add("foreshadow", Companion.toJsonArray(foreshadow))
-            out.add("payoff", Companion.toJsonArray(payoff))
-            out.add("forbidden", Companion.toJsonArray(forbidden))
-            out.addProperty("styleGuide", styleGuide)
-            val length = targetLength.trim()
-            if (length.isNotEmpty()) {
-                out.addProperty("targetLength", length)
-            }
-            return out
-        }
-
-        fun hasAnyContent(): Boolean {
-            if (chapterGoal.trim().isNotEmpty()) return true
-            if (startState.trim().isNotEmpty()) return true
-            if (endState.trim().isNotEmpty()) return true
-            if (styleGuide.trim().isNotEmpty()) return true
-            if (targetLength.trim().isNotEmpty()) return true
-            if (characterDrives.isNotEmpty()) return true
-            if (knowledgeBoundary.isNotEmpty()) return true
-            if (eventChain.isNotEmpty()) return true
-            if (foreshadow.isNotEmpty()) return true
-            if (payoff.isNotEmpty()) return true
-            return forbidden.isNotEmpty()
-        }
-
-        fun toOutlineText(): String {
-            val sb = StringBuilder()
-            if (chapterGoal.trim().isNotEmpty()) sb.append("目标：${chapterGoal.trim()}\n")
-            if (startState.trim().isNotEmpty()) sb.append("起始状态：${startState.trim()}\n")
-            if (endState.trim().isNotEmpty()) sb.append("结束状态：${endState.trim()}\n")
-            if (eventChain.isNotEmpty()) {
-                sb.append("事件链：")
-                for (i in eventChain.indices) {
-                    val one = eventChain[i]
-                    if (one.trim().isEmpty()) continue
-                    if (i > 0) sb.append(" -> ")
-                    sb.append(one.trim())
-                }
-                sb.append("\n")
-            }
-            if (styleGuide.trim().isNotEmpty()) sb.append("文风：${styleGuide.trim()}\n")
-            if (targetLength.trim().isNotEmpty()) sb.append("建议篇幅：${targetLength.trim()}")
-            return sb.toString().trim()
-        }
-
-        fun characterDrivesToMultiline(): String {
-            if (characterDrives.isEmpty()) return ""
-            val sb = StringBuilder()
-            for (one in characterDrives) {
-                if (sb.isNotEmpty()) sb.append("\n")
-                sb.append(one.name).append("|").append(one.goal)
-                    .append("|").append(one.misbelief).append("|").append(one.emotion)
-            }
-            return sb.toString()
-        }
-    }
-
-    private class CharacterDrive {
-        var name = ""
-        var goal = ""
-        var misbelief = ""
-        var emotion = ""
-    }
 
     private fun resolveWriterAssistant(): Boolean {
         if (assistantId.isNullOrEmpty()) return false
@@ -2276,12 +1804,23 @@ class ChatSessionActivity : ThemedActivity() {
         recyclerCurrent: RecyclerView?,
         scrollMessages: NestedScrollView?
     ) {
-        val touchCollapse = View.OnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_DOWN) collapseMessageActions()
+        // 一个统一的触摸 listener：跟踪用户手势状态 + 顺便折叠消息操作栏。
+        val touchHandler = View.OnTouchListener { _, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    userGesturing = true
+                    collapseMessageActions()
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    userGesturing = false
+                    // fling 还在继续时 ScrollChangeListener 会持续更新 flag；这里只是兜底再读一次。
+                    updateAutoScrollStateFromPosition()
+                }
+            }
             false
         }
         if (recyclerHistory != null) {
-            recyclerHistory.setOnTouchListener(touchCollapse)
+            recyclerHistory.setOnTouchListener(touchHandler)
             recyclerHistory.addOnScrollListener(object : RecyclerView.OnScrollListener() {
                 override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                     if (dy != 0 || dx != 0) collapseMessageActions()
@@ -2289,16 +1828,20 @@ class ChatSessionActivity : ThemedActivity() {
             })
         }
         if (recyclerCurrent != null) {
-            recyclerCurrent.setOnTouchListener(touchCollapse)
+            recyclerCurrent.setOnTouchListener(touchHandler)
             recyclerCurrent.addOnScrollListener(object : RecyclerView.OnScrollListener() {
                 override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                     if (dy != 0 || dx != 0) collapseMessageActions()
                 }
             })
         }
-        scrollMessages?.setOnTouchListener(touchCollapse)
+        scrollMessages?.setOnTouchListener(touchHandler)
         scrollMessages?.setOnScrollChangeListener(NestedScrollView.OnScrollChangeListener { _, scrollX, scrollY, oldScrollX, oldScrollY ->
-            updateAutoScrollStateFromPosition()
+            // 程序化滚动（autoScrollRunnable 内的 scrollTo）同步触发本回调，要忽略掉，
+            // 否则我们刚把用户拽回底部 → flag 又被写成 true，下一帧继续拽 → 死循环。
+            if (!inProgrammaticScroll) {
+                updateAutoScrollStateFromPosition()
+            }
             if (scrollY != oldScrollY || scrollX != oldScrollX) collapseMessageActions()
             updateLoadEarlierEntryVisibility()
             updateCollapseToggleAffixViewport()
@@ -2453,7 +1996,9 @@ class ChatSessionActivity : ThemedActivity() {
         if (!force) {
             if (!assistantResponseInProgress) return
             if (!autoScrollToBottomEnabled) return
+            if (userGesturing) return  // 用户正在拖，绝不强行抢回
         }
+        if (force) pendingAutoScrollForce = true
         scroll.removeCallbacks(autoScrollRunnable)
         scroll.post(autoScrollRunnable)
     }

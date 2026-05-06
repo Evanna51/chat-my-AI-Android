@@ -1,22 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  主题色取自 iOS 18 systemColors（Apple HIG）— 比之前的 Material 700 系列更轻盈、更现代。
+  各色配 4 档：primary / subtle（极浅 hint 背景）/ light（mid-tone bg，用于胶囊/标签）/ deep（强调态）。
+  夜间版在 values-night/colors.xml 同步重写。
+-->
 <resources>
-    <color name="primary">#1976D2</color>
-    <color name="primary_blue">#1976D2</color>
-    <color name="primary_blue_subtle">#F5FAFF</color>
-    <color name="primary_blue_light">#E3F2FD</color>
-    <color name="primary_blue_deep">#0D47A1</color>
-    <color name="primary_green">#2E7D32</color>
-    <color name="primary_green_subtle">#F3FAF4</color>
-    <color name="primary_green_light">#E8F5E9</color>
-    <color name="primary_green_deep">#1B5E20</color>
-    <color name="primary_purple">#6A1B9A</color>
-    <color name="primary_purple_subtle">#FBF5FF</color>
-    <color name="primary_purple_light">#F3E5F5</color>
-    <color name="primary_purple_deep">#4A148C</color>
-    <color name="primary_orange">#EF6C00</color>
-    <color name="primary_orange_subtle">#FFFAF3</color>
-    <color name="primary_orange_light">#FFF3E0</color>
-    <color name="primary_orange_deep">#E65100</color>
+    <color name="primary">#007AFF</color>
+    <!-- iOS systemBlue -->
+    <color name="primary_blue">#007AFF</color>
+    <color name="primary_blue_subtle">#F2F8FF</color>
+    <color name="primary_blue_light">#D6EBFF</color>
+    <color name="primary_blue_deep">#0040A0</color>
+    <!-- iOS systemGreen -->
+    <color name="primary_green">#34C759</color>
+    <color name="primary_green_subtle">#F4FCF6</color>
+    <color name="primary_green_light">#D5F5DD</color>
+    <color name="primary_green_deep">#1F8A35</color>
+    <!-- iOS systemPurple -->
+    <color name="primary_purple">#AF52DE</color>
+    <color name="primary_purple_subtle">#FAF4FD</color>
+    <color name="primary_purple_light">#EFD9F8</color>
+    <color name="primary_purple_deep">#7B2D9C</color>
+    <!-- iOS systemOrange -->
+    <color name="primary_orange">#FF9500</color>
+    <color name="primary_orange_subtle">#FFF8EC</color>
+    <color name="primary_orange_light">#FFE7C2</color>
+    <color name="primary_orange_deep">#C77000</color>
     <color name="on_primary">#FFFFFF</color>
     <color name="surface">#FFFFFF</color>
     <color name="user_bubble">#E3F2FD</color>
@@ -53,11 +62,11 @@
     <!-- Liquid glass Tier 1 -->
     <color name="glass_tint">#80F2F2F7</color>
     <color name="glass_stroke_tier1">#40FFFFFF</color>
-    <!-- Environment tint -->
-    <color name="glass_tint_blue">#08448AFF</color>
-    <color name="glass_tint_green">#082E7D32</color>
-    <color name="glass_tint_purple">#086A1B9A</color>
-    <color name="glass_tint_orange">#08EF6C00</color>
+    <!-- Environment tint — 与新主题色对齐 -->
+    <color name="glass_tint_blue">#08007AFF</color>
+    <color name="glass_tint_green">#0834C759</color>
+    <color name="glass_tint_purple">#08AF52DE</color>
+    <color name="glass_tint_orange">#08FF9500</color>
     <!-- Text/Icon utility -->
     <color name="text_quaternary">#4D000000</color>
     <!-- Shadow -->

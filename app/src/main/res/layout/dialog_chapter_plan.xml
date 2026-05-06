@@ -1,208 +1,365 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content">
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_glass_dialog">
 
-    <LinearLayout
+    <!-- Header: title 由 SessionOutlineActivity 通过 textPlanDialogTitle 动态写入 -->
+    <TextView
+        android:id="@+id/textPlanDialogTitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:text="章节计划"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="?attr/colorOnSurface"
+        android:gravity="center"
+        android:paddingTop="18dp"
+        android:paddingBottom="6dp"
+        android:paddingHorizontal="20dp" />
+
+    <TextView
+        android:id="@+id/textPlanGenerationStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textSize="12sp"
+        android:textColor="@color/ios_section_label"
+        android:gravity="center"
+        android:paddingHorizontal="20dp"
+        android:paddingBottom="12dp"
+        android:text="正在生成章节计划…" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="?attr/colorOutline"
+        android:alpha="0.3" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingHorizontal="16dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="14dp">
+
+            <!-- 章节目标 -->
+            <TextView style="@style/Widget.AIChat.PlanFieldLabel" android:text="章节目标" />
+            <com.example.aichat.widget.GlassTextInputLayout
+                style="@style/Widget.AIChat.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="本章核心目标，≤120 字">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editPlanChapterGoal"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textMultiLine"
+                    android:minLines="2"
+                    android:maxLines="4"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp" />
+            </com.example.aichat.widget.GlassTextInputLayout>
+
+            <!-- 起始 + 结束状态：横排两个，节省空间 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginEnd="6dp">
+                    <TextView style="@style/Widget.AIChat.PlanFieldLabel" android:text="起始状态" />
+                    <com.example.aichat.widget.GlassTextInputLayout
+                        style="@style/Widget.AIChat.TextInputLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="开场状态">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/editPlanStartState"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textMultiLine"
+                            android:minLines="2"
+                            android:maxLines="3"
+                            android:paddingTop="8dp"
+                            android:paddingBottom="8dp" />
+                    </com.example.aichat.widget.GlassTextInputLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginStart="6dp">
+                    <TextView style="@style/Widget.AIChat.PlanFieldLabel" android:text="结束状态" />
+                    <com.example.aichat.widget.GlassTextInputLayout
+                        style="@style/Widget.AIChat.TextInputLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="收尾状态">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/editPlanEndState"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textMultiLine"
+                            android:minLines="2"
+                            android:maxLines="3"
+                            android:paddingTop="8dp"
+                            android:paddingBottom="8dp" />
+                    </com.example.aichat.widget.GlassTextInputLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 角色驱动 -->
+            <TextView
+                style="@style/Widget.AIChat.PlanFieldLabel"
+                android:layout_marginTop="10dp"
+                android:text="角色驱动" />
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="11sp"
+                android:textColor="@color/ios_section_label"
+                android:text="每行：姓名 | 目标 | 误判 | 情绪" />
+            <com.example.aichat.widget.GlassTextInputLayout
+                style="@style/Widget.AIChat.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:hint="姓名|目标|误判|情绪">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editPlanCharacterDrives"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textMultiLine"
+                    android:minLines="3"
+                    android:maxLines="6"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp" />
+            </com.example.aichat.widget.GlassTextInputLayout>
+
+            <!-- 事件链 -->
+            <TextView
+                style="@style/Widget.AIChat.PlanFieldLabel"
+                android:layout_marginTop="10dp"
+                android:text="事件链（每行一条，按时间顺序）" />
+            <com.example.aichat.widget.GlassTextInputLayout
+                style="@style/Widget.AIChat.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="起因 → 行为 → 结果">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editPlanEventChain"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textMultiLine"
+                    android:minLines="3"
+                    android:maxLines="6"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp" />
+            </com.example.aichat.widget.GlassTextInputLayout>
+
+            <!-- 知情边界 -->
+            <TextView
+                style="@style/Widget.AIChat.PlanFieldLabel"
+                android:layout_marginTop="10dp"
+                android:text="知情边界（每行一条）" />
+            <com.example.aichat.widget.GlassTextInputLayout
+                style="@style/Widget.AIChat.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="X 知道/不知道/误以为 Y">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editPlanKnowledgeBoundary"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textMultiLine"
+                    android:minLines="2"
+                    android:maxLines="5"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp" />
+            </com.example.aichat.widget.GlassTextInputLayout>
+
+            <!-- 伏笔 + 回收 横排 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginEnd="6dp">
+                    <TextView style="@style/Widget.AIChat.PlanFieldLabel" android:text="伏笔" />
+                    <com.example.aichat.widget.GlassTextInputLayout
+                        style="@style/Widget.AIChat.TextInputLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="本章埋下的伏笔">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/editPlanForeshadow"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textMultiLine"
+                            android:minLines="2"
+                            android:maxLines="4"
+                            android:paddingTop="8dp"
+                            android:paddingBottom="8dp" />
+                    </com.example.aichat.widget.GlassTextInputLayout>
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:layout_marginStart="6dp">
+                    <TextView style="@style/Widget.AIChat.PlanFieldLabel" android:text="回收" />
+                    <com.example.aichat.widget.GlassTextInputLayout
+                        style="@style/Widget.AIChat.TextInputLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:hint="本章兑现的伏笔">
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/editPlanPayoff"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:inputType="textMultiLine"
+                            android:minLines="2"
+                            android:maxLines="4"
+                            android:paddingTop="8dp"
+                            android:paddingBottom="8dp" />
+                    </com.example.aichat.widget.GlassTextInputLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- 禁写 -->
+            <TextView
+                style="@style/Widget.AIChat.PlanFieldLabel"
+                android:layout_marginTop="10dp"
+                android:text="禁写清单（每行一条）" />
+            <com.example.aichat.widget.GlassTextInputLayout
+                style="@style/Widget.AIChat.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="本章不应写的内容">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editPlanForbidden"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textMultiLine"
+                    android:minLines="2"
+                    android:maxLines="4"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp" />
+            </com.example.aichat.widget.GlassTextInputLayout>
+
+            <!-- 文风 -->
+            <TextView
+                style="@style/Widget.AIChat.PlanFieldLabel"
+                android:layout_marginTop="10dp"
+                android:text="文风与节奏" />
+            <com.example.aichat.widget.GlassTextInputLayout
+                style="@style/Widget.AIChat.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="第一人称冷叙 / 紧凑短句 / 视角主角…">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editPlanStyleGuide"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textMultiLine"
+                    android:minLines="2"
+                    android:maxLines="4"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp" />
+            </com.example.aichat.widget.GlassTextInputLayout>
+
+            <!-- 篇幅 -->
+            <TextView
+                style="@style/Widget.AIChat.PlanFieldLabel"
+                android:layout_marginTop="10dp"
+                android:text="目标篇幅（字数）" />
+            <com.example.aichat.widget.GlassTextInputLayout
+                style="@style/Widget.AIChat.TextInputLayout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="例如 3000">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/editPlanTargetLength"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="number"
+                    android:paddingTop="8dp"
+                    android:paddingBottom="8dp" />
+            </com.example.aichat.widget.GlassTextInputLayout>
+
+        </LinearLayout>
+    </ScrollView>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0.5dp"
+        android:background="?attr/colorOutline"
+        android:alpha="0.3" />
+
+    <!-- iOS 式按钮行 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:orientation="horizontal">
 
         <TextView
-            android:id="@+id/textPlanGenerationStatus"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="10dp"
-            android:padding="10dp"
-            android:background="@android:color/transparent"
-            android:text="正在生成章节计划…"
-            android:textColor="#616161"
-            android:textSize="13sp" />
+            android:id="@+id/btnPlanCancel"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="取消"
+            android:textSize="16sp"
+            android:textColor="@color/ios_section_label"
+            android:gravity="center"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="章节目标">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editPlanChapterGoal"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2"
-                android:maxLines="4"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp" />
-        </com.google.android.material.textfield.TextInputLayout>
+        <View
+            android:layout_width="0.5dp"
+            android:layout_height="match_parent"
+            android:background="?attr/colorOutline"
+            android:alpha="0.3" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="起始状态">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editPlanStartState"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2"
-                android:maxLines="4"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="结束状态">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editPlanEndState"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2"
-                android:maxLines="4"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="角色驱动（每行：姓名|目标|误判|情绪）">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editPlanCharacterDrives"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="3"
-                android:maxLines="6"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="知情边界（每行一条）">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editPlanKnowledgeBoundary"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2"
-                android:maxLines="5"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="事件链（每行一条）">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editPlanEventChain"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="3"
-                android:maxLines="6"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="伏笔（每行一条）">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editPlanForeshadow"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2"
-                android:maxLines="4"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="回收（每行一条）">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editPlanPayoff"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2"
-                android:maxLines="4"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="禁写清单（每行一条）">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editPlanForbidden"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2"
-                android:maxLines="4"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="文风与节奏">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editPlanStyleGuide"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textMultiLine"
-                android:minLines="2"
-                android:maxLines="4"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="目标篇幅">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editPlanTargetLength"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="text"
-                android:paddingTop="6dp"
-                android:paddingBottom="6dp" />
-        </com.google.android.material.textfield.TextInputLayout>
+        <TextView
+            android:id="@+id/btnPlanSave"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="保存到大纲"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorPrimary"
+            android:gravity="center"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true" />
 
     </LinearLayout>
-</ScrollView>
+
+</LinearLayout>

@@ -54,12 +54,35 @@
     <string name="system_prompt">系统设定</string>
     <string name="temperature">Temperature</string>
     <string name="top_p">Top P</string>
+    <string name="max_tokens">Max Tokens</string>
+    <string name="top_k">Top K</string>
+    <string name="frequency_penalty">Frequency Penalty</string>
+    <string name="presence_penalty">Presence Penalty</string>
+    <string name="params_blank_inherits_hint">留空表示继承（角色 → 模型默认 → 代码默认）</string>
+    <string name="model_default_params_section">模型默认参数</string>
+    <string name="model_default_params_hint">所有字段留空表示用代码默认；这里设置后，没有会话/角色覆盖时优先采用</string>
+
+    <!-- 每个参数的解释（用作 TextInputLayout 的 helperText） -->
+    <string name="temperature_help">控制随机性。0 完全确定；越大越发散。多数模型范围 0–2</string>
+    <string name="top_p_help">核采样阈值。从概率累计达 P 的 token 中选。和 Temperature 二选一调，范围 0–1</string>
+    <string name="max_tokens_help">单次回复最多生成多少 token；留空 = 由服务端默认决定</string>
+    <string name="top_k_help">从概率最高的 K 个 token 中采样。仅 Qwen / 部分本地模型支持</string>
+    <string name="frequency_penalty_help">越大越避免重复用过的 token；范围 -2 到 2，常用 0–0.5</string>
+    <string name="presence_penalty_help">越大越鼓励引入新话题；范围 -2 到 2，常用 0–0.5</string>
+
+    <!-- 推荐参数小抄 -->
+    <string name="model_default_recommendations_title">推荐参数</string>
+    <string name="model_default_recommendations_body"><![CDATA[• 创意 / 角色对话：Temperature 0.8 · Top P 0.95 · Freq 0.3 · Pres 0.3\n• 严谨 / 代码分析：Temperature 0.2 · Top P 0.7\n• 总结 / 摘要：Temperature 0.3 · Top P 0.8 · Max Tokens 800\n• 翻译：Temperature 0.3 · Top P 0.9\n• 结构化 JSON：Temperature 0 · Top P 0.5]]></string>
     <string name="stop_sequences">Stop 序列（每行一条）</string>
     <string name="context_message_count">上下文消息数量</string>
     <string name="stream_output">流式输出</string>
     <string name="auto_chapter_plan">自动开启章节计划（作家）</string>
     <string name="open_thinking">开启 Thinking</string>
     <string name="google_thinking_budget">Google Thinking Budget</string>
+    <string name="auto_chat_section">自动对话</string>
+    <string name="auto_chat_toggle_title">让 AI 主动发起对话</string>
+    <string name="auto_chat_toggle_hint">AI 可拆分回复并在沉默期主动追问；每日上限 20 条</string>
+    <string name="auto_chat_budget_used">今日已发起：%1$d / %2$d</string>
     <string name="home_tab_recent">最近</string>
     <string name="home_tab_pinned">置顶</string>
     <string name="home_tab_novel">小说</string>
@@ -166,9 +189,6 @@
     <string name="error_outline_title_empty">请填写标题</string>
     <string name="select_related_chapter_title">选择关联章节</string>
     <string name="error_select_chapter">请选择章节</string>
-    <string name="error_no_knowledge_outline">请先添加知情约束类型的大纲</string>
-    <string name="auditing_ai_response">正在审计最近AI回复…</string>
-    <string name="leak_audit_result_title">泄密审计结果</string>
     <string name="new_novel_title">新小说</string>
     <string name="new_novel_copied">已复制大纲到新对话</string>
     <string name="new_novel_empty_outline">当前大纲为空，无法复制</string>

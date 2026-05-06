@@ -48,6 +48,8 @@ class SessionOutlineStore(context: Context) {
                 one.type = normalizeType(updated.type)
                 one.title = updated.title?.trim() ?: ""
                 one.content = updated.content?.trim() ?: ""
+                one.selected = updated.selected
+                one.volumeChapters = updated.volumeChapters
                 one.updatedAt = System.currentTimeMillis()
                 break
             }
@@ -84,10 +86,25 @@ class SessionOutlineStore(context: Context) {
             || type == "material"
             || type == "task"
             || type == "world"
-            || type == "knowledge") {
+            || type == "knowledge"
+            || type == "volume") {
             return type
         }
         return "chapter"
+    }
+
+    /** 切换某条 outline 的 selected 状态（主要给 volume 类型用），其它字段不变。 */
+    fun setSelected(sessionId: String?, itemId: String?, selected: Boolean) {
+        if (itemId.isNullOrBlank()) return
+        val list = getAll(sessionId).toMutableList()
+        for (one in list) {
+            if (one.id == itemId) {
+                one.selected = selected
+                one.updatedAt = System.currentTimeMillis()
+                break
+            }
+        }
+        saveAll(sessionId, list)
     }
 
     private fun parseChapterIndex(title: String?): Int {

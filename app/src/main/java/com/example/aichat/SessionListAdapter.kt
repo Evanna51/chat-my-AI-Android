@@ -89,10 +89,13 @@ class SessionListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     }
 
     private fun bindSession(h: SessionHolder, s: SessionSummary) {
-        h.avatar?.let { av ->
-            val avatar = if (s.avatar != null && s.avatar.trim().isNotEmpty()) s.avatar.trim() else "🤖"
-            av.text = avatar
+        // 头像走 AssistantAvatarHelper 同款逻辑：图片优先 → 文字 emoji → 默认。
+        // 这里用一个临时 MyAssistant 把 SessionSummary 的两路头像数据转给 helper。
+        val avatarShim = MyAssistant().apply {
+            avatar = s.avatar
+            avatarImageBase64 = s.avatarImageBase64
         }
+        AssistantAvatarHelper.bindAvatar(h.avatarImage, h.avatar, avatarShim, "🤖")
         h.title?.let { tv ->
             var title = if (s.title != null && s.title.isNotEmpty()) s.title else "新对话"
             if (s.favorite && !s.pinned) title = "★ $title"
@@ -134,6 +137,7 @@ class SessionListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     override fun getItemCount(): Int = rows.size
 
     class SessionHolder(v: View) : RecyclerView.ViewHolder(v) {
+        val avatarImage: ImageView? = v.findViewById(R.id.sessionAvatarImage)
         val avatar: TextView? = v.findViewById(R.id.sessionAvatar)
         val title: TextView? = v.findViewById(R.id.sessionTitle)
         val time: TextView? = v.findViewById(R.id.sessionTime)

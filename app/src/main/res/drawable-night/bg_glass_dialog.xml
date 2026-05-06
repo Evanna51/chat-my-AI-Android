@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 暗色玻璃弹窗：暗渐变 + 顶部高光 + 阴影 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item android:top="4dp" android:left="0dp" android:right="0dp" android:bottom="0dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#55000000" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#262932"
+                android:centerColor="#1F2229"
+                android:endColor="#171A21" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="320dp"
+                android:centerX="0.5"
+                android:centerY="0.05"
+                android:startColor="#26FFFFFF"
+                android:endColor="#00FFFFFF" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#1AFFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:centerY="0.22" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="0.5dp" android:color="#33FFFFFF" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+
+</layer-list>

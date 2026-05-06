@@ -1,46 +1,204 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="24dp">
-    <TextView
-        android:id="@+id/textModelId"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textAppearance="?attr/textAppearanceBodySmall"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:layout_marginBottom="8dp" />
-    <com.google.android.material.textfield.TextInputLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="别名（可选）"
-        style="@style/Widget.Material3.TextInputLayout.OutlinedBox">
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/editAlias"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:inputType="text"
-            android:maxLines="1" />
-    </com.google.android.material.textfield.TextInputLayout>
+    android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:layout_marginTop="16dp">
+        android:orientation="vertical"
+        android:padding="24dp">
+
         <TextView
-            android:layout_width="0dp"
-            android:layout_weight="1"
+            android:id="@+id/textModelId"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/open_thinking"
-            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:layout_marginBottom="8dp" />
+
+        <com.example.aichat.widget.GlassTextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="别名（可选）"
+            style="@style/Widget.AIChat.GlassInput">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editAlias"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:maxLines="1" />
+        </com.example.aichat.widget.GlassTextInputLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:layout_marginTop="16dp">
+            <TextView
+                android:layout_width="0dp"
+                android:layout_weight="1"
+                android:layout_height="wrap_content"
+                android:text="@string/open_thinking"
+                android:textAppearance="?attr/textAppearanceBodyLarge"
+                android:textColor="?attr/colorOnSurface" />
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switchModelThinking"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </LinearLayout>
+
+        <!-- 模型默认参数：所有字段留空 = 用代码默认；填了之后没有会话/角色覆盖时优先采用 -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/model_default_params_section"
+            android:textSize="13sp"
+            android:textStyle="bold"
             android:textColor="?attr/colorOnSurface" />
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/switchModelThinking"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:text="@string/model_default_params_hint"
+            android:textSize="11sp"
+            android:textColor="@color/ios_section_label" />
+
+        <com.example.aichat.widget.GlassTextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="@string/temperature"
+            app:helperText="@string/temperature_help"
+            app:helperTextEnabled="true"
+            style="@style/Widget.AIChat.GlassInput">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editModelTemperature"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal"
+                android:maxLines="1" />
+        </com.example.aichat.widget.GlassTextInputLayout>
+
+        <com.example.aichat.widget.GlassTextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="@string/top_p"
+            app:helperText="@string/top_p_help"
+            app:helperTextEnabled="true"
+            style="@style/Widget.AIChat.GlassInput">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editModelTopP"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberDecimal"
+                android:maxLines="1" />
+        </com.example.aichat.widget.GlassTextInputLayout>
+
+        <com.example.aichat.widget.GlassTextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="@string/max_tokens"
+            app:helperText="@string/max_tokens_help"
+            app:helperTextEnabled="true"
+            style="@style/Widget.AIChat.GlassInput">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editModelMaxTokens"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:maxLines="1" />
+        </com.example.aichat.widget.GlassTextInputLayout>
+
+        <com.example.aichat.widget.GlassTextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="@string/top_k"
+            app:helperText="@string/top_k_help"
+            app:helperTextEnabled="true"
+            style="@style/Widget.AIChat.GlassInput">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editModelTopK"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:maxLines="1" />
+        </com.example.aichat.widget.GlassTextInputLayout>
+
+        <com.example.aichat.widget.GlassTextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="@string/frequency_penalty"
+            app:helperText="@string/frequency_penalty_help"
+            app:helperTextEnabled="true"
+            style="@style/Widget.AIChat.GlassInput">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editModelFrequencyPenalty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberSigned|numberDecimal"
+                android:maxLines="1" />
+        </com.example.aichat.widget.GlassTextInputLayout>
+
+        <com.example.aichat.widget.GlassTextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:hint="@string/presence_penalty"
+            app:helperText="@string/presence_penalty_help"
+            app:helperTextEnabled="true"
+            style="@style/Widget.AIChat.GlassInput">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/editModelPresencePenalty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="numberSigned|numberDecimal"
+                android:maxLines="1" />
+        </com.example.aichat.widget.GlassTextInputLayout>
+
+        <!-- 推荐参数小抄 -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            app:cardElevation="0dp"
+            app:cardBackgroundColor="@color/ios_cell_bg"
+            app:cardCornerRadius="12dp"
+            app:strokeWidth="0.5dp"
+            app:strokeColor="@color/ios_separator">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/model_default_recommendations_title"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:textColor="?attr/colorPrimary" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/model_default_recommendations_body"
+                    android:textSize="12sp"
+                    android:lineSpacingExtra="3dp"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
-</LinearLayout>
+</ScrollView>

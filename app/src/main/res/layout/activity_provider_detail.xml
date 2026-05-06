@@ -53,12 +53,12 @@
                     android:orientation="vertical"
                     android:padding="16dp">
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.LabeledGlassTextInputLayout
                         android:id="@+id/layoutName"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="@string/vendor_name"
-                        style="@style/Widget.AIChat.TextInputLayout"
+                        style="@style/Widget.AIChat.LabeledGlassInput"
                         android:layout_marginBottom="12dp"
                         android:visibility="gone">
                         <com.google.android.material.textfield.TextInputEditText
@@ -66,14 +66,14 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="text" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                    </com.example.aichat.widget.LabeledGlassTextInputLayout>
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.LabeledGlassTextInputLayout
                         android:id="@+id/layoutApiHost"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="@string/api_host"
-                        style="@style/Widget.AIChat.TextInputLayout"
+                        style="@style/Widget.AIChat.LabeledGlassInput"
                         android:layout_marginBottom="12dp"
                         android:visibility="gone">
                         <com.google.android.material.textfield.TextInputEditText
@@ -81,15 +81,15 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="textUri" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                    </com.example.aichat.widget.LabeledGlassTextInputLayout>
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.LabeledGlassTextInputLayout
                         android:id="@+id/layoutApiPath"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="@string/api_path"
                         app:helperText="/v1/chat/completions"
-                        style="@style/Widget.AIChat.TextInputLayout"
+                        style="@style/Widget.AIChat.LabeledGlassInput"
                         android:layout_marginBottom="12dp"
                         android:visibility="gone">
                         <com.google.android.material.textfield.TextInputEditText
@@ -97,21 +97,21 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="text" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                    </com.example.aichat.widget.LabeledGlassTextInputLayout>
 
-                    <com.google.android.material.textfield.TextInputLayout
+                    <com.example.aichat.widget.LabeledGlassTextInputLayout
                         android:id="@+id/layoutApiKey"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:hint="@string/api_key"
-                        style="@style/Widget.AIChat.TextInputLayout"
+                        style="@style/Widget.AIChat.LabeledGlassInput"
                         app:passwordToggleEnabled="true">
                         <com.google.android.material.textfield.TextInputEditText
                             android:id="@+id/editApiKey"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:inputType="textPassword" />
-                    </com.google.android.material.textfield.TextInputLayout>
+                    </com.example.aichat.widget.LabeledGlassTextInputLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

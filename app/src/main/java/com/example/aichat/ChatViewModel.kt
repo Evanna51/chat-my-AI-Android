@@ -7,6 +7,9 @@ import android.util.Log
 import androidx.annotation.NonNull
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
+import com.example.aichat.chat.ProactiveChatPlanner
+import com.example.aichat.chat.ProactiveMeta
+import com.example.aichat.chat.ProactivePromptBuilder
 import java.util.Collections
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ExecutorService
@@ -60,6 +63,21 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     @Volatile private var loadingOlderMessages: Boolean = false
     private var oldestLoadedCreatedAt: Long = Long.MAX_VALUE
     private var oldestLoadedMessageId: Long = Long.MAX_VALUE
+
+    /** Lazy-built; only when a session has autoChat on. Per-VM (per-session) singleton. */
+    @Volatile private var planner: ProactiveChatPlanner? = null
+
+    private fun ensurePlanner(): ProactiveChatPlanner {
+        return planner ?: synchronized(this) {
+            planner ?: ProactiveChatPlanner(
+                getApplication(),
+                executor,
+                db,
+                chatService,
+                onMessageDbChanged = { loadMessages() }
+            ).also { planner = it }
+        }
+    }
 
     /** Call once from Activity.onCreate; idempotent on config change. */
     fun init(sessionId: String) {
@@ -305,28 +323,70 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         activeResponseToken = responseToken
         responseInProgress.postValue(true)
         val toolBridge = com.example.aichat.sync.ToolBridge.build(getApplication(), assistantId, sid)
-        val handle = chatService.chat(historyForApi, apiUserMessage, options,
+
+        // 自动对话: 在 system 末尾注入 META 协议指令, 让模型在回复尾部自带 split / followUp 决策.
+        val effectiveOptions = if (options.autoChatEnabled) {
+            options.copy(
+                systemPrompt = ((options.systemPrompt ?: "").trimEnd() +
+                    "\n" + ProactivePromptBuilder.buildSystemSuffix())
+            )
+        } else options
+
+        val autoChatActive = options.autoChatEnabled
+
+        val handle = chatService.chat(historyForApi, apiUserMessage, effectiveOptions,
             object : ChatService.ChatCallback {
 
                 private fun isStale(): Boolean = responseToken != activeResponseToken
+
+                /** 由 onProactiveMeta 写入, 之后 onSuccess 读取. 同线程顺序保证. */
+                private var lastMeta: ProactiveMeta? = null
+
+                override fun onProactiveMeta(meta: ProactiveMeta?) {
+                    if (isStale()) return
+                    lastMeta = meta
+                }
 
                 override fun onSuccess(content: String) {
                     if (isStale()) return
                     responseInProgress.postValue(false)
                     activeChatHandle = null
+                    // content 已是 META-stripped cleanContent (ChatService 层完成抽取)
                     val safeContent = content
+                    val capturedMeta = lastMeta
+                    lastMeta = null
+
                     // Persist to DB as fallback for when Activity is detached/destroyed
+                    // 自动对话路径: 这次 insert 的 row id 给 planner 用作 split rewrite 锚点.
                     executor.execute {
+                        var insertedId: Long = 0L
                         try {
                             val msg = Message(sid, Message.ROLE_ASSISTANT, safeContent)
                             stampForSync(msg, assistantId)
-                            db.messageDao().insert(msg)
-                        } catch (ignored: Exception) {}
+                            insertedId = db.messageDao().insert(msg)
+                        } catch (e: Exception) {
+                            Log.w(TAG, "onSuccess insert failed", e)
+                        }
+                        if (autoChatActive && insertedId > 0) {
+                            try {
+                                ensurePlanner().onAssistantTurnFinalized(
+                                    sid,
+                                    assistantId ?: "",
+                                    insertedId,
+                                    safeContent,
+                                    capturedMeta,
+                                    options
+                                )
+                            } catch (e: Exception) {
+                                Log.w(TAG, "planner.onAssistantTurnFinalized failed", e)
+                            }
+                        }
                     }
                     val event = StreamDeltaEvent(responseToken)
                     event.isSuccess = true
                     event.successContent = safeContent
                     event.reportAssistantToMemory = reportAssistantToMemory
+                    event.autoChatActive = autoChatActive
                     postStreamEvent(event)
                 }
 
@@ -445,8 +505,18 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     // ─────────────────────────── Lifecycle ───────────────────────────
 
     override fun onCleared() {
+        try { planner?.shutdown() } catch (_: Exception) {}
         executor.shutdown()
         super.onCleared()
+    }
+
+    /**
+     * 用户发送了新消息 → 取消任何 pending 的 follow-up timer.
+     * Activity 在 sendMessage 路径调用; 即便 planner 没 init 也安全 (no-op).
+     */
+    fun cancelPendingProactive() {
+        val sid = sessionId ?: return
+        try { planner?.cancelFollowUp(sid) } catch (_: Exception) {}
     }
 
     // ─────────────────────────── Stream Event Dispatch ───────────────────────────
@@ -511,5 +581,11 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         @JvmField var isCancelled: Boolean = false
         // Tool call notification (onToolCallStart)
         @JvmField var toolCallStarted: String? = null
+        /**
+         * True when 自动对话 was on for this turn. Activity uses it to skip the
+         * mass `persistSessionMessagesAsync` overwrite (planner owns DB writes
+         * for proactive turns).
+         */
+        @JvmField var autoChatActive: Boolean = false
     }
 }

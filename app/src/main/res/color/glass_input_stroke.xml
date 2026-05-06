@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 输入框边框：聚焦/悬停 = 主题色；空闲 = 浅版主题色，保留淡淡的色相但不抢戏。 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_focused="true" android:color="?attr/colorPrimary" />
     <item android:state_hovered="true" android:color="?attr/colorPrimary" />
-    <item android:color="@color/glass_input_stroke_idle" />
+    <item android:color="?attr/colorPrimaryLight" />
 </selector>

@@ -1,22 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="primary">#4DA3FF</color>
-    <color name="primary_blue">#4DA3FF</color>
-    <color name="primary_blue_subtle">#1E2B3A</color>
-    <color name="primary_blue_light">#2C5D8E</color>
-    <color name="primary_blue_deep">#9FD0FF</color>
-    <color name="primary_green">#56B663</color>
-    <color name="primary_green_subtle">#1E2D22</color>
-    <color name="primary_green_light">#2D5F35</color>
-    <color name="primary_green_deep">#AEE3B5</color>
-    <color name="primary_purple">#A877E6</color>
-    <color name="primary_purple_subtle">#251F30</color>
-    <color name="primary_purple_light">#59417A</color>
-    <color name="primary_purple_deep">#D7B8FF</color>
-    <color name="primary_orange">#FF9A4A</color>
-    <color name="primary_orange_subtle">#2E251D</color>
-    <color name="primary_orange_light">#7A4B26</color>
-    <color name="primary_orange_deep">#FFD1A8</color>
+    <!-- iOS dark systemColors。dark mode 的 deep 比 primary 更亮，便于在深色背景上做强调。 -->
+    <color name="primary">#0A84FF</color>
+    <color name="primary_blue">#0A84FF</color>
+    <color name="primary_blue_subtle">#1A2435</color>
+    <color name="primary_blue_light">#1F3D5C</color>
+    <color name="primary_blue_deep">#5EB1FF</color>
+    <color name="primary_green">#30D158</color>
+    <color name="primary_green_subtle">#1A2520</color>
+    <color name="primary_green_light">#1F4A2A</color>
+    <color name="primary_green_deep">#7CE890</color>
+    <color name="primary_purple">#BF5AF2</color>
+    <color name="primary_purple_subtle">#25192E</color>
+    <color name="primary_purple_light">#3A1F4F</color>
+    <color name="primary_purple_deep">#D88FF8</color>
+    <color name="primary_orange">#FF9F0A</color>
+    <color name="primary_orange_subtle">#2A2018</color>
+    <color name="primary_orange_light">#4A3318</color>
+    <color name="primary_orange_deep">#FFCB6E</color>
     <color name="on_primary">#0B0E14</color>
     <color name="surface">#14161C</color>
     <color name="user_bubble">#1C2638</color>
@@ -54,11 +55,11 @@
     <!-- Liquid glass Tier 1 (dark) -->
     <color name="glass_tint">#801C1C1E</color>
     <color name="glass_stroke_tier1">#20FFFFFF</color>
-    <!-- Environment tint (dark) -->
-    <color name="glass_tint_blue">#0C448AFF</color>
-    <color name="glass_tint_green">#0C2E7D32</color>
-    <color name="glass_tint_purple">#0C6A1B9A</color>
-    <color name="glass_tint_orange">#0CEF6C00</color>
+    <!-- Environment tint (dark) — 与新 iOS dark 主题色对齐 -->
+    <color name="glass_tint_blue">#0C0A84FF</color>
+    <color name="glass_tint_green">#0C30D158</color>
+    <color name="glass_tint_purple">#0CBF5AF2</color>
+    <color name="glass_tint_orange">#0CFF9F0A</color>
     <!-- Text/Icon utility (dark) -->
     <color name="text_quaternary">#4DFFFFFF</color>
     <!-- Shadow (dark) -->

@@ -8,11 +8,17 @@
         <item name="colorPrimarySubtle">@color/primary_blue_subtle</item>
         <item name="colorPrimaryLight">@color/primary_blue_light</item>
         <item name="colorPrimaryDeep">@color/primary_blue_deep</item>
+        <!-- 中性化 secondary container：M3 默认是淡紫色（baseline scheme），这里改成 iOS cell 白
+             （亮色 = #FFFFFF / 暗色 = #2C2C2E），让 TonalButton、Filter Chip 选中态等默认走中性。 -->
+        <item name="colorSecondaryContainer">@color/ios_cell_bg</item>
+        <item name="colorOnSecondaryContainer">?attr/colorPrimary</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.AIChat.MaterialAlertDialog</item>
         <item name="alertDialogTheme">@style/ThemeOverlay.AIChat.MaterialAlertDialog</item>
         <!-- Unified controls: switches + radio buttons follow theme color. -->
         <item name="materialSwitchStyle">@style/Widget.AIChat.Switch</item>
         <item name="radioButtonStyle">@style/Widget.AIChat.RadioButton</item>
+        <!-- 全局统一输入框：所有 TextInputLayout / GlassTextInputLayout 默认拿到玻璃风外观 -->
+        <item name="textInputStyle">@style/Widget.AIChat.GlassInput</item>
     </style>
 
     <style name="Theme.AIChat.Blue" parent="Theme.AIChat">
@@ -74,7 +80,8 @@
     </style>
 
     <!-- Liquid-glass input: rim highlight + soft bottom shadow drawn by
-         GlassTextInputLayout; theme colorPrimary feeds focused stroke. -->
+         GlassTextInputLayout; theme colorPrimary feeds focused stroke。
+         空闲态 stroke 走 colorPrimaryLight，营造「淡淡的主题色边框」。 -->
     <style name="Widget.AIChat.GlassInput" parent="Widget.AIChat.TextInputLayout">
         <item name="boxBackgroundMode">outline</item>
         <item name="boxBackgroundColor">@color/glass_input_fill</item>
@@ -83,11 +90,42 @@
         <item name="android:textColorHint">@color/glass_input_hint_idle</item>
         <item name="boxStrokeWidth">1dp</item>
         <item name="boxStrokeWidthFocused">1.5dp</item>
+        <item name="boxCollapsedPaddingTop">8dp</item>
         <item name="errorIconDrawable">@null</item>
+        <!-- 通过主题 overlay 让内嵌 EditText 用更紧凑的 padding -->
+        <item name="materialThemeOverlay">@style/ThemeOverlay.AIChat.TextInputEditText</item>
+    </style>
+
+    <style name="ThemeOverlay.AIChat.TextInputEditText" parent="">
+        <item name="editTextStyle">@style/Widget.AIChat.TextInputEditText</item>
+    </style>
+
+    <!-- 标题在顶上的变体（OutlinedBox + 浮动 hint）。
+         继承 GlassInput 的颜色 / 边框 / padding，由 LabeledGlassTextInputLayout
+         负责把顶部高光让开 label 切口。 -->
+    <style name="Widget.AIChat.LabeledGlassInput" parent="Widget.AIChat.GlassInput">
+        <item name="hintEnabled">true</item>
+        <item name="hintAnimationEnabled">true</item>
+        <item name="boxCollapsedPaddingTop">10dp</item>
+    </style>
+
+    <!-- 比 Material 默认 OutlinedBox 紧一些；上下各 12dp。 -->
+    <style name="Widget.AIChat.TextInputEditText" parent="Widget.Material3.TextInputEditText.OutlinedBox">
+        <item name="android:paddingTop">12dp</item>
+        <item name="android:paddingBottom">12dp</item>
     </style>
 
     <!-- iOS 2026 公共 styles -->
     <style name="Widget.AIChat" parent="" />
+
+    <!-- 章节计划对话框里每个字段上方的小标签（13sp，灰色，紧凑）。 -->
+    <style name="Widget.AIChat.PlanFieldLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">@color/ios_section_label</item>
+        <item name="android:paddingBottom">4dp</item>
+    </style>
 
     <style name="Widget.AIChat.IOSSectionHeader">
         <item name="android:textSize">13sp</item>

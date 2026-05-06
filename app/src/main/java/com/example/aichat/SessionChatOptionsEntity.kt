@@ -17,6 +17,10 @@ class SessionChatOptionsEntity {
     @JvmField
     var sessionAvatar: String? = null
 
+    @ColumnInfo(defaultValue = "")
+    @JvmField
+    var sessionAvatarImageBase64: String = ""
+
     @JvmField
     var modelKey: String? = null
 
@@ -42,6 +46,19 @@ class SessionChatOptionsEntity {
     @JvmField
     var topP: Float = 1.0f
 
+    /** v8 加入。null 表示未设置，请求时按 ChatParamsResolver 回退。 */
+    @JvmField
+    var maxTokens: Int? = null
+
+    @JvmField
+    var frequencyPenalty: Float? = null
+
+    @JvmField
+    var presencePenalty: Float? = null
+
+    @JvmField
+    var topK: Int? = null
+
     @ColumnInfo(defaultValue = "1")
     @JvmField
     var streamOutput: Boolean = true
@@ -53,4 +70,23 @@ class SessionChatOptionsEntity {
     @ColumnInfo(defaultValue = "0")
     @JvmField
     var thinking: Boolean = false
+
+    /**
+     * 自动对话开关 (v10). 为 true 时:
+     *   - ChatService 注入 [自动对话模式] system 段, 让模型在回复尾部输出 META 块
+     *   - ChatViewModel 解析 META 后调度 split / follow-up
+     */
+    @ColumnInfo(defaultValue = "0")
+    @JvmField
+    var autoChatEnabled: Boolean = false
+
+    /** 当日已发起的主动消息数 (split + follow-up), 用于全局每日预算. */
+    @ColumnInfo(defaultValue = "0")
+    @JvmField
+    var proactiveCountToday: Int = 0
+
+    /** 计数所属的"日期戳" (yyyymmdd 整型, 跨天自动重置 proactiveCountToday). */
+    @ColumnInfo(defaultValue = "0")
+    @JvmField
+    var proactiveResetDate: Int = 0
 }

@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 大纲条目卡片：白底 + 顶部高光条 + 半透明描边 + 偏移阴影。
+     和 bg_glass_dialog / bg_home_assistant_card 同一调性，但更紧凑（圆角 14dp）。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 偏移阴影：底部下偏 2dp 的暗色块 -->
+    <item android:top="2dp" android:left="0dp" android:right="0dp" android:bottom="0dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#1A000020" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+
+    <!-- 主体：iOS cell 白色（夜间自动换深色） -->
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/ios_cell_bg" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+
+    <!-- 顶部线性高光（约 22% 处淡出） -->
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#26FFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:centerY="0.22" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+
+    <!-- 半透明描边（替代旧的实线边框） -->
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="0.5dp" android:color="#33FFFFFF" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+
+</layer-list>

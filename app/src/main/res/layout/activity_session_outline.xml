@@ -52,22 +52,30 @@
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnAddOutline"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_weight="1"
             android:layout_marginEnd="8dp"
-            app:cornerRadius="16dp"
             android:text="@string/outline_add_title"
-            app:icon="@drawable/ic_add" />
+            android:textSize="15sp"
+            app:icon="@drawable/ic_add"
+            app:iconGravity="textStart"
+            app:iconPadding="6dp"
+            app:iconSize="20dp"
+            app:cornerRadius="24dp" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnMore"
-            style="@style/Widget.Material3.Button.OutlinedButton"
+            style="@style/Widget.Material3.Button.TonalButton"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="48dp"
             android:layout_weight="1"
-            app:cornerRadius="16dp"
             android:text="更多"
-            app:icon="@drawable/ic_action_more" />
+            android:textSize="15sp"
+            app:icon="@drawable/ic_action_more"
+            app:iconGravity="textStart"
+            app:iconPadding="6dp"
+            app:iconSize="20dp"
+            app:cornerRadius="24dp" />
     </LinearLayout>
 
 </LinearLayout>

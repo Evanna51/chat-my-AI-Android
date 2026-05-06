@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 玻璃风弹窗背景：首页渐变 + 顶部高光 + 边缘阴影 + 半透明描边。
+     与 bg_home_assistant_card 同一调性，圆角 24dp，提供柔和深度感。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Ambient shadow: 底部偏移的暗色块，模拟落影 -->
+    <item android:top="4dp" android:left="0dp" android:right="0dp" android:bottom="0dp">
+        <shape android:shape="rectangle">
+            <solid android:color="#22000020" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+
+    <!-- 主体渐变：首页同款冷色系 -->
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#F4F6FC"
+                android:centerColor="#ECF1FA"
+                android:endColor="#E2E9F6" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+
+    <!-- 顶部柔和径向高光 -->
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="320dp"
+                android:centerX="0.5"
+                android:centerY="0.05"
+                android:startColor="#3DFFFFFF"
+                android:endColor="#00FFFFFF" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+
+    <!-- 顶部线性高光条 -->
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="270"
+                android:startColor="#33FFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF"
+                android:centerY="0.22" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+
+    <!-- 半透明白描边（高光边缘） -->
+    <item android:bottom="2dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="0.5dp" android:color="#80FFFFFF" />
+            <corners android:radius="24dp" />
+        </shape>
+    </item>
+
+</layer-list>

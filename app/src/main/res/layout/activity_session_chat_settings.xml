@@ -66,19 +66,67 @@
                             android:inputType="text" />
                     </com.example.aichat.widget.GlassTextInputLayout>
 
-                    <com.example.aichat.widget.GlassTextInputLayout
+                    <!-- 头像 — 默认继承自助手，点击图片可上传覆盖；下方文本框可输入 emoji 覆盖。 -->
+                    <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="12dp"
-                        android:hint="@string/session_avatar_optional"
-                        style="@style/Widget.AIChat.GlassInput">
-                        <com.google.android.material.textfield.TextInputEditText
-                            android:id="@+id/editSessionAvatar"
-                            android:layout_width="120dp"
+                        android:layout_marginTop="14dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <FrameLayout
+                            android:id="@+id/sessionAvatarPickerContainer"
+                            android:layout_width="56dp"
+                            android:layout_height="56dp"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:background="?attr/selectableItemBackgroundBorderless">
+                            <ImageView
+                                android:id="@+id/imageSessionAvatarPreview"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:scaleType="centerCrop"
+                                android:visibility="gone"
+                                android:contentDescription="@null" />
+                            <TextView
+                                android:id="@+id/textSessionAvatarPreview"
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent"
+                                android:gravity="center"
+                                android:textSize="26sp" />
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
                             android:layout_height="wrap_content"
-                            android:inputType="text"
-                            android:maxLength="6" />
-                    </com.example.aichat.widget.GlassTextInputLayout>
+                            android:layout_weight="1"
+                            android:layout_marginStart="12dp"
+                            android:orientation="vertical">
+                            <com.example.aichat.widget.GlassTextInputLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:hint="@string/session_avatar_optional"
+                                style="@style/Widget.AIChat.GlassInput">
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/editSessionAvatar"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:inputType="text"
+                                    android:maxLength="6" />
+                            </com.example.aichat.widget.GlassTextInputLayout>
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnClearSessionAvatarImage"
+                                style="@style/Widget.Material3.Button.TextButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:layout_marginStart="-6dp"
+                                android:minHeight="32dp"
+                                android:text="清除自定义头像"
+                                android:textSize="12sp"
+                                android:visibility="gone" />
+                        </LinearLayout>
+                    </LinearLayout>
 
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

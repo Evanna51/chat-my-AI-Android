@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SessionAssistantBindingEntity::class,
         RelationshipStateEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -193,6 +193,23 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v10 (Proactive Chat / 自动对话 Phase 1):
+         *  - session_chat_options 加 autoChatEnabled / proactiveCountToday / proactiveResetDate,
+         *    支撑 per-session 自动对话开关 + 每日预算计数.
+         *  - message 表加 proactiveKind, 标记 split / follow-up 来源, 用于审计与统计.
+         *
+         * 协议见 chat/ProactiveMetaParser, chat/ProactivePromptBuilder.
+         */
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `autoChatEnabled` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `proactiveCountToday` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `proactiveResetDate` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `message` ADD COLUMN `proactiveKind` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         @JvmStatic
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -201,7 +218,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "ai_chat_db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
                 .allowMainThreadQueries() // 临时：待优化2(ViewModel)完成后移除
                 .build()
                 .also { INSTANCE = it }

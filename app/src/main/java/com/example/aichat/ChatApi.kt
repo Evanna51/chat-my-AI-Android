@@ -36,6 +36,13 @@ interface ChatApi {
         @JvmField var temperature: Double? = null
         @SerializedName("top_p")
         @JvmField var topP: Double? = null
+        @SerializedName("frequency_penalty")
+        @JvmField var frequencyPenalty: Double? = null
+        @SerializedName("presence_penalty")
+        @JvmField var presencePenalty: Double? = null
+        /** 非 OpenAI 标准；Qwen / 部分本地模型支持。OpenAI 会忽略未知字段，所以直接放也安全。 */
+        @SerializedName("top_k")
+        @JvmField var topK: Int? = null
         @JvmField var stop: List<String>? = null
         @JvmField var thinking: Boolean? = null
         @JvmField var reasoning: JsonObject? = null

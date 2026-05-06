@@ -13,10 +13,10 @@ import android.graphics.drawable.GradientDrawable
 import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
-import android.widget.PopupMenu
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.content.ContextCompat
 import com.google.gson.JsonParser
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -68,6 +68,10 @@ class SessionOutlineActivity : ThemedActivity() {
                 outlineStore.delete(sessionId, item.id)
                 refreshList()
             }
+
+            override fun onSelectedChanged(item: SessionOutlineItem, selected: Boolean) {
+                outlineStore.setSelected(sessionId, item.id, selected)
+            }
         })
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.adapter = adapter
@@ -78,16 +82,30 @@ class SessionOutlineActivity : ThemedActivity() {
     }
 
     private fun showMoreMenu(anchor: View) {
-        val popup = PopupMenu(this, anchor)
-        popup.menu.add(0, 1, 0, "泄密审计")
-        popup.menu.add(0, 2, 1, "知情注入")
-        popup.menu.add(0, 3, 2, "章节计划")
-        popup.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                1 -> { runLeakageAudit(); true }
-                2 -> { runKnowledgeExtraction(); true }
-                3 -> { runChapterPlanGeneration(); true }
-                else -> false
+        val labels = listOf("知情注入", "章节计划", "生成卷纲")
+        val density = resources.displayMetrics.density
+        val popup = android.widget.ListPopupWindow(this)
+        popup.setAdapter(android.widget.ArrayAdapter(this, R.layout.item_popup_menu, labels))
+        popup.anchorView = anchor
+        popup.width = (180 * density + 0.5f).toInt()
+        popup.isModal = true
+        popup.setBackgroundDrawable(
+            androidx.core.content.ContextCompat.getDrawable(this, R.drawable.bg_popup_menu)
+        )
+        // 弹窗显示在按钮上方，与按钮保留 8dp 间距（向上偏移：减去按钮高度 + 弹窗自身高度估算 + 间距）
+        // ListPopupWindow 的 verticalOffset 是相对 anchor.top 的偏移；要弹在 anchor 上方，
+        // 用负值：- (popupHeight + 8dp)。popupHeight 估算为 itemCount * 48dp。
+        val itemHeightDp = 48
+        val gapDp = 8
+        val estimatedHeightPx = (labels.size * itemHeightDp * density + 0.5f).toInt()
+        val gapPx = (gapDp * density + 0.5f).toInt()
+        popup.verticalOffset = -(anchor.height + estimatedHeightPx + gapPx)
+        popup.setOnItemClickListener { _, _, position, _ ->
+            popup.dismiss()
+            when (position) {
+                0 -> runKnowledgeExtraction()
+                1 -> runChapterPlanGeneration()
+                2 -> runVolumeGeneration()
             }
         }
         popup.show()
@@ -189,6 +207,13 @@ class SessionOutlineActivity : ThemedActivity() {
         val chipGroupType = view.findViewById<ChipGroup>(R.id.chipGroupOutlineType)
         val typeValues = arrayOf("chapter", "task", "world", "knowledge", "material")
         val normalizedType = outlineStore.normalizeType(item.type)
+
+        // Volume：编辑分支独立处理，没有类型选择器，标题/内容都用最简单的方式。
+        if (normalizedType == "volume") {
+            showEditVolumeDialog(item, view, editTitle, editContent, chipGroupType)
+            return
+        }
+
         val defaultType = indexOfType(typeValues, normalizedType)
         val selected = intArrayOf(defaultType)
         val prevSelected = intArrayOf(-1)
@@ -241,6 +266,48 @@ class SessionOutlineActivity : ThemedActivity() {
                     item.type = selectedType; item.title = title; item.content = content
                 }
             }
+            outlineStore.update(sessionId, item)
+            refreshList()
+            dialog.dismiss()
+        }
+        dialog.show()
+    }
+
+    /** 卷大纲编辑：复用同一个 dialog_edit_outline，但隐藏 chipGroupType 与知情章节选择器。 */
+    private fun showEditVolumeDialog(
+        item: SessionOutlineItem,
+        view: View,
+        editTitle: EditText,
+        editContent: EditText,
+        chipGroupType: ChipGroup,
+    ) {
+        // 隐藏类型选择器及其上方的 label（如果有）
+        chipGroupType.visibility = View.GONE
+        view.findViewById<View>(R.id.layoutKnowledgeScope)?.visibility = View.GONE
+        view.findViewById<TextView>(R.id.dialogOutlineTitle).text = "编辑卷大纲"
+
+        editTitle.hint = "卷标题"
+        editTitle.setText(item.title ?: "")
+        editContent.setText(item.content ?: "")
+        FormInputScrollHelper.enableFor(editContent)
+
+        val dialog = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_NoActionBar)
+            .setView(view)
+            .create()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        view.findViewById<View>(R.id.btnCancel).setOnClickListener { dialog.dismiss() }
+        view.findViewById<View>(R.id.btnConfirm).setOnClickListener {
+            val title = editTitle.text?.toString()?.trim() ?: ""
+            val content = editContent.text?.toString()?.trim() ?: ""
+            if (title.isEmpty()) {
+                Toast.makeText(this, R.string.error_outline_title_empty, Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            // 保留 type=volume + 已有 volumeChapters；selected 由列表上的开关维护
+            item.type = "volume"
+            item.title = title
+            item.content = content
             outlineStore.update(sessionId, item)
             refreshList()
             dialog.dismiss()
@@ -656,53 +723,47 @@ class SessionOutlineActivity : ThemedActivity() {
         startActivity(intent)
     }
 
-    private fun runLeakageAudit() {
+    /**
+     * 生成卷纲：选起始/结束章节区间 → 调模型生成纯文本 → 创建一条 type=volume 的大纲条目
+     * （默认 selected=true，自动屏蔽该区间内的 chapter 大纲）。
+     */
+    private fun runVolumeGeneration() {
         val all = outlineStore.getAll(sessionId)
-        val knowledge = StringBuilder()
-        for (item in all) {
-            if (item == null || "knowledge" != outlineStore.normalizeType(item.type)) continue
-            val title = item.title?.trim() ?: ""
-            val content = item.content?.trim() ?: ""
-            if (title.isEmpty() && content.isEmpty()) continue
-            knowledge.append("- ")
-            if (title.isNotEmpty()) knowledge.append(title)
-            if (content.isNotEmpty()) {
-                if (title.isNotEmpty()) knowledge.append("：")
-                knowledge.append(content)
-            }
-            knowledge.append("\n")
-        }
-        if (knowledge.toString().trim().isEmpty()) {
-            Toast.makeText(this, R.string.error_no_knowledge_outline, Toast.LENGTH_SHORT).show()
+        val chapters = all.filter { "chapter" == outlineStore.normalizeType(it.type) }
+        if (chapters.size < 2) {
+            Toast.makeText(this, "至少需要 2 个章节才能生成卷纲", Toast.LENGTH_SHORT).show()
             return
         }
-        Toast.makeText(this, R.string.auditing_ai_response, Toast.LENGTH_SHORT).show()
-        executor.execute {
-            var latestAssistant = ""
-            try {
-                val messages = AppDatabase.getInstance(this).messageDao().getBySession(sessionId)
-                for (i in messages.indices.reversed()) {
-                    val m = messages[i]
-                    if (m != null && m.role == Message.ROLE_ASSISTANT) {
-                        latestAssistant = m.content?.trim() ?: ""
-                        break
-                    }
-                }
-            } catch (ignored: Exception) {}
-            val aiText = latestAssistant
-            runOnUiThread {
-                if (aiText.isEmpty()) {
-                    Toast.makeText(this, "当前会话还没有可审计的AI回复", Toast.LENGTH_SHORT).show()
-                    return@runOnUiThread
-                }
-                ChatService(this).auditNovelLeakage(knowledge.toString().trim(), aiText, object : ChatService.ChatCallback {
+        showVolumeRangePicker(chapters) { startIdx, endIdx ->
+            val rangeChapters = chapters.subList(startIdx, endIdx + 1)
+            val coveredTitles = rangeChapters.map { it.title.trim() }
+                .filter { it.isNotEmpty() }
+            val coverageLabel = "${rangeChapters.first().title.trim()} ~ ${rangeChapters.last().title.trim()}"
+            val volumeTitle = "卷纲：$coverageLabel"
+
+            // 上下文：仅保留区间内的章节 + 全量 人物/世界/知情/资料；交给 OutlinePromptBuilder.buildFull
+            val contextItems = mutableListOf<SessionOutlineItem>()
+            contextItems.addAll(rangeChapters)
+            contextItems.addAll(all.filter { it.type in setOf("task", "world", "knowledge", "material") })
+            val promptCtx = OutlinePromptBuilder.buildFull(contextItems)
+
+            Toast.makeText(this, "正在生成卷纲…", Toast.LENGTH_SHORT).show()
+            ChatService(this).generateVolumeOutline(
+                volumeTitle, coverageLabel, promptCtx,
+                object : ChatService.ChatCallback {
                     override fun onSuccess(content: String) {
                         runOnUiThread {
-                            MaterialAlertDialogBuilder(this@SessionOutlineActivity)
-                                .setTitle(R.string.leak_audit_result_title)
-                                .setMessage(content?.trim() ?: "")
-                                .setPositiveButton(android.R.string.ok, null)
-                                .show()
+                            val item = outlineStore.add(sessionId, "volume", volumeTitle, content)
+                            // 写 volumeChapters
+                            item.volumeChapters = coveredTitles
+                            item.selected = true
+                            outlineStore.update(sessionId, item)
+                            Toast.makeText(
+                                this@SessionOutlineActivity,
+                                "已生成卷纲：$volumeTitle",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            refreshList()
                         }
                     }
 
@@ -710,9 +771,506 @@ class SessionOutlineActivity : ThemedActivity() {
                         runOnUiThread {
                             Toast.makeText(
                                 this@SessionOutlineActivity,
-                                if (message != null && message.trim().isNotEmpty()) message else "审计失败",
+                                if (message.isNotBlank()) message else "卷纲生成失败",
                                 Toast.LENGTH_LONG
                             ).show()
+                        }
+                    }
+                },
+            )
+        }
+    }
+
+    /** 卷纲区间选择器：两个 Spinner（起始章节 / 结束章节），保证 end >= start。 */
+    private fun showVolumeRangePicker(
+        chapters: List<SessionOutlineItem>,
+        onConfirm: (startIdx: Int, endIdx: Int) -> Unit,
+    ) {
+        val titles = chapters.mapIndexed { i, c ->
+            val t = c.title.trim().ifEmpty { "(无标题)" }
+            "${i + 1}. $t"
+        }
+        val startSpinner = android.widget.Spinner(this)
+        val endSpinner = android.widget.Spinner(this)
+        val adapterCommon = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, titles)
+        adapterCommon.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        startSpinner.adapter = adapterCommon
+        endSpinner.adapter = adapterCommon
+        // 默认：起始=0，结束=min(9, last)
+        startSpinner.setSelection(0)
+        endSpinner.setSelection(minOf(9, chapters.size - 1))
+
+        val dp = resources.displayMetrics.density
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((24 * dp).toInt(), (16 * dp).toInt(), (24 * dp).toInt(), (8 * dp).toInt())
+        }
+        container.addView(TextView(this).apply { text = "起始章节" })
+        container.addView(startSpinner)
+        container.addView(TextView(this).apply { text = "结束章节"; setPadding(0, (12 * dp).toInt(), 0, 0) })
+        container.addView(endSpinner)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("生成卷纲 — 选择区间")
+            .setView(container)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("生成") { _, _ ->
+                val s = startSpinner.selectedItemPosition
+                val e = endSpinner.selectedItemPosition
+                if (s < 0 || e < 0 || e < s) {
+                    Toast.makeText(this, "结束章节必须在起始之后", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                onConfirm(s, e)
+            }
+            .show()
+    }
+
+    private data class KnowledgeCandidate(
+        val chapter: String,
+        val title: String,
+        val content: String,
+        var picked: Boolean,
+    )
+
+    /**
+     * 知情注入：先选章节范围（默认全部），过滤大纲后调模型按范围抽知情约束，
+     * 用户多选确认后批量加入大纲。
+     */
+    private fun runKnowledgeExtraction() {
+        val all = outlineStore.getAll(sessionId)
+        val chapters = all.filter { "chapter" == outlineStore.normalizeType(it.type) }
+        if (chapters.isEmpty()) {
+            // 没章节也允许跑：基于人物/世界/已有知情提取通用约束
+            val outlineText = OutlinePromptBuilder.buildFull(all)
+            if (outlineText.isEmpty()) {
+                Toast.makeText(this, "大纲为空，无法分析", Toast.LENGTH_SHORT).show()
+                return
+            }
+            showKnowledgeInjectDialog(outlineText, scopeLabel = "通用（无章节）")
+            return
+        }
+        showKnowledgeRangePicker(chapters) { startIdx, endIdx ->
+            val rangeChapters = chapters.subList(startIdx, endIdx + 1)
+            val rangeTitles = rangeChapters.map { it.title.trim() }
+                .filter { it.isNotEmpty() }
+            // 过滤大纲：保留范围内章节 + 全部人物 / 世界 / 已有知情 / 资料；卷纲不参与提取。
+            val filtered = mutableListOf<SessionOutlineItem>()
+            filtered.addAll(rangeChapters)
+            for (item in all) {
+                when (outlineStore.normalizeType(item.type)) {
+                    "task", "world", "knowledge", "material" -> filtered.add(item)
+                }
+            }
+            val baseText = OutlinePromptBuilder.buildFull(filtered)
+            val scopeLabel = "${rangeChapters.first().title.trim()} ~ ${rangeChapters.last().title.trim()}"
+            // 在 prompt 顶部插一个【目标章节范围】小节，让模型知道 chapter 字段只能取自这些标题。
+            val outlineText = buildString {
+                append("【目标章节范围】\n")
+                for (t in rangeTitles) append("- ").append(t).append("\n")
+                append("\n").append(baseText)
+            }
+            showKnowledgeInjectDialog(outlineText, scopeLabel = scopeLabel)
+        }
+    }
+
+    /** 章节范围选择器（用于知情注入）。复用与卷纲生成相同的 Spinner 模式。 */
+    private fun showKnowledgeRangePicker(
+        chapters: List<SessionOutlineItem>,
+        onConfirm: (startIdx: Int, endIdx: Int) -> Unit,
+    ) {
+        val titles = chapters.mapIndexed { i, c ->
+            val t = c.title.trim().ifEmpty { "(无标题)" }
+            "${i + 1}. $t"
+        }
+        val startSpinner = android.widget.Spinner(this)
+        val endSpinner = android.widget.Spinner(this)
+        val adapterCommon = android.widget.ArrayAdapter(this, android.R.layout.simple_spinner_item, titles)
+        adapterCommon.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        startSpinner.adapter = adapterCommon
+        endSpinner.adapter = adapterCommon
+        startSpinner.setSelection(0)
+        endSpinner.setSelection(chapters.size - 1)
+
+        val dp = resources.displayMetrics.density
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding((24 * dp).toInt(), (16 * dp).toInt(), (24 * dp).toInt(), (8 * dp).toInt())
+        }
+        container.addView(TextView(this).apply { text = "起始章节" })
+        container.addView(startSpinner)
+        container.addView(TextView(this).apply { text = "结束章节"; setPadding(0, (12 * dp).toInt(), 0, 0) })
+        container.addView(endSpinner)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("知情注入 — 选择章节范围")
+            .setView(container)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("继续") { _, _ ->
+                val s = startSpinner.selectedItemPosition
+                val e = endSpinner.selectedItemPosition
+                if (s < 0 || e < 0 || e < s) {
+                    Toast.makeText(this, "结束章节必须在起始之后", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                onConfirm(s, e)
+            }
+            .show()
+    }
+
+    private fun showKnowledgeInjectDialog(outlineText: String, scopeLabel: String = "全部") {
+        val view = layoutInflater.inflate(R.layout.dialog_knowledge_inject_preview, null)
+        val statusView = view.findViewById<TextView>(R.id.textKnowledgeInjectStatus)
+        statusView.text = "正在分析（范围：$scopeLabel）…"
+        val recycler = view.findViewById<RecyclerView>(R.id.recyclerKnowledgeInject)
+        val checkAll = view.findViewById<com.google.android.material.checkbox.MaterialCheckBox>(R.id.checkKnowledgeSelectAll)
+        val summaryView = view.findViewById<TextView>(R.id.textKnowledgeSummary)
+
+        val candidates = mutableListOf<KnowledgeCandidate>()
+        val adapter = KnowledgeInjectAdapter(candidates) { updateInjectSummary(summaryView, candidates) }
+        recycler.layoutManager = LinearLayoutManager(this)
+        recycler.adapter = adapter
+
+        checkAll.setOnCheckedChangeListener { _, checked ->
+            for (c in candidates) c.picked = checked
+            adapter.notifyDataSetChanged()
+            updateInjectSummary(summaryView, candidates)
+        }
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle("知情注入预览")
+            .setView(view)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("加入大纲") { _, _ ->
+                val picked = candidates.filter { it.picked }
+                if (picked.isEmpty()) {
+                    Toast.makeText(this, "未选择任何条目", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                for (c in picked) {
+                    val title = if (c.chapter.isNotEmpty() && c.chapter != "通用")
+                        "[${c.chapter}] ${c.title}"
+                    else c.title
+                    outlineStore.add(sessionId, "knowledge", title, c.content)
+                }
+                Toast.makeText(this, "已添加 ${picked.size} 条知情约束", Toast.LENGTH_SHORT).show()
+                refreshList()
+            }
+            .create()
+        dialog.show()
+        // 默认禁用确认按钮直到结果回来
+        val positive = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
+        positive?.isEnabled = false
+
+        ChatService(this).extractKnowledgeConstraints(outlineText, object : ChatService.ChatCallback {
+            override fun onSuccess(content: String) {
+                runOnUiThread {
+                    val parsed = parseKnowledgeCandidates(content)
+                    if (parsed.isEmpty()) {
+                        statusView.text = "未解析到有效知情约束"
+                        return@runOnUiThread
+                    }
+                    candidates.clear()
+                    candidates.addAll(parsed)
+                    adapter.notifyDataSetChanged()
+                    statusView.text = "共生成 ${parsed.size} 条候选；已默认全选，可取消不需要的"
+                    checkAll.isChecked = true
+                    updateInjectSummary(summaryView, candidates)
+                    positive?.isEnabled = true
+                }
+            }
+
+            override fun onError(message: String) {
+                runOnUiThread {
+                    statusView.text = if (message.isNotBlank()) message else "提取失败"
+                }
+            }
+        })
+    }
+
+    private fun updateInjectSummary(view: TextView, list: List<KnowledgeCandidate>) {
+        val picked = list.count { it.picked }
+        view.text = "已选 $picked / ${list.size}"
+    }
+
+    private fun parseKnowledgeCandidates(json: String): List<KnowledgeCandidate> {
+        val raw = json.trim()
+        if (raw.isEmpty()) return emptyList()
+        return try {
+            val cleaned = raw.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+            val node = JsonParser().parse(cleaned)
+            // 兼容两种返回：{"items":[...]} （新 prompt 强制）或裸 [...]（旧/兜底）。
+            val arr = when {
+                node.isJsonArray -> node.asJsonArray
+                node.isJsonObject -> {
+                    val items = node.asJsonObject.get("items")
+                    if (items != null && items.isJsonArray) items.asJsonArray else return emptyList()
+                }
+                else -> return emptyList()
+            }
+            val out = mutableListOf<KnowledgeCandidate>()
+            for (el in arr) {
+                if (!el.isJsonObject) continue
+                val obj = el.asJsonObject
+                val chapter = obj.get("chapter")?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
+                val title = obj.get("title")?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
+                val content = obj.get("content")?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
+                if (title.isEmpty() && content.isEmpty()) continue
+                out.add(KnowledgeCandidate(chapter, title, content, picked = true))
+            }
+            out
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /** 多选预览的简单 RecyclerView 适配器：每行 [复选框] [章节标签] 标题 + 内容。 */
+    private class KnowledgeInjectAdapter(
+        private val items: MutableList<KnowledgeCandidate>,
+        private val onToggle: () -> Unit,
+    ) : RecyclerView.Adapter<KnowledgeInjectAdapter.VH>() {
+        class VH(itemView: View) : RecyclerView.ViewHolder(itemView) {
+            val check: com.google.android.material.checkbox.MaterialCheckBox = itemView.findViewById(R.id.itemKnowledgeCheck)
+            val chapterTag: TextView = itemView.findViewById(R.id.itemKnowledgeChapter)
+            val title: TextView = itemView.findViewById(R.id.itemKnowledgeTitle)
+            val content: TextView = itemView.findViewById(R.id.itemKnowledgeContent)
+        }
+
+        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): VH {
+            val view = android.view.LayoutInflater.from(parent.context)
+                .inflate(R.layout.item_knowledge_inject, parent, false)
+            return VH(view)
+        }
+
+        override fun getItemCount(): Int = items.size
+
+        override fun onBindViewHolder(holder: VH, position: Int) {
+            val item = items[position]
+            holder.check.setOnCheckedChangeListener(null)
+            holder.check.isChecked = item.picked
+            val chap = item.chapter.ifEmpty { "通用" }
+            holder.chapterTag.text = chap
+            holder.title.text = item.title.ifEmpty { "(无标题)" }
+            holder.content.text = item.content
+            holder.check.setOnCheckedChangeListener { _, checked ->
+                item.picked = checked
+                onToggle()
+            }
+            holder.itemView.setOnClickListener { holder.check.isChecked = !holder.check.isChecked }
+        }
+    }
+
+    /**
+     * 章节计划：先选目标章节（已有 / 续写新章），再调模型生成 → 弹编辑对话框 → 保存到大纲。
+     */
+    private fun runChapterPlanGeneration() {
+        showChapterTargetPicker { spec ->
+            startChapterPlanRequest(spec)
+        }
+    }
+
+    private data class ChapterPlanTargetSpec(
+        val targetTitle: String,
+        val isExisting: Boolean,
+        val existingItem: SessionOutlineItem?,
+        val userHint: String,
+        val targetLength: String,
+    )
+
+    /**
+     * 章节选择对话框：续写新章（CheckBox） / 覆盖已有章节（select 行） 互斥。
+     * 默认续写勾选；用户从覆盖 spinner 选择后续写自动取消；续写取消时覆盖自动选最新一章。
+     */
+    private fun showChapterTargetPicker(onConfirm: (ChapterPlanTargetSpec) -> Unit) {
+        val all = outlineStore.getAll(sessionId)
+        val chapters = all.filter { "chapter" == outlineStore.normalizeType(it.type) }
+        val nextIdx = outlineStore.nextChapterIndex(sessionId)
+        val newChapterTitle = getString(R.string.outline_chapter_default_title, nextIdx)
+
+        val view = layoutInflater.inflate(R.layout.dialog_chapter_plan_target, null)
+        val rowContinue = view.findViewById<View>(R.id.rowContinueNew)
+        val checkContinue = view.findViewById<com.google.android.material.checkbox.MaterialCheckBox>(R.id.checkContinueNew)
+        val labelContinue = view.findViewById<TextView>(R.id.textContinueNewLabel)
+        val rowOverwrite = view.findViewById<View>(R.id.rowOverwrite)
+        val textOverwrite = view.findViewById<TextView>(R.id.textOverwriteSelected)
+        val editHint = view.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.editTargetHint)
+        val editLength = view.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.editTargetLength)
+        editLength.setText(loadLastTargetLength())
+
+        labelContinue.text = "新建续写章节：$newChapterTitle"
+
+        // 状态：overwriteIdx == -1 表示当前是续写模式；>=0 表示覆盖第 N 章（chapters 索引）。
+        val overwriteIdx = intArrayOf(-1)
+        val overwritePlaceholderColor =
+            ContextCompat.getColor(this, R.color.ios_section_label)
+        val overwriteSelectedColor =
+            com.google.android.material.color.MaterialColors.getColor(textOverwrite, com.google.android.material.R.attr.colorOnSurface)
+
+        fun applyState() {
+            val isContinue = overwriteIdx[0] < 0
+            checkContinue.isChecked = isContinue
+            if (isContinue) {
+                textOverwrite.text = "未选择"
+                textOverwrite.setTextColor(overwritePlaceholderColor)
+            } else {
+                val item = chapters.getOrNull(overwriteIdx[0])
+                val title = item?.title?.trim().orEmpty().ifEmpty { "(无标题)" }
+                textOverwrite.text = title
+                textOverwrite.setTextColor(overwriteSelectedColor)
+            }
+        }
+        applyState()
+
+        rowContinue.setOnClickListener {
+            if (overwriteIdx[0] >= 0) {
+                // 当前是覆盖模式 → 切回续写
+                overwriteIdx[0] = -1
+            } else if (chapters.isNotEmpty()) {
+                // 当前是续写 → 取消续写 → 自动选中最新一章（最后一条）
+                overwriteIdx[0] = chapters.lastIndex
+            }
+            // 没有章节时点续写无意义，保持续写
+            applyState()
+        }
+
+        rowOverwrite.setOnClickListener {
+            if (chapters.isEmpty()) {
+                Toast.makeText(this, "暂无可覆盖的章节", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+            val labels = Array(chapters.size) { i ->
+                val c = chapters[i]
+                val title = c.title.trim().ifEmpty { "(无标题)" }
+                val preview = c.content.trim().take(16)
+                if (preview.isEmpty()) title else "$title（${preview}…）"
+            }
+            val current = overwriteIdx[0].coerceAtLeast(0).coerceAtMost(labels.size - 1)
+            MaterialAlertDialogBuilder(this)
+                .setTitle("选择要覆盖的章节")
+                .setSingleChoiceItems(labels, current) { d, which ->
+                    overwriteIdx[0] = which
+                    applyState()
+                    d.dismiss()
+                }
+                .setNegativeButton("取消", null)
+                .show()
+        }
+
+        val dialog = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_NoActionBar)
+            .setView(view)
+            .create()
+        dialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        view.findViewById<View>(R.id.btnTargetCancel).setOnClickListener { dialog.dismiss() }
+        view.findViewById<View>(R.id.btnTargetConfirm).setOnClickListener {
+            val hint = editHint.text?.toString()?.trim().orEmpty()
+            val length = editLength.text?.toString()?.trim().orEmpty()
+            val spec = if (overwriteIdx[0] < 0) {
+                ChapterPlanTargetSpec(
+                    targetTitle = newChapterTitle,
+                    isExisting = false,
+                    existingItem = null,
+                    userHint = hint,
+                    targetLength = length,
+                )
+            } else {
+                val item = chapters.getOrNull(overwriteIdx[0])
+                if (item == null) {
+                    Toast.makeText(this, "目标章节无效", Toast.LENGTH_SHORT).show()
+                    return@setOnClickListener
+                }
+                ChapterPlanTargetSpec(
+                    targetTitle = item.title.trim(),
+                    isExisting = true,
+                    existingItem = item,
+                    userHint = hint,
+                    targetLength = length,
+                )
+            }
+            if (length.isNotEmpty()) saveLastTargetLength(length)
+            dialog.dismiss()
+            onConfirm(spec)
+        }
+        dialog.show()
+    }
+
+    private fun startChapterPlanRequest(spec: ChapterPlanTargetSpec) {
+        // 先弹编辑对话框（带"生成中…"状态），然后异步收集大纲与对话上下文，模型回调时填字段。
+        val dialogTitle = if (spec.isExisting) "章节计划：${spec.targetTitle}（覆盖）"
+                          else "章节计划：${spec.targetTitle}（新建）"
+        val initial = ChapterPlanDraft().apply {
+            if (spec.targetLength.isNotEmpty()) targetLength = spec.targetLength
+        }
+        var resolved = false
+        val controller = ChapterPlanDialog.show(
+            this, dialogTitle, initial,
+            initialStatus = "正在收集大纲与上下文…",
+            object : ChapterPlanDialog.Callback {
+                override fun onCancel() { resolved = true }
+                override fun onSave(edited: ChapterPlanDraft) {
+                    resolved = true
+                    persistChapterPlanToOutline(spec, edited)
+                }
+            },
+        )
+
+        executor.execute {
+            val all = outlineStore.getAll(sessionId)
+            val chapters = all.filter { "chapter" == outlineStore.normalizeType(it?.type) }
+            val characters = all.filter { "task" == outlineStore.normalizeType(it?.type) }
+            val worlds = all.filter { "world" == outlineStore.normalizeType(it?.type) }
+            val knowledge = all.filter { "knowledge" == outlineStore.normalizeType(it?.type) }
+            val materials = all.filter { "material" == outlineStore.normalizeType(it?.type) }
+            val dialogue = collectRecentDialogue(20, 4000)
+            val ctx = ChapterPlanContext(
+                targetTitle = spec.targetTitle,
+                isExisting = spec.isExisting,
+                existingContent = spec.existingItem?.content?.trim().orEmpty(),
+                allChapters = chapters,
+                characters = characters,
+                worlds = worlds,
+                knowledgeConstraints = knowledge,
+                materials = materials,
+                recentDialogue = dialogue,
+                userHint = spec.userHint,
+                targetLength = spec.targetLength,
+            )
+
+            runOnUiThread {
+                if (resolved) return@runOnUiThread
+                controller.setStatus("正在请求章节计划模型…")
+                ChatService(this).generateChapterPlanJson(ctx, object : ChatService.ChatCallback {
+                    override fun onPartial(delta: String) {
+                        runOnUiThread {
+                            if (resolved) return@runOnUiThread
+                            if (delta.trim().isNotEmpty()) controller.setStatus(delta.trim())
+                        }
+                    }
+
+                    override fun onSuccess(content: String) {
+                        runOnUiThread {
+                            if (resolved) return@runOnUiThread
+                            val draft = parseChapterPlanDraft(content)
+                            if (draft == null) {
+                                controller.setStatus("计划解析失败，可手动填写后保存")
+                                return@runOnUiThread
+                            }
+                            if (spec.targetLength.isNotEmpty() && draft.targetLength.trim().isEmpty()) {
+                                draft.targetLength = spec.targetLength
+                            }
+                            controller.applyDraft(draft, fillOnlyEmpty = false)
+                            controller.setStatus(
+                                if (draft.hasAnyContent()) "章节计划已生成，可编辑后保存"
+                                else "已解析到结构，但字段为空；可手动填写后保存"
+                            )
+                        }
+                    }
+
+                    override fun onError(message: String) {
+                        runOnUiThread {
+                            if (resolved) return@runOnUiThread
+                            val msg = if (message.trim().isNotEmpty()) message.trim() else "章节计划生成失败"
+                            controller.setStatus("$msg。可手动填写后保存。")
                         }
                     }
                 })
@@ -720,196 +1278,38 @@ class SessionOutlineActivity : ThemedActivity() {
         }
     }
 
-    /** 知情注入：从大纲+最近对话提取知情约束并自动添加到大纲 */
-    private fun runKnowledgeExtraction() {
-        val all = outlineStore.getAll(sessionId)
-        val sb = StringBuilder()
-        for (item in all) {
-            if (item == null) continue
-            val type = outlineStore.normalizeType(item.type)
-            if ("knowledge" == type) continue // 不把已有知情约束塞回去
-            val typeLabel = when (type) {
-                "chapter" -> "章节"
-                "task" -> "人物资料"
-                "world" -> "世界背景"
-                "material" -> "资料"
-                else -> type
-            }
-            val title = item.title?.trim() ?: ""
-            val content = item.content?.trim() ?: ""
-            if (title.isEmpty() && content.isEmpty()) continue
-            sb.append("[").append(typeLabel).append("] ")
-            if (title.isNotEmpty()) sb.append(title)
-            if (content.isNotEmpty()) {
-                if (title.isNotEmpty()) sb.append("：")
-                sb.append(content)
-            }
-            sb.append("\n")
+    private fun persistChapterPlanToOutline(spec: ChapterPlanTargetSpec, draft: ChapterPlanDraft) {
+        val text = draft.toOutlineText()
+        if (spec.isExisting && spec.existingItem != null) {
+            val updated = spec.existingItem.copy(content = text)
+            outlineStore.update(sessionId, updated)
+            Toast.makeText(this, "已覆盖：${spec.targetTitle}", Toast.LENGTH_SHORT).show()
+        } else {
+            outlineStore.add(sessionId, "chapter", spec.targetTitle, text)
+            Toast.makeText(this, "已加入大纲：${spec.targetTitle}", Toast.LENGTH_SHORT).show()
         }
-        val outlineText = sb.toString().trim()
-
-        Toast.makeText(this, "正在提取知情约束…", Toast.LENGTH_SHORT).show()
-        executor.execute {
-            val dialogue = collectRecentDialogue(20, 4000)
-            runOnUiThread {
-                ChatService(this).extractKnowledgeConstraints(
-                    outlineText,
-                    dialogue,
-                    object : ChatService.ChatCallback {
-                        override fun onSuccess(content: String) {
-                            runOnUiThread {
-                                val n = parseAndAddKnowledgeItems(content)
-                                if (n > 0) {
-                                    Toast.makeText(
-                                        this@SessionOutlineActivity,
-                                        "已添加 $n 条知情约束",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    refreshList()
-                                } else {
-                                    Toast.makeText(
-                                        this@SessionOutlineActivity,
-                                        "未解析到有效知情约束",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                }
-                            }
-                        }
-
-                        override fun onError(message: String) {
-                            runOnUiThread {
-                                Toast.makeText(
-                                    this@SessionOutlineActivity,
-                                    if (message.isNotEmpty()) message else "提取失败",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-                    })
-            }
-        }
+        refreshList()
     }
 
-    /** 解析模型返回的 JSON 数组并添加到大纲（type=knowledge），返回成功添加的条数 */
-    private fun parseAndAddKnowledgeItems(json: String): Int {
-        val raw = json.trim()
-        if (raw.isEmpty()) return 0
+    private fun parseChapterPlanDraft(json: String?): ChapterPlanDraft? {
+        val raw = json?.trim().orEmpty()
+        if (raw.isEmpty()) return null
         return try {
-            // 容错：去除可能的 ```json ... ``` 包裹
-            val cleaned = raw.removePrefix("```json").removePrefix("```")
-                .removeSuffix("```").trim()
-            val arr = JsonParser().parse(cleaned)
-            if (!arr.isJsonArray) return 0
-            var added = 0
-            for (el in arr.asJsonArray) {
-                if (!el.isJsonObject) continue
-                val obj = el.asJsonObject
-                val title = obj.get("title")?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
-                val content = obj.get("content")?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
-                if (title.isEmpty() && content.isEmpty()) continue
-                outlineStore.add(sessionId, "knowledge", title, content)
-                added++
-            }
-            added
+            val obj = JsonParser().parse(raw).asJsonObject
+            ChapterPlanDraft.fromJson(obj)
         } catch (e: Exception) {
-            0
+            null
         }
     }
 
-    /** 章节计划：从最近对话生成下一章计划并以 chapter 类型加入大纲 */
-    private fun runChapterPlanGeneration() {
-        Toast.makeText(this, "正在生成章节计划…", Toast.LENGTH_SHORT).show()
-        executor.execute {
-            val dialogue = collectRecentDialogue(20, 4000)
-            runOnUiThread {
-                ChatService(this).generateChapterPlanJson(
-                    "请根据当前故事进展，生成下一章的章节计划。",
-                    dialogue,
-                    object : ChatService.ChatCallback {
-                        override fun onSuccess(content: String) {
-                            runOnUiThread {
-                                val formatted = formatChapterPlanJson(content)
-                                if (formatted.isEmpty()) {
-                                    Toast.makeText(
-                                        this@SessionOutlineActivity,
-                                        "未解析到有效章节计划",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
-                                    return@runOnUiThread
-                                }
-                                val next = outlineStore.nextChapterIndex(sessionId)
-                                val title = "章节$next"
-                                outlineStore.add(sessionId, "chapter", title, formatted)
-                                Toast.makeText(
-                                    this@SessionOutlineActivity,
-                                    "已加入大纲：$title",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                                refreshList()
-                            }
-                        }
-
-                        override fun onError(message: String) {
-                            runOnUiThread {
-                                Toast.makeText(
-                                    this@SessionOutlineActivity,
-                                    if (message.isNotEmpty()) message else "章节计划生成失败",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
-                        }
-                    })
-            }
-        }
+    private fun loadLastTargetLength(): String {
+        val prefs = getSharedPreferences("chapter_plan_prefs", MODE_PRIVATE)
+        return prefs.getString("last_target_length", "") ?: ""
     }
 
-    /** 将章节计划 JSON 对象格式化为大纲可读文本 */
-    private fun formatChapterPlanJson(json: String): String {
-        val raw = json.trim()
-        if (raw.isEmpty()) return ""
-        return try {
-            val cleaned = raw.removePrefix("```json").removePrefix("```")
-                .removeSuffix("```").trim()
-            val obj = JsonParser().parse(cleaned)
-            if (!obj.isJsonObject) return raw
-            val o = obj.asJsonObject
-            val sb = StringBuilder()
-            fun strOf(key: String): String =
-                o.get(key)?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
-            val plotDrive = strOf("plotDrive")
-            val chapterGoal = strOf("chapterGoal")
-            val misbelief = strOf("misbelief")
-            val emotion = strOf("emotion")
-            val targetLength = strOf("targetLength")
-            if (plotDrive.isNotEmpty()) sb.append("【剧情推进】\n").append(plotDrive).append("\n\n")
-            if (chapterGoal.isNotEmpty()) sb.append("【本章目标】\n").append(chapterGoal).append("\n\n")
-            if (misbelief.isNotEmpty()) sb.append("【关键误解/冲突】\n").append(misbelief).append("\n\n")
-            if (emotion.isNotEmpty()) sb.append("【情感基调】\n").append(emotion).append("\n\n")
-            // characterDrives: array of {name, drive}
-            val cdArr = o.get("characterDrives")
-            if (cdArr != null && cdArr.isJsonArray && cdArr.asJsonArray.size() > 0) {
-                sb.append("【人物驱动】\n")
-                for (el in cdArr.asJsonArray) {
-                    if (!el.isJsonObject) continue
-                    val obj2 = el.asJsonObject
-                    val name = obj2.get("name")?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
-                    val drive = obj2.get("drive")?.takeIf { !it.isJsonNull }?.asString?.trim() ?: ""
-                    if (name.isEmpty() && drive.isEmpty()) continue
-                    sb.append("- ")
-                    if (name.isNotEmpty()) sb.append(name)
-                    if (drive.isNotEmpty()) {
-                        if (name.isNotEmpty()) sb.append("：")
-                        sb.append(drive)
-                    }
-                    sb.append("\n")
-                }
-                sb.append("\n")
-            }
-            if (targetLength.isNotEmpty()) sb.append("【目标字数】").append(targetLength)
-            sb.toString().trim()
-        } catch (e: Exception) {
-            raw
-        }
+    private fun saveLastTargetLength(value: String) {
+        getSharedPreferences("chapter_plan_prefs", MODE_PRIVATE)
+            .edit().putString("last_target_length", value).apply()
     }
 
     /** 取最近 N 条对话消息拼接，超长时截断 */

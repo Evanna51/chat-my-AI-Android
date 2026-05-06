@@ -1750,7 +1750,12 @@ class ChatService(context: Context) {
                     }
                 }
                 callback.onUsage(promptTokens, completionTokens, totalTokens, System.currentTimeMillis() - start)
-                callback.onSuccess(fullContent.toString())
+                // 自动对话: 解析尾部 META 块, 把 cleanContent 交给上层. 模型未启用 / 没发 META
+                // 时 ProactiveMetaParser.extract 返回 (raw.trimEnd, null), 行为与未引入 META 时一致.
+                val rawFinal = fullContent.toString()
+                val metaExtract = com.example.aichat.chat.ProactiveMetaParser.extract(rawFinal)
+                callback.onProactiveMeta(metaExtract.meta)
+                callback.onSuccess(metaExtract.cleanContent)
             }
         })
     }
@@ -2105,6 +2110,12 @@ class ChatService(context: Context) {
          * SyncQueueDrainer's `WHERE turnId != ''` filter skips it.
          */
         fun onToolMessageRecorded(record: ToolMessageRecord) {}
+        /**
+         * Fired once per streaming chat turn, immediately before [onSuccess], when
+         * 自动对话 META 协议在模型回复尾部被识别 (或缺席). [meta] 为 null 表示模型没发或解析失败,
+         * 上层应回退到普通显示. 回调和 onSuccess 在同一线程顺序触发.
+         */
+        fun onProactiveMeta(meta: com.example.aichat.chat.ProactiveMeta?) {}
     }
 
     /**

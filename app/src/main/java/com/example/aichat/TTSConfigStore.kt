@@ -87,7 +87,9 @@ class TTSConfigStore(context: Context) {
         const val DEFAULT_CLUSTER = "volcano_tts"
         const val DEFAULT_CLUSTER_ICL = "volcano_icl"
         const val DEFAULT_VOICE_TYPE = "zh_female_shuangkuaisisi_moon_bigtts"
-        const val DEFAULT_RESOURCE_ID = "seed-icl-1.0"
+        // 默认音色是公版 bigtts，必须配 volc.service_type.10029；
+        // 之前默认 seed-icl-1.0 是声音复刻通道，会和默认音色不匹配。
+        const val DEFAULT_RESOURCE_ID = "volc.service_type.10029"
         const val DEFAULT_ENCODING = "pcm"
         const val DEFAULT_SPEED_RATIO = 1.0f
         const val DEFAULT_VOLUME_RATIO = 1.0f

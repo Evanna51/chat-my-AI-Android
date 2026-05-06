@@ -326,9 +326,14 @@ class MainActivity : ThemedActivity() {
             val optionsStore = SessionChatOptionsStore(this)
             val metaStore = SessionMetaStore(this)
             val bindingStore = SessionAssistantBindingStore(this)
+            // 一次性把所有助手缓存下来，按 id 索引，便于会话头像继承。
+            val assistantById = HashMap<String, MyAssistant>()
             val assistantTypeById = HashMap<String, String>()
             for (a in MyAssistantStore(this).getAll()) {
-                if (a.id.isNotEmpty()) assistantTypeById[a.id] = a.type
+                if (a.id.isNotEmpty()) {
+                    assistantById[a.id] = a
+                    assistantTypeById[a.id] = a.type
+                }
             }
 
             val tab = currentTab
@@ -354,16 +359,40 @@ class MainActivity : ThemedActivity() {
                         s.title = if (opts.sessionTitle != null && opts.sessionTitle.trim().isNotEmpty())
                             opts.sessionTitle.trim()
                         else shortenTitle(firstUserMessage)
-                        if ((s.avatar == null || s.avatar.trim().isEmpty())
-                            && opts.sessionAvatar != null && opts.sessionAvatar.trim().isNotEmpty()
-                        ) {
-                            s.avatar = opts.sessionAvatar.trim()
-                        }
+                        // 注意：opts.sessionAvatar 仅作为遗留字段存在，不再优先使用。
                     } else {
                         s.title = shortenTitle(firstUserMessage)
                     }
 
                     val assistantId = bindingStore.getAssistantId(s.sessionId)
+                    val assistant = assistantById[assistantId]
+                    // 头像优先级（高 → 低）：
+                    //   1. 会话级覆盖图片 opts.sessionAvatarImageBase64
+                    //   2. 会话级覆盖文字 opts.sessionAvatar
+                    //   3. meta.avatar（已在前面写入 s.avatar 了）
+                    //   4. 助手图片 / 助手 emoji
+                    //   5. 默认 🤖
+                    val sessionImageOverride = opts?.sessionAvatarImageBase64.orEmpty()
+                    val sessionTextOverride = opts?.sessionAvatar.orEmpty().trim()
+                    when {
+                        sessionImageOverride.isNotBlank() -> {
+                            s.avatarImageBase64 = sessionImageOverride
+                            // 文字字段也清掉，避免回退时显示一个不一致的 emoji
+                            s.avatar = ""
+                        }
+                        sessionTextOverride.isNotEmpty() -> {
+                            s.avatar = sessionTextOverride
+                        }
+                        s.avatar.isBlank() && assistant != null -> {
+                            // 没有会话级覆盖也没有 meta 覆盖，回退到助手
+                            if (assistant.avatarImageBase64.isNotBlank()) {
+                                s.avatarImageBase64 = assistant.avatarImageBase64
+                            }
+                            if (assistant.avatar.isNotBlank()) {
+                                s.avatar = assistant.avatar
+                            }
+                        }
+                    }
                     val type = assistantTypeById[assistantId] ?: ""
                     val isWriter = type == "writer"
 

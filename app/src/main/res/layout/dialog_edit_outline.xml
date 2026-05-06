@@ -4,7 +4,7 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:background="@drawable/bg_ios_dialog">
+    android:background="@drawable/bg_glass_dialog">
 
     <!-- 标题（知情约束时文字变化） -->
     <TextView
@@ -141,7 +141,8 @@
         android:hint="标题，例如：第1章"
         android:inputType="textCapSentences"
         android:maxLines="1"
-        android:padding="16dp"
+        android:paddingHorizontal="16dp"
+        android:paddingVertical="8dp"
         android:textSize="15sp"
         android:textColor="?attr/colorOnSurface"
         android:textColorHint="@color/ios_section_label" />
@@ -218,8 +219,8 @@
         android:hint="内容"
         android:gravity="top|start"
         android:inputType="textMultiLine|textCapSentences"
-        android:minLines="5"
-        android:maxLines="12"
+        android:minLines="9"
+        android:maxLines="20"
         android:padding="16dp"
         android:textSize="15sp"
         android:textColor="?attr/colorOnSurface"

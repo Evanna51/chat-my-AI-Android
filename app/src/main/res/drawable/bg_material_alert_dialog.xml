@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- Base: glass surface -->
+    <!-- Base: 默认 dialog 背景（亮色全白 / 暗色 #1A1D25），不透明。 -->
     <item>
         <shape android:shape="rectangle">
-            <solid android:color="@color/glass_surface" />
+            <solid android:color="@color/dialog_surface_bg" />
             <corners android:radius="28dp" />
         </shape>
     </item>
+
     <!-- Top edge highlight: bright gradient fading down -->
     <item android:bottom="@dimen/dialog_glass_highlight_fade">
         <shape android:shape="rectangle">
@@ -17,6 +18,7 @@
             <corners android:topLeftRadius="28dp" android:topRightRadius="28dp" />
         </shape>
     </item>
+
     <!-- Bottom edge shadow: dark gradient fading up -->
     <item android:top="@dimen/dialog_glass_shadow_fade">
         <shape android:shape="rectangle">
@@ -27,6 +29,7 @@
             <corners android:bottomLeftRadius="28dp" android:bottomRightRadius="28dp" />
         </shape>
     </item>
+
     <!-- Stroke -->
     <item>
         <shape android:shape="rectangle">

@@ -42,6 +42,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private var pinnedUserMessage: Message? = null
     private var pinnedAssistantMessage: Message? = null
     private var hidePinnedAssistantActions: Boolean = false
+    private var streamingAssistantMessage: Message? = null
     private var actionListener: OnMessageActionListener? = null
     private val timestampFormat: SimpleDateFormat
     private val timestampTodayFormat: SimpleDateFormat
@@ -381,6 +382,18 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.hidePinnedAssistantActions = hideAssistantActions
     }
 
+    /**
+     * 标记正在流式生成的 AI 消息。设置后该消息底部工具栏会被隐藏，直到流式结束传入 null。
+     */
+    fun setStreamingAssistantMessage(message: Message?) {
+        if (this.streamingAssistantMessage === message) return
+        val prev = this.streamingAssistantMessage
+        this.streamingAssistantMessage = message
+        // 切换流式目标时，刷新 prev / new 两条消息的工具栏可见性。
+        prev?.let { notifyMessageChanged(it) }
+        message?.let { notifyMessageChanged(it) }
+    }
+
     fun getMessages(): List<Message> {
         return ArrayList(messages)
     }
@@ -486,15 +499,19 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             else actionPanelStateStore.getLevel(m)
             // Single-level fold: latest is always expanded (rawLevel forced to 1).
             val toolbarExpanded = isLatest || rawLevel >= 1
+            // 最新一条 AI 消息工具栏永远展开，折叠箭头无意义 → 隐藏；
+            // 流式生成中的 AI 消息整条工具栏隐藏。
+            val isStreaming = streamingAssistantMessage != null && m === streamingAssistantMessage
+            val showActions = toolbarExpanded && !isStreaming
             holder.actionExpand.setImageResource(
                 if (toolbarExpanded) R.drawable.ic_action_expand_left
                 else R.drawable.ic_chevron_right
             )
             holder.actionExpand.scaleX = 1f
-            holder.actionExpand.visibility = View.VISIBLE
-            holder.layoutActions.visibility = if (toolbarExpanded) View.VISIBLE else View.GONE
-            holder.actionOutline.visibility = if (writerMode && toolbarExpanded) View.VISIBLE else View.GONE
-            holder.actionVoicePlay.visibility = if (characterMode && toolbarExpanded) View.VISIBLE else View.GONE
+            holder.actionExpand.visibility = if (isLatest) View.GONE else View.VISIBLE
+            holder.layoutActions.visibility = if (showActions) View.VISIBLE else View.GONE
+            holder.actionOutline.visibility = if (writerMode && showActions) View.VISIBLE else View.GONE
+            holder.actionVoicePlay.visibility = if (characterMode && showActions) View.VISIBLE else View.GONE
             if (fullBind || holder.lastHasVisibleContent != hasVisibleContent) {
                 if (disableAssistantCollapseToggle) {
                     holder.textCollapseToggle.visibility = View.GONE
@@ -514,6 +531,13 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             if (hasVisibleContent) bindAssistantContent(holder, m, content, expanded)
             bindReasoning(holder, m, position)
             applyCollapseToggleAffix(holder)
+            // Re-apply once after the view has been measured/laid-out (height is
+            // 0 during initial bind; this single post settles the pill exactly
+            // and never repeats).
+            holder.itemView.post {
+                applyCollapseToggleAffix(holder)
+                maybeHideShortMessageCollapseToggle(holder, m)
+            }
             if (fullBind) {
                 holder.itemView.setOnClickListener(null)
                 holder.actionExpand.setOnClickListener { cycleAssistantActionLevel(m) }
@@ -786,44 +810,65 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
      * No-op if viewport hasn't been wired up yet (affixViewportTop sentinel).
      */
     /**
-     * Pin the floating "expand / collapse" pill to the vertical center of the
-     * portion of the bubble that's visible inside the RecyclerView's viewport.
-     * If the bubble is fully on-screen, the pill sits at the bubble's vertical
-     * center; otherwise it clamps to the visible slice's center so it stays
-     * reachable while the user scrolls the bubble in or out of view.
+     * Float the "expand / collapse" pill so it stays reachable while the
+     * user scrolls a long assistant bubble.
      *
-     * Defers via post() if measurement isn't ready yet (typical on first bind).
+     * Default anchor (handled entirely by layout, no work here): bottom|end of
+     * the bubble with 6dp margin. While the bubble's bottom is inside the
+     * viewport — including the common "streaming + auto-scroll-to-bottom"
+     * case where bubble bottom equals viewport bottom — translationY is 0 so
+     * the pill never moves and never causes invalidation.
+     *
+     * Only when the bubble's bottom has scrolled below the viewport does this
+     * lift the pill upward, just enough to keep it inside the viewport,
+     * clamped so it never escapes the bubble.
+     *
+     * Bubble fully off-screen → no-op; we leave the last translationY as-is to
+     * avoid wasted invalidations.
      */
     private fun applyCollapseToggleAffix(h: AssistantHolder) {
         val toggle = h.textCollapseToggle
-        if (toggle.visibility != View.VISIBLE) {
-            toggle.translationY = 0f
-            return
-        }
-        if (affixViewportTop == Int.MIN_VALUE || affixViewportBottom == Int.MIN_VALUE) {
-            toggle.translationY = 0f
-            return
-        }
+        if (toggle.visibility != View.VISIBLE) return
+        if (affixViewportTop == Int.MIN_VALUE || affixViewportBottom == Int.MIN_VALUE) return
         val bubble = h.layoutAssistantBubble
-        if (bubble.height <= 0 || toggle.height <= 0) {
-            toggle.post { applyCollapseToggleAffix(h) }
-            return
-        }
-        val baselineTop = toggle.top
+        if (bubble.height <= 0 || toggle.height <= 0) return
         val pos = IntArray(2)
         bubble.getLocationOnScreen(pos)
         val bubbleTopAbs = pos[1]
         val bubbleBottomAbs = bubbleTopAbs + bubble.height
-        val visibleTop = maxOf(bubbleTopAbs, affixViewportTop)
-        val visibleBottom = minOf(bubbleBottomAbs, affixViewportBottom)
-        if (visibleBottom <= visibleTop) {
-            toggle.translationY = 0f
-            return
+        if (bubbleBottomAbs <= affixViewportTop || bubbleTopAbs >= affixViewportBottom) return
+
+        val gapPx = (6f * h.itemView.resources.displayMetrics.density)
+        val newY: Float = if (bubbleBottomAbs <= affixViewportBottom) {
+            0f
+        } else {
+            // How far the bubble bottom is below the viewport bottom.
+            val pullUp = (bubbleBottomAbs - affixViewportBottom).toFloat()
+            // Don't lift past bubble top (toggle would escape upward).
+            val maxPullUp = (bubble.height - toggle.height - gapPx * 2f).coerceAtLeast(0f)
+            -minOf(pullUp, maxPullUp)
         }
-        val centerAbs = (visibleTop + visibleBottom) / 2
-        val centerInBubble = centerAbs - bubbleTopAbs
-        val targetTop = centerInBubble - toggle.height / 2
-        toggle.translationY = (targetTop - baselineTop).toFloat()
+        if (toggle.translationY != newY) toggle.translationY = newY
+    }
+
+    /**
+     * 历史 AI 消息正文 ≤3 行（无截断）时隐藏浮动折叠胶囊。流式中的消息不处理，避免随内容
+     * 增长产生闪烁。必须在 textContent 完成 measure/layout 之后才能可靠读到 lineCount。
+     */
+    private fun maybeHideShortMessageCollapseToggle(holder: AssistantHolder, m: Message?) {
+        if (m == null || m === streamingAssistantMessage) return
+        if (disableAssistantCollapseToggle) return
+        if (holder.textCollapseToggle.visibility != View.VISIBLE) return
+        val tv = holder.textContent
+        val layout = tv.layout ?: return
+        val lineCount = layout.lineCount
+        val textLen = tv.text?.length ?: 0
+        val lastEnd = if (lineCount > 0) layout.getLineEnd(lineCount - 1) else 0
+        val truncated = lastEnd < textLen
+        val moreThanThree = lineCount > 3
+        if (!truncated && !moreThanThree) {
+            holder.textCollapseToggle.visibility = View.GONE
+        }
     }
 
     private fun setCollapseToggleLabel(holder: AssistantHolder, expanded: Boolean) {

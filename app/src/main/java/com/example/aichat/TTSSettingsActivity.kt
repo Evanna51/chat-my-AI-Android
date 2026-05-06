@@ -1,22 +1,32 @@
 package com.example.aichat
 
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
-import android.widget.ArrayAdapter
+import android.view.ViewGroup
+import android.widget.ImageView
+import android.widget.LinearLayout
 import android.widget.RadioGroup
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
-import com.google.android.material.textfield.MaterialAutoCompleteTextView
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import java.util.Locale
 
 class TTSSettingsActivity : ThemedActivity() {
+
+    /** 选择器单项：title 是显示的标题，subtitle 是辅助说明，value 是写回输入框的值。 */
+    private data class PickerOption(
+        val title: String,
+        val subtitle: String? = null,
+        val value: String,
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,11 +43,14 @@ class TTSSettingsActivity : ThemedActivity() {
         val layoutHttpApi = findViewById<View?>(R.id.layoutHttpApi)
         val layoutSdk = findViewById<View?>(R.id.layoutSdk)
         val editApiKey = findViewById<TextInputEditText?>(R.id.editTTSApiKey)
-        val editResourceId = findViewById<MaterialAutoCompleteTextView?>(R.id.editTTSResourceId)
-        val editEncoding = findViewById<MaterialAutoCompleteTextView?>(R.id.editTTSEncoding)
+        val layoutResourceId = findViewById<TextInputLayout?>(R.id.layoutTTSResourceId)
+        val editResourceId = findViewById<TextInputEditText?>(R.id.editTTSResourceId)
+        val layoutEncoding = findViewById<TextInputLayout?>(R.id.layoutTTSEncoding)
+        val editEncoding = findViewById<TextInputEditText?>(R.id.editTTSEncoding)
         val editAppId = findViewById<TextInputEditText?>(R.id.editTTSAppId)
         val editToken = findViewById<TextInputEditText?>(R.id.editTTSAccessToken)
-        val editCluster = findViewById<MaterialAutoCompleteTextView?>(R.id.editTTSCluster)
+        val layoutCluster = findViewById<TextInputLayout?>(R.id.layoutTTSCluster)
+        val editCluster = findViewById<TextInputEditText?>(R.id.editTTSCluster)
         val layoutVoiceType = findViewById<TextInputLayout?>(R.id.layoutTTSVoiceType)
         val editVoiceType = findViewById<TextInputEditText?>(R.id.editTTSVoiceType)
         val seekSpeed = findViewById<SeekBar?>(R.id.seekTTSSpeed)
@@ -47,56 +60,89 @@ class TTSSettingsActivity : ThemedActivity() {
 
         switchEnabled?.isChecked = store.isEnabled()
         editApiKey?.setText(store.getApiKey())
-        editResourceId?.setText(store.getResourceId(), false)
-        editResourceId?.let { dropdown ->
-            val resources = TTSResourcePresets.all
-            val resAdapter = ArrayAdapter(
-                this,
-                android.R.layout.simple_dropdown_item_1line,
-                resources.map { it.display },
-            )
-            dropdown.setAdapter(resAdapter)
-            dropdown.setOnItemClickListener { _, _, position, _ ->
-                dropdown.setText(resources[position].resourceId, false)
-            }
-        }
-        editEncoding?.setText(store.getEncoding(), false)
-        editEncoding?.setAdapter(
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_dropdown_item_1line,
-                listOf("pcm", "mp3", "ogg_opus", "wav"),
-            )
-        )
+        editResourceId?.setText(store.getResourceId())
+        editEncoding?.setText(store.getEncoding())
         editAppId?.setText(store.getAppId())
         editToken?.setText(store.getAccessToken())
-        editCluster?.setText(store.getCluster(), false)
-        editCluster?.setAdapter(
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_dropdown_item_1line,
-                listOf("volcano_tts", "volcano_icl"),
-            )
-        )
+        editCluster?.setText(store.getCluster())
         editVoiceType?.setText(store.getVoiceType())
-        layoutVoiceType?.setEndIconOnClickListener {
-            val presets = TTSVoicePresets.all
-            val current = editVoiceType?.text?.toString()?.trim()
-            val checked = presets.indexOfFirst { it.speakerId == current }
-            // 单选列表项默认只显示一行；用 \n 把 label 和 speakerId 拆两行，
-            // 这样完整 speaker_id 也能看到。
-            val items = presets.map { "${it.label}\n${it.speakerId}" }.toTypedArray()
-            MaterialAlertDialogBuilder(this)
-                .setTitle("选择预设音色")
-                .setSingleChoiceItems(items, checked) { dlg, which ->
-                    val preset = presets[which]
-                    editVoiceType?.setText(preset.speakerId)
-                    editResourceId?.setText(preset.resourceId)
-                    dlg.dismiss()
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .show()
+
+        // ---- Resource ID picker ----
+        val resourceOptions = TTSResourcePresets.all.map {
+            PickerOption(title = it.resourceId, subtitle = it.description, value = it.resourceId)
         }
+        val openResourcePicker: (View) -> Unit = {
+            showPicker(
+                title = "选择 Resource ID",
+                options = resourceOptions,
+                currentValue = editResourceId?.text?.toString()?.trim(),
+                tip = "公版音色建议用 volc.service_type.10029；声音复刻用 volc.megatts.default。" +
+                        "切音色预设会自动联动，这里也允许手动覆盖。",
+            ) { picked ->
+                editResourceId?.setText(picked.value)
+            }
+        }
+        editResourceId?.setOnClickListener(openResourcePicker)
+        layoutResourceId?.setEndIconOnClickListener(openResourcePicker)
+
+        // ---- Encoding picker ----
+        val encodingOptions = listOf(
+            PickerOption("pcm", "流式播放，低延迟（推荐）", "pcm"),
+            PickerOption("mp3", "压缩格式，文件缓冲后播放", "mp3"),
+            PickerOption("ogg_opus", "Opus 编码，体积小", "ogg_opus"),
+            PickerOption("wav", "无压缩，体积最大", "wav"),
+        )
+        val openEncodingPicker: (View) -> Unit = {
+            showPicker(
+                title = "选择 Encoding",
+                options = encodingOptions,
+                currentValue = editEncoding?.text?.toString()?.trim(),
+                tip = "pcm 走流播低延迟；其它格式走文件缓冲。",
+            ) { picked ->
+                editEncoding?.setText(picked.value)
+            }
+        }
+        editEncoding?.setOnClickListener(openEncodingPicker)
+        layoutEncoding?.setEndIconOnClickListener(openEncodingPicker)
+
+        // ---- Cluster picker ----
+        val clusterOptions = listOf(
+            PickerOption("volcano_tts", "标准合成", "volcano_tts"),
+            PickerOption("volcano_icl", "声音复刻 ICL", "volcano_icl"),
+        )
+        val openClusterPicker: (View) -> Unit = {
+            showPicker(
+                title = "选择 Cluster",
+                options = clusterOptions,
+                currentValue = editCluster?.text?.toString()?.trim(),
+                tip = "volcano_tts = 标准；volcano_icl = 声音复刻。",
+            ) { picked ->
+                editCluster?.setText(picked.value)
+            }
+        }
+        editCluster?.setOnClickListener(openClusterPicker)
+        layoutCluster?.setEndIconOnClickListener(openClusterPicker)
+
+        // ---- Voice Type picker ----
+        val voiceOptions = TTSVoicePresets.all.map {
+            PickerOption(title = it.label, subtitle = it.speakerId, value = it.speakerId)
+        }
+        val openVoicePicker: (View) -> Unit = {
+            showPicker(
+                title = "选择预设音色",
+                options = voiceOptions,
+                currentValue = editVoiceType?.text?.toString()?.trim(),
+                tip = "公版音色会同步把 Resource ID 设为 volc.service_type.10029。",
+            ) { picked ->
+                editVoiceType?.setText(picked.value)
+                // 选预设时联动 Resource ID（之后用户仍可在 Resource ID picker 里手动改）
+                TTSVoicePresets.findBySpeakerId(picked.value)?.let { preset ->
+                    editResourceId?.setText(preset.resourceId)
+                }
+            }
+        }
+        editVoiceType?.setOnClickListener(openVoicePicker)
+        layoutVoiceType?.setEndIconOnClickListener(openVoicePicker)
 
         fun updateModeVisibility(httpMode: Boolean) {
             layoutHttpApi?.visibility = if (httpMode) View.VISIBLE else View.GONE
@@ -151,5 +197,57 @@ class TTSSettingsActivity : ThemedActivity() {
             Toast.makeText(this, "语音合成设置已保存", Toast.LENGTH_SHORT).show()
             finish()
         }
+    }
+
+    /**
+     * 通用 picker 弹窗：玻璃卡片 + 列表 + 底部 tip。
+     * 命中当前值的项会显示打勾。点项即关闭并回调。
+     */
+    private fun showPicker(
+        title: String,
+        options: List<PickerOption>,
+        currentValue: String?,
+        tip: String?,
+        onPicked: (PickerOption) -> Unit,
+    ) {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_tts_picker, null, false)
+        view.findViewById<TextView>(R.id.textPickerTitle).text = title
+        val container = view.findViewById<LinearLayout>(R.id.containerPickerItems)
+        val tipText = view.findViewById<TextView>(R.id.textPickerTip)
+        val tipDivider = view.findViewById<View>(R.id.dividerPickerTip)
+        if (!tip.isNullOrBlank()) {
+            tipText.text = tip
+            tipText.visibility = View.VISIBLE
+            tipDivider.visibility = View.VISIBLE
+        }
+
+        val dialog: AlertDialog = MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .create()
+
+        val inflater = LayoutInflater.from(this)
+        options.forEach { option ->
+            val item = inflater.inflate(R.layout.item_tts_picker, container, false)
+            item.findViewById<TextView>(R.id.textPickerItemTitle).text = option.title
+            val sub = item.findViewById<TextView>(R.id.textPickerItemSubtitle)
+            if (option.subtitle.isNullOrBlank()) {
+                sub.visibility = View.GONE
+            } else {
+                sub.text = option.subtitle
+                sub.visibility = View.VISIBLE
+            }
+            val check = item.findViewById<ImageView>(R.id.iconPickerItemCheck)
+            check.visibility = if (option.value == currentValue) View.VISIBLE else View.INVISIBLE
+            item.setOnClickListener {
+                onPicked(option)
+                dialog.dismiss()
+            }
+            container.addView(
+                item,
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT),
+            )
+        }
+
+        dialog.show()
     }
 }

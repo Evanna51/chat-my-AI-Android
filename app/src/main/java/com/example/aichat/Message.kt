@@ -95,6 +95,17 @@ class Message {
     @ColumnInfo(defaultValue = "''")
     var toolName: String = ""
 
+    /**
+     * 自动对话标记 (Phase 1):
+     *   0 = 普通消息（用户/助手/工具行）
+     *   1 = 由模型 META.split 拆出的分段（同一轮回复内的"打字模拟"消息）
+     *   2 = 沉默期 follow-up 触发的主动消息
+     * 客户端用于审计 / 限速 / 后续分析；不上传 server。
+     */
+    @JvmField
+    @ColumnInfo(defaultValue = "0")
+    var proactiveKind: Int = 0
+
     @Ignore
     @JvmField
     var promptTokens: Int = 0

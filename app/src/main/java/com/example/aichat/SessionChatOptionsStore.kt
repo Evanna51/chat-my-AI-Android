@@ -44,6 +44,7 @@ class SessionChatOptionsStore(context: Context) {
             entity.sessionId = sessionId
             entity.sessionTitle = opts.sessionTitle ?: ""
             entity.sessionAvatar = opts.sessionAvatar ?: ""
+            entity.sessionAvatarImageBase64 = opts.sessionAvatarImageBase64
             entity.modelKey = opts.modelKey ?: ""
             entity.systemPrompt = opts.systemPrompt ?: ""
             entity.stop = opts.stop ?: ""
@@ -51,9 +52,16 @@ class SessionChatOptionsStore(context: Context) {
             entity.googleThinkingBudget = opts.googleThinkingBudget
             entity.temperature = opts.temperature
             entity.topP = opts.topP
+            entity.maxTokens = opts.maxTokens
+            entity.frequencyPenalty = opts.frequencyPenalty
+            entity.presencePenalty = opts.presencePenalty
+            entity.topK = opts.topK
             entity.streamOutput = true
             entity.autoChapterPlan = opts.autoChapterPlan
             entity.thinking = opts.thinking
+            entity.autoChatEnabled = opts.autoChatEnabled
+            entity.proactiveCountToday = opts.proactiveCountToday
+            entity.proactiveResetDate = opts.proactiveResetDate
             return entity
         }
 
@@ -61,6 +69,7 @@ class SessionChatOptionsStore(context: Context) {
             val opts = SessionChatOptions()
             opts.sessionTitle = entity.sessionTitle ?: ""
             opts.sessionAvatar = entity.sessionAvatar ?: ""
+            opts.sessionAvatarImageBase64 = entity.sessionAvatarImageBase64
             opts.modelKey = entity.modelKey ?: ""
             opts.systemPrompt = entity.systemPrompt ?: ""
             opts.stop = entity.stop ?: ""
@@ -68,9 +77,16 @@ class SessionChatOptionsStore(context: Context) {
             opts.googleThinkingBudget = entity.googleThinkingBudget
             opts.temperature = entity.temperature
             opts.topP = entity.topP
+            opts.maxTokens = entity.maxTokens
+            opts.frequencyPenalty = entity.frequencyPenalty
+            opts.presencePenalty = entity.presencePenalty
+            opts.topK = entity.topK
             opts.streamOutput = true
             opts.autoChapterPlan = entity.autoChapterPlan
             opts.thinking = entity.thinking
+            opts.autoChatEnabled = entity.autoChatEnabled
+            opts.proactiveCountToday = entity.proactiveCountToday
+            opts.proactiveResetDate = entity.proactiveResetDate
             return opts
         }
     }
