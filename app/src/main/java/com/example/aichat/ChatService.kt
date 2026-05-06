@@ -204,7 +204,7 @@ class ChatService(context: Context) {
 
         val api = retrofit.create(ChatApi::class.java)
 
-        val messages = buildMessages(history, userMessage, using)
+        val messages = buildMessages(history, userMessage, using, selectedProviderId, config.apiHost)
         if (messages.isEmpty()) {
             callback.onError("消息内容为空")
             return handle
@@ -1464,7 +1464,13 @@ class ChatService(context: Context) {
             })
     }
 
-    private fun buildMessages(history: List<Message>?, userMessage: String?, using: SessionChatOptions): List<ChatApi.ChatMessage> {
+    private fun buildMessages(
+        history: List<Message>?,
+        userMessage: String?,
+        using: SessionChatOptions,
+        providerId: String,
+        apiHost: String?,
+    ): List<ChatApi.ChatMessage> {
         val messages = ArrayList<ChatApi.ChatMessage>()
         if (using.systemPrompt != null && using.systemPrompt.trim().isNotEmpty()) {
             messages.add(ChatApi.ChatMessage("system", using.systemPrompt.trim()))
@@ -1474,14 +1480,11 @@ class ChatService(context: Context) {
         var start = 0
         if (limit >= 0 && source.size > limit) start = source.size - limit
 
-        // Pass 1: pull canonical user/assistant turns from history.
-        // - 自动对话 split / follow-up 在 DB 表现为连续 ROLE_ASSISTANT 行;
-        //   原代码把它们直接展开成 N 条 "assistant" message → 部分本地模型 jinja
-        //   模板 (Qwen / llama.cpp) 因为 user/assistant 不再交替严格而崩, 报
-        //   "No user query found in messages".
-        // - tool_call (3) / tool_result (4) 由别的链路 (precomputedMessagesJson)
-        //   处理; 这条普通路径直接过滤掉, 防止当成空 assistant 发出去搞乱模板.
-        // - System (2) 也忽略, system prompt 已经 prepend.
+        // Pass 1 (always): pull canonical user/assistant turns from history.
+        // - 过滤 tool_call (3) / tool_result (4): 它们由别的链路 (precomputedMessagesJson)
+        //   处理, 通用路径不应作为空 assistant 发出去
+        // - 过滤 empty content 行: 同上, 防止干扰模板
+        // - System (2) 也忽略, system prompt 已经 prepend
         val raw = ArrayList<ChatApi.ChatMessage>()
         for (i in start until source.size) {
             val m = source[i] ?: continue
@@ -1491,11 +1494,19 @@ class ChatService(context: Context) {
             val role = if (m.role == Message.ROLE_USER) "user" else "assistant"
             raw.add(ChatApi.ChatMessage(role, content))
         }
-        // Pass 2: merge consecutive same-role with double-newline (visually合并自然语流).
-        // 这是 Phase 2 自动对话上线后 DB 里出现连续 assistant 行的副作用补丁.
+
+        // 严格交替模式: 只对本地小模型 (Qwen / llama.cpp / Ollama / LM Studio 等) 启用.
+        // 它们的 jinja 模板要求 user-first + 严格 user/assistant 交替, 否则 raise
+        // "No user query found in messages.". 云端模型 (OpenAI/Claude/Gemini/...) 都
+        // 接受连续同 role / assistant 起头的 history, 不需要这层"破坏性"处理.
+        val strictAlternation = isStrictAlternationProvider(providerId, apiHost)
+
+        // Pass 2 (conditional): 严格交替模式下合并连续同 role 用 \n\n. 自动对话 split /
+        // follow-up 会产生连续 assistant 行, 否则模板崩.
+        // 非严格模式: 保留原始行结构, 让模型自己看到"刚才我分了 3 条说话".
         var lastRole = ""
         for (one in raw) {
-            if (one.role == lastRole && messages.isNotEmpty()) {
+            if (strictAlternation && one.role == lastRole && messages.isNotEmpty()) {
                 val tail = messages[messages.size - 1]
                 tail.content = (tail.content ?: "") + "\n\n" + (one.content ?: "")
             } else {
@@ -1504,25 +1515,58 @@ class ChatService(context: Context) {
             }
         }
         // 最后追加本轮 user 消息 (调用方传入的实际 prompt / follow-up instruction).
-        // 若上一条已是 user, 则同样合并, 避免再次出现 user/user 连贯.
+        // 严格模式下: 若上一条已是 user 则合并 (避免 user/user 连排); 非严格: 独立 append.
         val finalUser = userMessage ?: ""
-        if ("user" == lastRole && messages.isNotEmpty()) {
+        if (strictAlternation && "user" == lastRole && messages.isNotEmpty()) {
             val tail = messages[messages.size - 1]
             tail.content = (tail.content ?: "") + "\n\n" + finalUser
         } else {
             messages.add(ChatApi.ChatMessage("user", finalUser))
         }
-        // Pass 3: 历史的第一条 (system 之后) 必须是 user, 否则 Qwen / llama.cpp 等
-        // jinja 模板会报 "No user query found in messages.". 自动对话场景下, follow-up
-        // 是连续 assistant 行, contextMessageCount 截断恰好可能把对应的 user 切掉,
-        // 留下"以 assistant 起头"的窗口. 此处把 system 之后所有领头的 assistant 行删掉,
-        // 确保模板看到的 conversation 总是 user-first 交替.
-        var systemEnd = 0
-        while (systemEnd < messages.size && messages[systemEnd].role == "system") systemEnd++
-        while (systemEnd < messages.size && messages[systemEnd].role != "user") {
-            messages.removeAt(systemEnd)
+
+        // Pass 3 (conditional): 严格模式下, system 之后第一条必须是 user, 否则 Qwen 模板
+        // 会 raise "No user query found in messages.". 把领头的 assistant 行全部删掉.
+        // 非严格模式: 保留 history 原貌, 云端模型不在意.
+        if (strictAlternation) {
+            var systemEnd = 0
+            while (systemEnd < messages.size && messages[systemEnd].role == "system") systemEnd++
+            while (systemEnd < messages.size && messages[systemEnd].role != "user") {
+                messages.removeAt(systemEnd)
+            }
         }
         return messages
+    }
+
+    /**
+     * 判断目标 provider 是否需要严格 user-first / 交替 / 一致 role 的对话窗口.
+     *
+     * 命中: LM Studio / Ollama / llama.cpp / koboldcpp 这类用 Hugging Face jinja
+     * 模板原样跑的本地引擎; 它们的模板逻辑不容忍 self-talk (连续 assistant) 或
+     * assistant-first 起头.
+     *
+     * 不命中 (默认): OpenAI / Anthropic / Gemini / DeepSeek / OpenRouter 等
+     * managed cloud API, 它们都很宽松, 我们应当尽量保留原始 history 结构, 让模型
+     * 看到"AI 之前分了几条说话"的真实节奏 (尤其是自动对话 split 的语境).
+     *
+     * 启发式 (按顺序):
+     *   1. providerId 名字含 lmstudio / ollama / llama / koboldcpp
+     *   2. apiHost 是 localhost / 127.0.0.1 / RFC1918 内网 / *.local
+     */
+    private fun isStrictAlternationProvider(providerId: String?, apiHost: String?): Boolean {
+        val pid = (providerId ?: "").lowercase(java.util.Locale.ROOT)
+        if (pid.isNotEmpty()) {
+            for (hint in arrayOf("lmstudio", "lm-studio", "lm_studio", "ollama", "llama.cpp", "llamacpp", "koboldcpp", "kobold")) {
+                if (pid.contains(hint)) return true
+            }
+        }
+        val h = (apiHost ?: "").lowercase(java.util.Locale.ROOT)
+        if (h.isEmpty()) return false
+        if (h.contains("localhost") || h.contains("127.0.0.1")) return true
+        if (h.contains(".local")) return true
+        if (h.contains("192.168.")) return true
+        if (h.contains("//10.") || h.contains(":10.")) return true
+        for (i in 16..31) if (h.contains("172.$i.")) return true
+        return false
     }
 
     private fun streamChat(
