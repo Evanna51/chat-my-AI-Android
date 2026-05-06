@@ -16,7 +16,9 @@ import com.example.aichat.ChatService
 import com.example.aichat.Message
 import com.example.aichat.MyAssistantStore
 import com.example.aichat.ProactiveMessageNotifier
+import com.example.aichat.RelationshipStateStore
 import com.example.aichat.SessionChatOptionsStore
+import com.example.aichat.chat.ChatTimeContext
 import com.example.aichat.chat.ProactiveBudget
 import com.example.aichat.chat.ProactiveMetaParser
 import com.example.aichat.chat.ProactivePromptBuilder
@@ -176,12 +178,27 @@ class ProactiveFollowUpWorker(
             return Result.success()
         }
 
-        // 注入 system 后缀, 让 follow-up 这次模型也走 META 协议. 同时把 modelKey
-        // 替换为本轮决策的那个 (云端 / 本地), opts.copy 不动其它字段.
+        // 取关系状态, 用于 prompt 调制 (亲密度高 → 阈值放宽).
+        val closeness = try {
+            RelationshipStateStore(ctx).getCached(assistantId)?.closeness?.takeIf { it > 0 }
+        } catch (_: Exception) { null }
+        val relationshipHint = try {
+            RelationshipStateStore(ctx).buildPromptHintForAssistant(assistantId).orEmpty()
+        } catch (_: Exception) { "" }
+
+        // 注入 system 后缀: 时间 (角色场景永远) + 关系状态 + META 协议指令.
+        // 时间 prefix 让模型知道现在是什么时候 (深夜还是周末等), 影响主动性判断.
+        val timePrefix = ChatTimeContext.describeNow()
+        val mergedSystemPrompt = buildString {
+            append(timePrefix).append('\n')
+            if (relationshipHint.isNotEmpty()) append(relationshipHint).append('\n')
+            val origin = opts.systemPrompt.trim()
+            if (origin.isNotEmpty()) append(origin).append('\n')
+            append(ProactivePromptBuilder.buildSystemSuffix(closeness))
+        }
         val effective = opts.copy(
             modelKey = effectiveModelKey,
-            systemPrompt = opts.systemPrompt.trimEnd() + "\n" +
-                ProactivePromptBuilder.buildSystemSuffix()
+            systemPrompt = mergedSystemPrompt
         )
 
         val historyDesc = try {
@@ -204,6 +221,7 @@ class ProactiveFollowUpWorker(
             tier = tier,
             budgetUsed = budgetUsed,
             budgetLimit = budgetLimit,
+            closeness = closeness,
         )
 
         // Synchronously fire chat call.

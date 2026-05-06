@@ -85,6 +85,10 @@
     <string name="auto_chat_budget_used">今日已发起：%1$d / %2$d</string>
     <string name="auto_chat_daily_budget_hint">每日上限</string>
     <string name="auto_chat_daily_budget_explain">留空走默认 60 条/天；可填 1–200。AI 主动消息（含拆分与追问）共享此额度。</string>
+    <string name="auto_chat_notif_perm_title">通知权限被拒绝</string>
+    <string name="auto_chat_notif_perm_message">自动对话的主动消息靠系统通知推送到你眼前。当前权限被拒，AI 后台发起的消息只会落到会话里，不会有任何提醒。建议去系统设置开启。</string>
+    <string name="auto_chat_notif_perm_open">去设置</string>
+    <string name="auto_chat_notif_perm_skip">先不开</string>
     <string name="home_tab_recent">最近</string>
     <string name="home_tab_pinned">置顶</string>
     <string name="home_tab_novel">小说</string>

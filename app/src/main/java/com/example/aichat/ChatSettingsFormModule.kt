@@ -1,10 +1,15 @@
 package com.example.aichat
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
+import android.os.Build
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aichat.chat.ProactiveBudget
@@ -18,7 +23,13 @@ import com.google.android.material.textfield.TextInputEditText
  */
 class ChatSettingsFormModule(private val activity: Activity, private val root: View) {
 
+    /** 单实例内"我已经主动 request 过一次"的状态 — 没有跨实例需求 (设置页不长存). */
+    private var alreadyAskedNotificationPermission = false
+
     companion object {
+        /** 通知权限请求 code. 我们不用 onRequestPermissionsResult 区分, 取值任意. */
+        private const val REQ_NOTIF_PERM = 5511
+
         private val CONTEXT_SLIDER_POSITIONS: FloatArray = buildContextSliderPositions()
         private val CONTEXT_SLIDER_VALUES: IntArray = buildContextSliderValues()
 
@@ -90,6 +101,7 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         switchAutoChat?.setOnCheckedChangeListener { _, checked ->
             current.autoChatEnabled = checked
             updateAutoChatBudgetHint()
+            if (checked) maybeRequestNotificationPermission()
         }
         editAutoChatDailyBudget?.addTextChangedListener(object : android.text.TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -122,6 +134,56 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         editAutoChatDailyBudget?.setText(if (current.proactiveDailyBudget > 0)
             current.proactiveDailyBudget.toString() else "")
         updateAutoChatBudgetHint()
+    }
+
+    /**
+     * 用户开启 [自动对话] toggle 时, 引导授予通知权限. Android 13+ 必须用户
+     * 显式同意 POST_NOTIFICATIONS, 否则后台 Worker 触发的 follow-up 推送看不见.
+     *
+     * 行为:
+     *   - API < 33: 无需权限, no-op
+     *   - 已授权: no-op
+     *   - 第一次提示, 或用户之前选了 "ask again" 没选 "deny": 系统标准弹窗
+     *   - 用户之前选了 "永远拒绝": 弹一个 AlertDialog 引导去系统设置
+     */
+    private fun maybeRequestNotificationPermission() {
+        if (Build.VERSION.SDK_INT < 33) return
+        val perm = Manifest.permission.POST_NOTIFICATIONS
+        val granted = ContextCompat.checkSelfPermission(activity, perm) ==
+            PackageManager.PERMISSION_GRANTED
+        if (granted) return
+        val canShowSystemDialog = ActivityCompat.shouldShowRequestPermissionRationale(activity, perm)
+        // 第一次请求时 shouldShow=false 系统也会弹; 二次以上拒绝后 shouldShow=true 也仍可弹.
+        // 永远拒绝 (Android "Don't ask again" 等价) 时弹会瞬间被驳回, 退而显示去设置的引导.
+        if (alreadyAskedNotificationPermission && !canShowSystemDialog) {
+            promptOpenAppSettingsForNotifications()
+            return
+        }
+        alreadyAskedNotificationPermission = true
+        try {
+            ActivityCompat.requestPermissions(activity, arrayOf(perm), REQ_NOTIF_PERM)
+        } catch (_: Exception) {
+            promptOpenAppSettingsForNotifications()
+        }
+    }
+
+    private fun promptOpenAppSettingsForNotifications() {
+        try {
+            MaterialAlertDialogBuilder(activity)
+                .setTitle(R.string.auto_chat_notif_perm_title)
+                .setMessage(R.string.auto_chat_notif_perm_message)
+                .setPositiveButton(R.string.auto_chat_notif_perm_open) { _, _ ->
+                    try {
+                        val intent = android.content.Intent(
+                            android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS
+                        )
+                        intent.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, activity.packageName)
+                        activity.startActivity(intent)
+                    } catch (_: Exception) {}
+                }
+                .setNegativeButton(R.string.auto_chat_notif_perm_skip, null)
+                .show()
+        } catch (_: Exception) {}
     }
 
     private fun updateAutoChatBudgetHint() {

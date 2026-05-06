@@ -7,6 +7,7 @@ import android.util.Log
 import androidx.annotation.NonNull
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
+import com.example.aichat.chat.ChatTimeContext
 import com.example.aichat.chat.ProactiveChatPlanner
 import com.example.aichat.chat.ProactiveMeta
 import com.example.aichat.chat.ProactivePromptBuilder
@@ -343,13 +344,29 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         responseInProgress.postValue(true)
         val toolBridge = com.example.aichat.sync.ToolBridge.build(getApplication(), assistantId, sid)
 
-        // 自动对话: 在 system 末尾注入 META 协议指令, 让模型在回复尾部自带 split / followUp 决策.
-        val effectiveOptions = if (options.autoChatEnabled) {
-            options.copy(
-                systemPrompt = ((options.systemPrompt ?: "").trimEnd() +
-                    "\n" + ProactivePromptBuilder.buildSystemSuffix())
-            )
-        } else options
+        // 1. 角色对话 prepend 当前时间上下文 (周几 + 节气/节日). 时间是强相关的,
+        //    早晨/深夜 / 周一/周末 / 立夏 等会改变角色的语气与状态.
+        //    仅在绑定了非"writer"角色时注入, 避免污染纯创作场景.
+        val timePrefix = buildTimeContextIfRoleplay(assistantId)
+
+        // 2. 关系状态 (亲密度 / 信任 / 共同话题 / 情绪基调). 同上仅角色场景.
+        val relationshipHint = buildRelationshipHintIfAny(assistantId)
+        val closeness = readClosenessForAssistant(assistantId)
+
+        // 3. 自动对话: 在 system 末尾注入 META 协议指令, 让模型在回复尾部自带 split / followUp 决策.
+        //    closeness 影响 followUp 默认门槛 (亲密度高 → 主动消息阈值放宽).
+        val autoChatSuffix = if (options.autoChatEnabled)
+            ProactivePromptBuilder.buildSystemSuffix(closeness) else ""
+
+        val mergedSystemPrompt = buildString {
+            if (timePrefix.isNotEmpty()) append(timePrefix).append('\n')
+            if (relationshipHint.isNotEmpty()) append(relationshipHint).append('\n')
+            val origin = (options.systemPrompt ?: "").trim()
+            if (origin.isNotEmpty()) append(origin)
+            if (autoChatSuffix.isNotEmpty()) append('\n').append(autoChatSuffix)
+        }
+        val effectiveOptions = if (mergedSystemPrompt != options.systemPrompt)
+            options.copy(systemPrompt = mergedSystemPrompt) else options
 
         val autoChatActive = options.autoChatEnabled
 
@@ -536,6 +553,46 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     fun cancelPendingProactive() {
         val sid = sessionId ?: return
         try { planner?.cancelFollowUp(sid) } catch (_: Exception) {}
+    }
+
+    /**
+     * 构造"角色对话"开头的时间上下文行. 仅当 [assistantId] 绑定了非 "writer"
+     * 类型的角色时返回非空; 写作 / 普通 chat 路径不注入.
+     */
+    private fun buildTimeContextIfRoleplay(assistantId: String?): String {
+        val aid = assistantId?.trim().orEmpty()
+        if (aid.isEmpty()) return ""
+        val assistant = try { MyAssistantStore(getApplication()).getById(aid) }
+            catch (_: Exception) { null } ?: return ""
+        // 写作型助手 (writer) 不注入时间, 避免干扰创作语境.
+        val type = (assistant.type ?: "").lowercase()
+        if (type == "writer" || type == "novel" || type == "novelist") return ""
+        return ChatTimeContext.describeNow()
+    }
+
+    /**
+     * 取角色的关系状态 prompt hint (亲密度 / 信任 / 共同话题 / 情绪).
+     * 没有缓存数据则返回空串.
+     */
+    private fun buildRelationshipHintIfAny(assistantId: String?): String {
+        val aid = assistantId?.trim().orEmpty()
+        if (aid.isEmpty()) return ""
+        return try {
+            RelationshipStateStore(getApplication()).buildPromptHintForAssistant(aid).orEmpty()
+        } catch (_: Exception) { "" }
+    }
+
+    /**
+     * 仅取 closeness 数值 (0-100). 用于 followUp 强度调制. 没有数据返回 null,
+     * prompt builder 收到 null 时按默认行为输出 (不附加调制段).
+     */
+    private fun readClosenessForAssistant(assistantId: String?): Int? {
+        val aid = assistantId?.trim().orEmpty()
+        if (aid.isEmpty()) return null
+        return try {
+            val state = RelationshipStateStore(getApplication()).getCached(aid)
+            if (state == null || state.closeness <= 0) null else state.closeness
+        } catch (_: Exception) { null }
     }
 
     // ─────────────────────────── Stream Event Dispatch ───────────────────────────
