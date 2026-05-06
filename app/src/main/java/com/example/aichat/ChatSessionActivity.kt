@@ -423,6 +423,11 @@ class ChatSessionActivity : ThemedActivity() {
                 handleStreamDeltaEvent(event)
             }
         }
+        viewModel.proactiveMessageEvent.observe(this) { event ->
+            if (isFinishing || isDestroyed) return@observe
+            if (event == null) return@observe
+            handleProactiveMessageEvent(event)
+        }
 
         sessionOptions = resolveChatOptions()
 
@@ -2078,5 +2083,31 @@ class ChatSessionActivity : ThemedActivity() {
         out.addAll(descList)
         out.reverse()
         return out
+    }
+
+    /**
+     * Handle a fine-grained 自动对话 update emitted by [ProactiveChatPlanner].
+     *
+     * REPLACE: split[0] in-place rewrite — find the row by id and overwrite content.
+     * APPEND: split[1..N] / follow-up — append to the bottom.
+     *
+     * Both code paths avoid the heavy `loadMessages → DB re-read → full LiveData repost`
+     * loop used in V1.
+     */
+    private fun handleProactiveMessageEvent(event: ChatViewModel.ProactiveMessageEvent) {
+        when (event.kind) {
+            ChatViewModel.ProactiveMessageEvent.KIND_REPLACE -> {
+                val target = allMessages.firstOrNull { it.id == event.rowId } ?: return
+                target.content = event.newContent
+                applyMessagesAndTitle()
+                maybeAutoScrollToBottom(true)
+            }
+            ChatViewModel.ProactiveMessageEvent.KIND_APPEND -> {
+                val msg = event.appendedMessage ?: return
+                allMessages.add(msg)
+                applyMessagesAndTitle()
+                maybeAutoScrollToBottom(true)
+            }
+        }
     }
 }

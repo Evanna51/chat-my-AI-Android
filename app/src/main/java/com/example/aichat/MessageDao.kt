@@ -33,6 +33,16 @@ interface MessageDao {
     @Query("DELETE FROM message WHERE sessionId = :sessionId")
     fun deleteBySession(sessionId: String)
 
+    /**
+     * 同 deleteBySession 但保留 tool_call (role=3), tool_result (role=4),
+     * 以及自动对话产生的 split / follow-up 行 (proactiveKind != 0).
+     *
+     * 用于 persistSessionMessagesAsync 的 "snapshot replace user/assistant" 路径,
+     * 让 Activity 同步 in-memory 列表时不再误删 tool 审计行 / 主动对话行.
+     */
+    @Query("DELETE FROM message WHERE sessionId = :sessionId AND role IN (0, 1) AND proactiveKind = 0")
+    fun deleteUserAssistantBySession(sessionId: String)
+
     @Query("SELECT COUNT(*) FROM message WHERE sessionId = :sessionId")
     fun countBySessionId(sessionId: String): Int
 

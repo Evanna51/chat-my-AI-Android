@@ -40,6 +40,11 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     @JvmField val olderRemainingCount: MutableLiveData<Int> = MutableLiveData(0)
     /** Streaming delta events; Activity applies to UI typewriter. */
     @JvmField val streamDeltaEvent: MutableLiveData<StreamDeltaEvent> = MutableLiveData()
+    /**
+     * 自动对话 split / follow-up 的增量事件. Activity 用它做 in-place 替换 / 追加,
+     * 不必走完整的 loadMessages → DB re-read 路径. 主线程 LiveData.
+     */
+    @JvmField val proactiveMessageEvent: MutableLiveData<ProactiveMessageEvent> = MutableLiveData()
 
     // --- Internal state ---
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -70,11 +75,19 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     private fun ensurePlanner(): ProactiveChatPlanner {
         return planner ?: synchronized(this) {
             planner ?: ProactiveChatPlanner(
-                getApplication(),
-                executor,
-                db,
-                chatService,
-                onMessageDbChanged = { loadMessages() }
+                context = getApplication(),
+                executor = executor,
+                db = db,
+                onMessageReplaced = { rowId, newContent ->
+                    proactiveMessageEvent.postValue(
+                        ProactiveMessageEvent.replace(rowId, newContent)
+                    )
+                },
+                onMessageAppended = { msg ->
+                    proactiveMessageEvent.postValue(
+                        ProactiveMessageEvent.append(msg)
+                    )
+                }
             ).also { planner = it }
         }
     }
@@ -194,9 +207,15 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         val copy: List<Message> = ArrayList(snapshot)
         executor.execute {
             try {
-                db.messageDao().deleteBySession(sid)
+                // 仅替换 user/assistant 普通消息 (role 0/1, proactiveKind=0).
+                // 保留: role=2 system, role=3 tool_call, role=4 tool_result, proactiveKind != 0 (split / follow-up)
+                // — 这些行不在 Activity allMessages snapshot 里, 之前 deleteBySession 会把它们一并 wipe.
+                db.messageDao().deleteUserAssistantBySession(sid)
                 for (m in copy) {
                     if (m == null) continue
+                    // 同样过滤: snapshot 里若混入非普通消息, 不再 reinsert (避免重复 / 失真).
+                    if (m.role != Message.ROLE_USER && m.role != Message.ROLE_ASSISTANT) continue
+                    if (m.proactiveKind != 0) continue
                     val item = Message(sid, m.role, if (m.content != null) m.content else "")
                     item.createdAt = if (m.createdAt > 0) m.createdAt else System.currentTimeMillis()
                     item.reasoning = m.reasoning ?: ""
@@ -587,5 +606,34 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
          * for proactive turns).
          */
         @JvmField var autoChatActive: Boolean = false
+    }
+
+    /**
+     * Incremental message log update event from 自动对话 planner / follow-up worker.
+     *
+     * Two flavours:
+     *  - REPLACE: an existing row (`rowId`) had its content rewritten (split[0]).
+     *  - APPEND: a brand-new row was inserted (split[1..N] or follow-up).
+     *
+     * Activity观察后做 RecyclerView 局部刷新, 避免 loadMessages 全量重读.
+     */
+    class ProactiveMessageEvent private constructor(
+        @JvmField val kind: Int,
+        @JvmField val rowId: Long,
+        @JvmField val newContent: String,
+        @JvmField val appendedMessage: Message?,
+    ) {
+        companion object {
+            const val KIND_REPLACE = 1
+            const val KIND_APPEND = 2
+
+            @JvmStatic
+            fun replace(rowId: Long, newContent: String): ProactiveMessageEvent =
+                ProactiveMessageEvent(KIND_REPLACE, rowId, newContent, null)
+
+            @JvmStatic
+            fun append(msg: Message): ProactiveMessageEvent =
+                ProactiveMessageEvent(KIND_APPEND, msg.id, msg.content, msg)
+        }
     }
 }

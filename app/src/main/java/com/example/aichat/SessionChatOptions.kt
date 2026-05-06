@@ -26,5 +26,10 @@ data class SessionChatOptions(
     /** 当日已发起的主动消息数 (split + follow-up), 用于全局每日预算. */
     @JvmField var proactiveCountToday: Int = 0,
     /** 计数所属的"日期戳" (yyyymmdd 整型, 跨天自动重置 proactiveCountToday). */
-    @JvmField var proactiveResetDate: Int = 0
+    @JvmField var proactiveResetDate: Int = 0,
+    /**
+     * 每日上限. 0 = 走 [com.example.aichat.chat.ProactiveChatPlanner.DEFAULT_DAILY_BUDGET].
+     * 用户可在会话设置里调整 (1..200; 太大也没意义, 角色不应轰炸用户).
+     */
+    @JvmField var proactiveDailyBudget: Int = 0
 )

@@ -7,7 +7,7 @@ import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.example.aichat.chat.ProactiveChatPlanner
+import com.example.aichat.chat.ProactiveBudget
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.materialswitch.MaterialSwitch
 import com.google.android.material.slider.Slider
@@ -59,6 +59,7 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
     private val textContextCountValue: TextView? = root.findViewById(R.id.textContextCountValue)
     private val switchAutoChat: MaterialSwitch? = root.findViewById(R.id.switchAutoChat)
     private val textAutoChatBudgetHint: TextView? = root.findViewById(R.id.textAutoChatBudgetHint)
+    private val editAutoChatDailyBudget: TextInputEditText? = root.findViewById(R.id.editAutoChatDailyBudget)
 
     private var current = SessionChatOptions()
 
@@ -90,6 +91,15 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
             current.autoChatEnabled = checked
             updateAutoChatBudgetHint()
         }
+        editAutoChatDailyBudget?.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                current.proactiveDailyBudget = (s?.toString()?.trim()?.toIntOrNull() ?: 0)
+                    .coerceIn(0, ProactiveBudget.MAX_DAILY_BUDGET)
+                updateAutoChatBudgetHint()
+            }
+        })
     }
 
     fun setOptions(options: SessionChatOptions?) {
@@ -109,27 +119,23 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
             updateContextCountValue(mapSliderPositionToContextValue(position))
         }
         switchAutoChat?.isChecked = current.autoChatEnabled
+        editAutoChatDailyBudget?.setText(if (current.proactiveDailyBudget > 0)
+            current.proactiveDailyBudget.toString() else "")
         updateAutoChatBudgetHint()
     }
 
     private fun updateAutoChatBudgetHint() {
         val hintView = textAutoChatBudgetHint ?: return
-        val today = todayStamp()
+        val today = ProactiveBudget.todayStamp()
         val used = if (current.proactiveResetDate == today) current.proactiveCountToday else 0
         if (current.autoChatEnabled) {
+            val limit = ProactiveBudget.effectiveLimit(current.proactiveDailyBudget)
             hintView.text = activity.getString(
-                R.string.auto_chat_budget_used, used, ProactiveChatPlanner.DAILY_PROACTIVE_BUDGET
+                R.string.auto_chat_budget_used, used, limit
             )
         } else {
             hintView.setText(R.string.auto_chat_toggle_hint)
         }
-    }
-
-    private fun todayStamp(): Int {
-        val cal = java.util.Calendar.getInstance()
-        return cal.get(java.util.Calendar.YEAR) * 10000 +
-            (cal.get(java.util.Calendar.MONTH) + 1) * 100 +
-            cal.get(java.util.Calendar.DAY_OF_MONTH)
     }
 
     fun collect(): SessionChatOptions {
@@ -154,10 +160,13 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         // Preserve the stored value so existing sessions with thinking=true keep working.
         out.thinking = current.thinking
         out.googleThinkingBudget = current.googleThinkingBudget
-        // 自动对话: 用户控制的开关; 预算计数器原样保留 (跨会话写回不会被清零).
+        // 自动对话: 用户控制的开关 + 每日上限; 预算计数器原样保留 (跨会话写回不会被清零).
         out.autoChatEnabled = switchAutoChat?.isChecked ?: current.autoChatEnabled
         out.proactiveCountToday = current.proactiveCountToday
         out.proactiveResetDate = current.proactiveResetDate
+        out.proactiveDailyBudget = parseNullableInt(editAutoChatDailyBudget)
+            ?.coerceIn(ProactiveBudget.MIN_DAILY_BUDGET, ProactiveBudget.MAX_DAILY_BUDGET)
+            ?: 0
         return out
     }
 

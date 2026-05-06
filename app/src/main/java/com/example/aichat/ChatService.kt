@@ -1579,6 +1579,10 @@ class ChatService(context: Context) {
                 val fullReasoning = StringBuilder()
                 val inlineThinkState = InlineThinkState()
                 val normalizeInlineThink = InlineThinkProcessor.shouldNormalize(providerId)
+                // 自动对话: 流式过滤 `<<<META...META>>>` 尾块, 防止用户气泡里闪现.
+                // 仅在 autoChatEnabled 时启用; 关闭时是 no-op (process 直接返回原 chunk).
+                val proactiveMetaFilter = if (using.autoChatEnabled)
+                    com.example.aichat.chat.ProactiveMetaStreamFilter() else null
                 var promptTokens = 0
                 var completionTokens = 0
                 var totalTokens = 0
@@ -1637,7 +1641,9 @@ class ChatService(context: Context) {
                                         val parts = InlineThinkProcessor.splitInlineThink(contentDelta, inlineThinkState, false)
                                         if (parts.content.isNotEmpty()) {
                                             fullContent.append(parts.content)
-                                            callback.onPartial(parts.content)
+                                            // META filter 在 think 处理之后, 仅过滤 user-visible content.
+                                            val visible = proactiveMetaFilter?.process(parts.content) ?: parts.content
+                                            if (visible.isNotEmpty()) callback.onPartial(visible)
                                         }
                                         if (parts.reasoning.isNotEmpty()) {
                                             emittedInlineReasoning = true
@@ -1646,7 +1652,8 @@ class ChatService(context: Context) {
                                         }
                                     } else {
                                         fullContent.append(contentDelta)
-                                        callback.onPartial(contentDelta)
+                                        val visible = proactiveMetaFilter?.process(contentDelta) ?: contentDelta
+                                        if (visible.isNotEmpty()) callback.onPartial(visible)
                                     }
                                 }
                                 val reasoningDelta = ChatReasoningExtractor.extract(obj, first, delta)
@@ -1674,12 +1681,17 @@ class ChatService(context: Context) {
                     val tail = InlineThinkProcessor.splitInlineThink("", inlineThinkState, true)
                     if (tail.content.isNotEmpty()) {
                         fullContent.append(tail.content)
-                        callback.onPartial(tail.content)
+                        val visible = proactiveMetaFilter?.process(tail.content) ?: tail.content
+                        if (visible.isNotEmpty()) callback.onPartial(visible)
                     }
                     if (tail.reasoning.isNotEmpty()) {
                         fullReasoning.append(tail.reasoning)
                         callback.onReasoning(fullReasoning.toString())
                     }
+                }
+                // 自动对话: 把 META filter 还没决断的尾巴吐出来 (没遇到 META 时可能保留 6 字节).
+                proactiveMetaFilter?.flushTail()?.let { tail ->
+                    if (tail.isNotEmpty()) callback.onPartial(tail)
                 }
                 if (handle.isCancelled()) {
                     fireCancelledOnce(callback, handle)

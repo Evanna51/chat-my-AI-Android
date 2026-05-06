@@ -81,8 +81,10 @@
     <string name="google_thinking_budget">Google Thinking Budget</string>
     <string name="auto_chat_section">自动对话</string>
     <string name="auto_chat_toggle_title">让 AI 主动发起对话</string>
-    <string name="auto_chat_toggle_hint">AI 可拆分回复并在沉默期主动追问；每日上限 20 条</string>
+    <string name="auto_chat_toggle_hint">AI 可拆分回复并在沉默期主动追问，离开会话也会触发</string>
     <string name="auto_chat_budget_used">今日已发起：%1$d / %2$d</string>
+    <string name="auto_chat_daily_budget_hint">每日上限</string>
+    <string name="auto_chat_daily_budget_explain">留空走默认 60 条/天；可填 1–200。AI 主动消息（含拆分与追问）共享此额度。</string>
     <string name="home_tab_recent">最近</string>
     <string name="home_tab_pinned">置顶</string>
     <string name="home_tab_novel">小说</string>

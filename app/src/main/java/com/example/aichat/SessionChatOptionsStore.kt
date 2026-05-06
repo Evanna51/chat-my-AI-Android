@@ -62,6 +62,7 @@ class SessionChatOptionsStore(context: Context) {
             entity.autoChatEnabled = opts.autoChatEnabled
             entity.proactiveCountToday = opts.proactiveCountToday
             entity.proactiveResetDate = opts.proactiveResetDate
+            entity.proactiveDailyBudget = opts.proactiveDailyBudget
             return entity
         }
 
@@ -87,6 +88,7 @@ class SessionChatOptionsStore(context: Context) {
             opts.autoChatEnabled = entity.autoChatEnabled
             opts.proactiveCountToday = entity.proactiveCountToday
             opts.proactiveResetDate = entity.proactiveResetDate
+            opts.proactiveDailyBudget = entity.proactiveDailyBudget
             return opts
         }
     }

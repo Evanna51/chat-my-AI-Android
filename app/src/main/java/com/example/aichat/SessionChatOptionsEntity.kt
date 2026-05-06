@@ -89,4 +89,12 @@ class SessionChatOptionsEntity {
     @ColumnInfo(defaultValue = "0")
     @JvmField
     var proactiveResetDate: Int = 0
+
+    /**
+     * 每日上限. 0 = fall back to ProactiveChatPlanner.DEFAULT_DAILY_BUDGET.
+     * v11 加入, 让用户自定义自动对话的每日发消息额度.
+     */
+    @ColumnInfo(defaultValue = "0")
+    @JvmField
+    var proactiveDailyBudget: Int = 0
 }
