@@ -57,13 +57,12 @@ class RemoteSyncConfigStore(context: Context) {
     fun getLastError(): String = prefs.getString(KEY_LAST_ERROR, "") ?: ""
     fun setLastError(msg: String?) = prefs.edit().putString(KEY_LAST_ERROR, msg ?: "").apply()
 
-    fun isReady(): Boolean = isEnabled() && getBaseUrl().isNotEmpty() && getApiKey().isNotEmpty()
+    fun isReady(): Boolean = isEnabled() && getBaseUrl().isNotEmpty()
 
     /** Whether the LLM should be offered the search_memory tool during chat. */
     fun isSearchMemoryToolEnabled(): Boolean =
         prefs.getBoolean(KEY_TOOL_SEARCH_MEMORY, false)
             && getBaseUrl().isNotEmpty()
-            && getApiKey().isNotEmpty()
 
     fun setSearchMemoryToolEnabled(value: Boolean) =
         prefs.edit().putBoolean(KEY_TOOL_SEARCH_MEMORY, value).apply()

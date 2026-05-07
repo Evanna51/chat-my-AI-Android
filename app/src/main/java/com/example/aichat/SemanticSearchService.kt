@@ -19,7 +19,8 @@ class SemanticSearchService(context: Context) {
         val providerId = parts[0]
         val modelId = parts[1]
         val provider = providerManager.getProvider(providerId) ?: return null
-        if (provider.apiKey.isNullOrBlank() || provider.apiHost.isNullOrBlank()) return null
+        // apiKey 允许空 — 本地 provider (ollama / lmstudio 等) 通常无鉴权.
+        if (provider.apiHost.isNullOrBlank()) return null
         return Resolved(provider, modelId)
     }
 
@@ -40,6 +41,27 @@ class SemanticSearchService(context: Context) {
         }
         return done
     }
+
+    /**
+     * 关键词 SQL LIKE 搜索. 不依赖 embedding, 立即返回. 按命中消息的 createdAt
+     * 倒序拿候选, 同 sessionId 仅保留首条 (最近命中). 不需要嵌入模型可用.
+     */
+    fun searchByKeyword(query: String, topN: Int = 20): List<SemanticHit> {
+        val q = query.trim()
+        if (q.isEmpty()) return emptyList()
+        val pattern = "%" + escapeLike(q) + "%"
+        val rows = db.messageDao().searchByKeyword(pattern, topN * 5) ?: return emptyList()
+        val bestPerSession = LinkedHashMap<String, SemanticHit>()
+        for (m in rows) {
+            if (bestPerSession.containsKey(m.sessionId)) continue
+            bestPerSession[m.sessionId] = SemanticHit(m.sessionId, 1.0f, m.content)
+            if (bestPerSession.size >= topN) break
+        }
+        return bestPerSession.values.toList()
+    }
+
+    private fun escapeLike(s: String): String =
+        s.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
     fun searchSessions(query: String, topN: Int = 10): List<SemanticHit> {
         val q = embedText(query) ?: return emptyList()

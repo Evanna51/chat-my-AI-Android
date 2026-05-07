@@ -305,6 +305,14 @@
                     android:text="@string/remote_sync_run_now" />
 
                 <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRemoteSyncBackfill"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="@string/remote_sync_backfill_history"
+                    style="@style/Widget.Material3.Button.TonalButton" />
+
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnRemoteSyncSave"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"

@@ -43,6 +43,22 @@ interface MessageDao {
     @Query("DELETE FROM message WHERE sessionId = :sessionId AND role IN (0, 1) AND proactiveKind = 0")
     fun deleteUserAssistantBySession(sessionId: String)
 
+    @Query("DELETE FROM message WHERE id = :id")
+    fun deleteById(id: Long)
+
+    @Query("SELECT * FROM message WHERE sessionId = :sessionId AND role IN (0, 1) AND proactiveKind = 0 ORDER BY createdAt ASC")
+    fun getUserAssistantBySession(sessionId: String): List<Message>
+
+    /**
+     * 仅更新内容相关字段, 保留 sync 状态 (turnId / assistantId / synced / syncAttempts) 不变.
+     * 用于 persistSessionMessagesAsync 增量 upsert 路径 — content/reasoning 改了, sync 队列状态不该被擦.
+     */
+    @Query(
+        "UPDATE message SET content = :content, reasoning = :reasoning, " +
+        "thinkingElapsedMs = :thinkingElapsedMs WHERE id = :id"
+    )
+    fun updateContentForSnapshot(id: Long, content: String, reasoning: String, thinkingElapsedMs: Long)
+
     @Query("SELECT COUNT(*) FROM message WHERE sessionId = :sessionId")
     fun countBySessionId(sessionId: String): Int
 
@@ -80,6 +96,14 @@ interface MessageDao {
     @Query("SELECT * FROM message WHERE embedding = '' AND content != '' LIMIT :limit")
     fun getMessagesNeedingEmbedding(limit: Int): List<Message>
 
+    /** Substring search across user/assistant message content, newest first. */
+    @Query(
+        "SELECT * FROM message " +
+        "WHERE role IN (0, 1) AND content LIKE :pattern " +
+        "ORDER BY createdAt DESC, id DESC LIMIT :limit"
+    )
+    fun searchByKeyword(pattern: String, limit: Int): List<Message>
+
     @Query("SELECT * FROM message WHERE embedding != ''")
     fun getAllWithEmbedding(): List<Message>
 
@@ -110,4 +134,20 @@ interface MessageDao {
 
     @Query("SELECT COUNT(*) FROM message WHERE turnId != '' AND synced = 1 AND assistantId = :assistantId")
     fun syncedCountForAssistant(assistantId: String): Int
+
+    // ─────────── History backfill ───────────
+
+    /** 历史消息中尚未进入同步队列的行 (user/assistant 普通消息, 无 turnId, 非 proactive). */
+    @Query(
+        "SELECT * FROM message " +
+        "WHERE turnId = '' AND role IN (0, 1) AND proactiveKind = 0 AND content != '' " +
+        "ORDER BY createdAt ASC"
+    )
+    fun unstampedMessages(): List<Message>
+
+    @Query(
+        "UPDATE message SET turnId = :turnId, assistantId = :assistantId, synced = 0 " +
+        "WHERE id = :id"
+    )
+    fun stampSyncFields(id: Long, turnId: String, assistantId: String)
 }

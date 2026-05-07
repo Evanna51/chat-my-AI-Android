@@ -15,19 +15,22 @@ object EmbeddingsApi {
         .build()
 
     fun embed(apiHost: String?, apiPath: String?, apiKey: String?, model: String, input: String): FloatArray? {
-        if (apiHost.isNullOrBlank() || apiKey.isNullOrBlank()) return null
+        if (apiHost.isNullOrBlank()) return null
         val host = apiHost.trimEnd('/')
         val rawPath = (apiPath ?: "").trim()
         val path = if (rawPath.isBlank() || rawPath.contains("chat/completions")) "/embeddings"
                    else if (rawPath.startsWith("/")) rawPath else "/$rawPath"
         val url = host + path
         val body = "{\"model\":${quote(model)},\"input\":${quote(input)}}"
-        val req = Request.Builder()
+        val builder = Request.Builder()
             .url(url)
-            .addHeader("Authorization", "Bearer $apiKey")
             .addHeader("Content-Type", "application/json")
             .post(body.toRequestBody(JSON))
-            .build()
+        // 本地 provider 通常无鉴权; 仅在有 key 时加 Authorization header.
+        if (!apiKey.isNullOrBlank()) {
+            builder.addHeader("Authorization", "Bearer $apiKey")
+        }
+        val req = builder.build()
         return try {
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return null

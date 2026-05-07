@@ -6,9 +6,12 @@ import android.widget.TextView
 import android.widget.Toast
 import com.example.aichat.sync.ChatServerApi
 import com.example.aichat.sync.DeviceIdProvider
+import com.example.aichat.sync.HistoryBackfiller
 import com.example.aichat.sync.RemoteSyncConfigStore
+import com.example.aichat.sync.SnapshotUploader
 import com.example.aichat.sync.SyncQueueDrainer
 import com.example.aichat.sync.SyncScheduler
+import com.example.aichat.sync.WsClient
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
@@ -57,6 +60,7 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
         findViewById<MaterialButton>(R.id.btnRemoteSyncSave).setOnClickListener { saveAndApply() }
         findViewById<MaterialButton>(R.id.btnRemoteSyncTest).setOnClickListener { testConnection() }
         findViewById<MaterialButton>(R.id.btnRemoteSyncRunNow).setOnClickListener { runSyncNow() }
+        findViewById<MaterialButton>(R.id.btnRemoteSyncBackfill).setOnClickListener { backfillHistory() }
     }
 
     override fun onResume() {
@@ -72,8 +76,13 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
         store.setApiKey(apiKey)
         store.setEnabled(enabled)
         store.setSearchMemoryToolEnabled(switchSearchMemoryTool.isChecked)
-        if (enabled) SyncScheduler.start(applicationContext)
-        else SyncScheduler.stop(applicationContext)
+        if (enabled) {
+            SyncScheduler.start(applicationContext)
+            WsClient.start(applicationContext)
+        } else {
+            SyncScheduler.stop(applicationContext)
+            WsClient.shutdown()
+        }
         Toast.makeText(this, R.string.remote_sync_saved, Toast.LENGTH_SHORT).show()
         refreshStatus()
     }
@@ -127,6 +136,48 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
                 refreshStatus()
                 // Schedule WorkManager periodic if user just enabled
                 if (store.isEnabled()) SyncScheduler.start(applicationContext)
+            }
+        }
+    }
+
+    /**
+     * 一次性同步: 先 stamp 历史消息进入待同步队列, 再走 /api/sync/snapshot 把
+     * assistants 元数据 + 第一批 turns 推上去, 剩余 turns 通过普通 push 跟进.
+     */
+    private fun backfillHistory() {
+        if (!store.isReady()) {
+            Toast.makeText(this, R.string.remote_sync_not_ready, Toast.LENGTH_SHORT).show()
+            return
+        }
+        Toast.makeText(this, R.string.remote_sync_backfill_running, Toast.LENGTH_SHORT).show()
+        executor.execute {
+            val backfill = try {
+                HistoryBackfiller.backfill(this)
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(this, getString(R.string.remote_sync_failed, e.message ?: "backfill error"),
+                        Toast.LENGTH_LONG).show()
+                }
+                return@execute
+            }
+            val upload = try {
+                SnapshotUploader.upload(this)
+            } catch (e: Exception) {
+                SnapshotUploader.Result.TransportError(e)
+            }
+            runOnUiThread {
+                val msg = when (upload) {
+                    is SnapshotUploader.Result.Done ->
+                        getString(R.string.remote_sync_snapshot_done,
+                            backfill.stamped, upload.assistantsCount,
+                            upload.accepted, upload.skipped, upload.rejected)
+                    is SnapshotUploader.Result.Empty -> getString(R.string.remote_sync_backfill_none)
+                    is SnapshotUploader.Result.Disabled -> getString(R.string.remote_sync_not_ready)
+                    is SnapshotUploader.Result.TransportError ->
+                        getString(R.string.remote_sync_failed, upload.cause.message ?: "")
+                }
+                Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+                refreshStatus()
             }
         }
     }

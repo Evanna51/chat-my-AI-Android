@@ -9,15 +9,16 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Calls wi-chat-server's POST /api/tool/memory-recall.
+ * Calls wi-chat-server's tool endpoints:
+ *   - POST /api/tool/memory-recall   — search past memories
+ *   - POST /api/tool/memory-correct  — edit / delete / set-quality / fact mutations
  *
- * Request body shape (per server schema, only `query` is exposed to the LLM;
- * `assistantId` / `sessionId` are injected by the client):
- *   { assistantId, query, sessionId?, source?, category?, minQuality?, topK? }
+ * `assistantId` (and optionally `sessionId`) are injected by the bridge — the LLM
+ * never sees them. Other params are passed through verbatim from the LLM tool
+ * arguments JSON; server validates the schema.
  *
- * Response includes `memories: [{ id, content, memoryType, category, quality,
- * createdAt, score }]`. Returned as JSON string for direct insertion into a
- * `role=tool` message.
+ * Returns the raw server JSON as a string so the bridge can drop it directly
+ * into a `role=tool` message.
  */
 class MemoryToolApi(
     private val baseUrl: String,
@@ -30,32 +31,38 @@ class MemoryToolApi(
         .build()
 
     @Throws(IOException::class)
-    fun memoryRecall(
-        assistantId: String,
-        sessionId: String?,
-        query: String,
-        topK: Int? = null,
-        source: String? = null,
-    ): String {
+    fun memoryRecall(assistantId: String, sessionId: String?, args: JsonObject): String {
         require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
         require(assistantId.isNotEmpty()) { "assistantId required" }
-        require(query.isNotEmpty()) { "query required" }
-        val body = JsonObject().apply {
+        val body = args.deepCopy().apply {
             addProperty("assistantId", assistantId)
-            addProperty("query", query)
-            if (!sessionId.isNullOrEmpty()) addProperty("sessionId", sessionId)
-            if (topK != null) addProperty("topK", topK)
-            if (!source.isNullOrEmpty()) addProperty("source", source)
+            if (!sessionId.isNullOrEmpty() && !has("sessionId")) {
+                addProperty("sessionId", sessionId)
+            }
         }
-        val req = Request.Builder()
-            .url("$baseUrl/api/tool/memory-recall")
-            .header("x-api-key", apiKey)
-            .post(body.toString().toRequestBody(JSON))
-            .build()
-        client.newCall(req).execute().use { resp ->
+        return postJson("$baseUrl/api/tool/memory-recall", body.toString())
+    }
+
+    @Throws(IOException::class)
+    fun memoryCorrect(assistantId: String, args: JsonObject): String {
+        require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
+        require(assistantId.isNotEmpty()) { "assistantId required" }
+        val body = args.deepCopy().apply {
+            addProperty("assistantId", assistantId)
+        }
+        return postJson("$baseUrl/api/tool/memory-correct", body.toString())
+    }
+
+    @Throws(IOException::class)
+    private fun postJson(url: String, body: String): String {
+        val builder = Request.Builder()
+            .url(url)
+            .post(body.toRequestBody(JSON))
+        if (apiKey.isNotEmpty()) builder.header("x-api-key", apiKey)
+        client.newCall(builder.build()).execute().use { resp ->
             val text = resp.body?.string().orEmpty()
             if (!resp.isSuccessful) {
-                throw IOException("memory-recall HTTP ${resp.code}: ${text.take(256)}")
+                throw IOException("HTTP ${resp.code}: ${text.take(256)}")
             }
             return text
         }

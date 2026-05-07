@@ -28,6 +28,8 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         private const val TAG = "ChatViewModel"
         private const val INITIAL_RENDER_MESSAGE_LIMIT = 200
         private const val LOAD_MORE_BATCH_SIZE = 50
+        private const val MAX_CORE_MEMORIES_IN_PROMPT = 8
+        private const val MAX_CORE_FACTS_IN_PROMPT = 15
     }
 
     // --- LiveData observed by Activity ---
@@ -181,47 +183,136 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     fun insertMessageAsync(message: Message) {
         executor.execute {
             try {
-                db.messageDao().insert(message)
+                val newId = db.messageDao().insert(message)
+                if (newId > 0) message.id = newId
             } catch (ignored: Exception) {}
         }
     }
 
     /**
-     * Insert a message and stamp it for remote sync if [assistantId] is bound.
-     * Empty/blank assistantId → leave turnId empty so drainer skips this row.
+     * Insert a message and stamp it for remote sync. 普通会话 (assistantId 空) 用
+     * `DefaultAssistantId(modelKey + 季度)` 生成 fallback assistantId, 同样进入同步队列.
+     * 仅 user/assistant 普通消息进队列; tool_call / tool_result / proactiveKind != 0 行跳过.
+     *
+     * insert 返回的 row id 同步回写到 [message].id, 让后续 persistSessionMessagesAsync
+     * 等增量路径可以按 id upsert, 不再丢失行身份.
      */
     fun insertMessageAsync(message: Message, assistantId: String?) {
-        stampForSync(message, assistantId)
-        insertMessageAsync(message)
+        executor.execute {
+            try {
+                stampForSync(message, assistantId)
+                val newId = db.messageDao().insert(message)
+                if (newId > 0) message.id = newId
+                relayInsertToWs(message)
+            } catch (ignored: Exception) {}
+        }
     }
 
     private fun stampForSync(message: Message, assistantId: String?) {
-        val aid = assistantId?.trim().orEmpty()
-        if (aid.isEmpty()) return
+        if (message.role != Message.ROLE_USER && message.role != Message.ROLE_ASSISTANT) return
+        if (message.proactiveKind != 0) return
+
+        val explicit = assistantId?.trim().orEmpty()
+        val finalAssistantId = if (explicit.isNotEmpty()) {
+            explicit
+        } else {
+            val modelKey = SessionChatOptionsStore(getApplication()).get(message.sessionId).modelKey
+            com.example.aichat.sync.DefaultAssistantId.forModelKey(modelKey, message.createdAt)
+        }
         if (message.turnId.isEmpty()) message.turnId = com.example.aichat.sync.UuidV7.next()
-        if (message.assistantId.isEmpty()) message.assistantId = aid
+        if (message.assistantId.isEmpty()) message.assistantId = finalAssistantId
         message.synced = 0
     }
 
+    /**
+     * 实时通道: ws 在线时把刚 insert 的 turn 推到 server, 让 server 端尽快感知用户输入
+     * (next_push 触发链路依赖这条). server 应答 message_persisted 会异步把 synced 标 1,
+     * drainer 自然不会再 sync_push. ws 离线/失败时 no-op, drainer 兜底.
+     */
+    private fun relayInsertToWs(message: Message) {
+        if (message.turnId.isEmpty() || message.assistantId.isEmpty()) return
+        if (message.role != Message.ROLE_USER && message.role != Message.ROLE_ASSISTANT) return
+        if (message.proactiveKind != 0) return
+        val role = if (message.role == Message.ROLE_USER) "user" else "assistant"
+        com.example.aichat.sync.WsClient.sendMessageCreate(
+            turnId = message.turnId,
+            assistantId = message.assistantId,
+            sessionId = message.sessionId,
+            role = role,
+            content = message.content ?: "",
+            createdAt = if (message.createdAt > 0) message.createdAt else System.currentTimeMillis(),
+        )
+    }
+
+    /** 实时通道: content 改了 → 让 server re-embed memory. ws 离线时 no-op. */
+    private fun relayUpdateToWs(turnId: String, content: String, assistantId: String) {
+        if (turnId.isEmpty()) return
+        com.example.aichat.sync.WsClient.sendMessageUpdate(turnId, content, assistantId)
+    }
+
+    /**
+     * 增量同步 Activity 的 in-memory message list 到 DB:
+     *   - id > 0 且 DB 里在 → update content/reasoning, 保留 turnId/synced
+     *   - id == 0 → insert + stampForSync, 写回 m.id
+     *   - DB 里有但 snapshot 没有的 row → deleteById
+     *
+     * 仅作用于 user/assistant 普通消息 (role 0/1, proactiveKind=0). tool 行 / split /
+     * follow-up 行不在 snapshot 里, 也不在这里清理.
+     *
+     * 早期版本是 deleteUserAssistantBySession + reinsert 的 snapshot replace 模式,
+     * 会擦掉每行的 turnId/synced/syncAttempts 并漂移 row id, 导致同一条消息在 server
+     * 端重复出现. 现已改为按 id 的增量 upsert.
+     */
     fun persistSessionMessagesAsync(snapshot: List<Message>) {
         val sid = sessionId ?: return
         val copy: List<Message> = ArrayList(snapshot)
         executor.execute {
             try {
-                // 仅替换 user/assistant 普通消息 (role 0/1, proactiveKind=0).
-                // 保留: role=2 system, role=3 tool_call, role=4 tool_result, proactiveKind != 0 (split / follow-up)
-                // — 这些行不在 Activity allMessages snapshot 里, 之前 deleteBySession 会把它们一并 wipe.
-                db.messageDao().deleteUserAssistantBySession(sid)
+                val dao = db.messageDao()
+                val existing = dao.getUserAssistantBySession(sid)
+                val existingById: Map<Long, Message> = existing.associateBy { it.id }
+                val keptIds = HashSet<Long>()
+
                 for (m in copy) {
                     if (m == null) continue
-                    // 同样过滤: snapshot 里若混入非普通消息, 不再 reinsert (避免重复 / 失真).
                     if (m.role != Message.ROLE_USER && m.role != Message.ROLE_ASSISTANT) continue
                     if (m.proactiveKind != 0) continue
-                    val item = Message(sid, m.role, if (m.content != null) m.content else "")
-                    item.createdAt = if (m.createdAt > 0) m.createdAt else System.currentTimeMillis()
-                    item.reasoning = m.reasoning ?: ""
-                    item.thinkingElapsedMs = m.thinkingElapsedMs
-                    db.messageDao().insert(item)
+                    val matched = if (m.id > 0L) existingById[m.id] else null
+                    if (matched != null) {
+                        // 已在 DB → 仅更新内容字段, 保留 sync 状态
+                        keptIds.add(matched.id)
+                        val newContent = m.content ?: ""
+                        val newReasoning = m.reasoning ?: ""
+                        if (matched.content != newContent
+                            || matched.reasoning != newReasoning
+                            || matched.thinkingElapsedMs != m.thinkingElapsedMs
+                        ) {
+                            dao.updateContentForSnapshot(
+                                matched.id, newContent, newReasoning, m.thinkingElapsedMs
+                            )
+                            // content 改了 → ws 同步推 server 重 embed memory
+                            if (matched.content != newContent) {
+                                relayUpdateToWs(matched.turnId, newContent, matched.assistantId)
+                            }
+                        }
+                    } else {
+                        // 新行 → insert + stampForSync, id 回写到 m
+                        if (m.createdAt <= 0L) m.createdAt = System.currentTimeMillis()
+                        if (m.sessionId.isEmpty()) m.sessionId = sid
+                        // m.assistantId 可能空; stampForSync 会按 SessionChatOptions.modelKey
+                        // 走 fallback (default-{provider}-{quarter}).
+                        stampForSync(m, m.assistantId.takeIf { it.isNotEmpty() })
+                        val newId = dao.insert(m)
+                        if (newId > 0) {
+                            m.id = newId
+                            keptIds.add(newId)
+                        }
+                        relayInsertToWs(m)
+                    }
+                }
+                // snapshot 没保留的旧行 → 删除 (来自 onDelete / onRegenerate 砍尾)
+                for (e in existing) {
+                    if (e.id !in keptIds) dao.deleteById(e.id)
                 }
             } catch (ignored: Exception) {}
         }
@@ -287,47 +378,6 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     // ─────────────────────────── Chat Dispatch ───────────────────────────
 
     /**
-     * @param historyForApi messages to send as context (not including current user message)
-     * @param plainApiUserMessage user message text (before memory enrichment)
-     * @param options session chat options
-     * @param responseToken caller's response token for staleness check
-     * @param shouldUseCharacterMemory whether to fetch character memory
-     * @param assistantId for character memory calls
-     * @param characterMemoryService for memory fetch
-     */
-    fun dispatchChat(
-        historyForApi: List<Message>,
-        plainApiUserMessage: String,
-        options: SessionChatOptions,
-        responseToken: Long,
-        shouldUseCharacterMemory: Boolean,
-        assistantId: String?,
-        characterMemoryService: CharacterMemoryService
-    ) {
-        activeResponseToken = responseToken
-        if (!shouldUseCharacterMemory) {
-            doChatRequest(historyForApi, plainApiUserMessage, options, responseToken, false,
-                assistantId, characterMemoryService)
-            return
-        }
-        executor.execute {
-            @Suppress("UNUSED_VARIABLE")
-            var enriched = plainApiUserMessage
-            try {
-                @Suppress("UNUSED_VARIABLE")
-                val memory = characterMemoryService.getMemoryContext(assistantId, sessionId, plainApiUserMessage)
-                // enrichment logic is in ChatSessionActivity; for ViewModel we just pass through
-                // the memory result is currently handled inline in Activity
-            } catch (e: Exception) {
-                Log.w(TAG, "memory-context failed: " + (e.message ?: ""))
-            }
-            // Post back to caller (Activity drives the actual dispatch after memory fetch)
-            // For now, post a signal event through streamDeltaEvent with isMemoryReady=true
-            // This is simplified: Activity's dispatchChatRequestWithOptionalMemory calls viewModel.doChatRequest
-        }
-    }
-
-    /**
      * Direct chat dispatch (called from Activity after optional memory enrichment).
      */
     fun doChatRequest(
@@ -335,7 +385,6 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         apiUserMessage: String,
         options: SessionChatOptions,
         responseToken: Long,
-        reportAssistantToMemory: Boolean,
         assistantId: String?,
         characterMemoryService: CharacterMemoryService
     ): ChatService.ChatHandle {
@@ -353,6 +402,11 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         val relationshipHint = buildRelationshipHintIfAny(assistantId)
         val closeness = readClosenessForAssistant(assistantId)
 
+        // 2b. Bootstrap-only: pinned coreMemories + 高分 coreFacts. 来自
+        //     GET /api/character/bootstrap 的内存 cache, 跨日才刷新.
+        //     模型应当作"已经知道的事实", 不需要触发 search_memory.
+        val bootstrapPrefix = buildBootstrapPrefixIfAny(assistantId)
+
         // 3. 自动对话: 在 system 末尾注入 META 协议指令, 让模型在回复尾部自带 split / followUp 决策.
         //    closeness 影响 followUp 默认门槛 (亲密度高 → 主动消息阈值放宽).
         val autoChatSuffix = if (options.autoChatEnabled)
@@ -361,6 +415,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         val mergedSystemPrompt = buildString {
             if (timePrefix.isNotEmpty()) append(timePrefix).append('\n')
             if (relationshipHint.isNotEmpty()) append(relationshipHint).append('\n')
+            if (bootstrapPrefix.isNotEmpty()) append(bootstrapPrefix).append('\n')
             val origin = (options.systemPrompt ?: "").trim()
             if (origin.isNotEmpty()) append(origin)
             if (autoChatSuffix.isNotEmpty()) append('\n').append(autoChatSuffix)
@@ -394,15 +449,27 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
 
                     // Persist to DB as fallback for when Activity is detached/destroyed
                     // 自动对话路径: 这次 insert 的 row id 给 planner 用作 split rewrite 锚点.
+                    // 同步路径: insert 后把 row id / turnId / assistantId 通过 event 回传 Activity,
+                    //   让 streaming 对象拿到真实身份, 后续 persistSessionMessagesAsync 走增量 upsert.
+                    val event = StreamDeltaEvent(responseToken)
+                    event.isSuccess = true
+                    event.successContent = safeContent
+                    event.autoChatActive = autoChatActive
                     executor.execute {
                         var insertedId: Long = 0L
+                        val msg = Message(sid, Message.ROLE_ASSISTANT, safeContent)
                         try {
-                            val msg = Message(sid, Message.ROLE_ASSISTANT, safeContent)
                             stampForSync(msg, assistantId)
                             insertedId = db.messageDao().insert(msg)
+                            if (insertedId > 0) msg.id = insertedId
+                            relayInsertToWs(msg)
                         } catch (e: Exception) {
                             Log.w(TAG, "onSuccess insert failed", e)
                         }
+                        event.assistantInsertedId = insertedId
+                        event.assistantTurnId = msg.turnId
+                        event.assistantAssignedId = msg.assistantId
+                        postStreamEvent(event)
                         if (autoChatActive && insertedId > 0) {
                             try {
                                 ensurePlanner().onAssistantTurnFinalized(
@@ -418,12 +485,6 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                             }
                         }
                     }
-                    val event = StreamDeltaEvent(responseToken)
-                    event.isSuccess = true
-                    event.successContent = safeContent
-                    event.reportAssistantToMemory = reportAssistantToMemory
-                    event.autoChatActive = autoChatActive
-                    postStreamEvent(event)
                 }
 
                 override fun onError(message: String) {
@@ -444,7 +505,6 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     activeChatHandle = null
                     val event = StreamDeltaEvent(responseToken)
                     event.isCancelled = true
-                    event.reportAssistantToMemory = reportAssistantToMemory
                     postStreamEvent(event)
                 }
 
@@ -583,6 +643,34 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     }
 
     /**
+     * Build "[角色已知事实/记忆]" prefix from bootstrap cache. Empty if no cache yet.
+     * coreMemories 是 pinned 整段叙事; coreFacts 是结构化 key-value, 密度高几乎不占 token.
+     */
+    private fun buildBootstrapPrefixIfAny(assistantId: String?): String {
+        val aid = assistantId?.trim().orEmpty()
+        if (aid.isEmpty()) return ""
+        val cache = try {
+            com.example.aichat.sync.CharacterBootstrapStore.getInstance(getApplication())
+                .getCached(aid)
+        } catch (_: Exception) { null } ?: return ""
+        if (cache.coreMemories.isEmpty() && cache.coreFacts.isEmpty()) return ""
+        return buildString {
+            if (cache.coreMemories.isNotEmpty()) {
+                append("[你和用户的核心记忆 — 始终在你脑海里]\n")
+                cache.coreMemories.take(MAX_CORE_MEMORIES_IN_PROMPT).forEach { m ->
+                    append("- ").append(m.content).append('\n')
+                }
+            }
+            if (cache.coreFacts.isNotEmpty()) {
+                append("[角色已知关键事实]\n")
+                cache.coreFacts.take(MAX_CORE_FACTS_IN_PROMPT).forEach { f ->
+                    append("- ").append(f.factKey).append(": ").append(f.factValue).append('\n')
+                }
+            }
+        }.trimEnd()
+    }
+
+    /**
      * 仅取 closeness 数值 (0-100). 用于 followUp 强度调制. 没有数据返回 null,
      * prompt builder 收到 null 时按默认行为输出 (不附加调制段).
      */
@@ -652,7 +740,14 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         // Terminal events
         @JvmField var isSuccess: Boolean = false
         @JvmField var successContent: String? = null
-        @JvmField var reportAssistantToMemory: Boolean = false
+        /**
+         * onSuccess 时 ViewModel insert 的 assistant row 的真实 id / sync 字段.
+         * Activity 用它把 streaming 对象同步到 DB 的真实状态, 让后续 persist
+         * 增量路径可以按 id upsert, 不再丢 turnId / 漂移 id.
+         */
+        @JvmField var assistantInsertedId: Long = 0L
+        @JvmField var assistantTurnId: String = ""
+        @JvmField var assistantAssignedId: String = ""
         @JvmField var isError: Boolean = false
         @JvmField var isCancelled: Boolean = false
         // Tool call notification (onToolCallStart)

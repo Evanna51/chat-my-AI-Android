@@ -74,7 +74,6 @@ class ChatSessionActivity : ThemedActivity() {
         private const val INITIAL_RENDER_MESSAGE_LIMIT = 200
         private const val LOAD_MORE_BATCH_SIZE = 50
         private const val TOP_LOAD_TRIGGER_GAP_DP = 8
-        private const val PROACTIVE_POLL_INTERVAL_MS = 30_000L
     }
 
     private var sessionId: String = ""
@@ -263,7 +262,6 @@ class ChatSessionActivity : ThemedActivity() {
     private val autoReadStore by lazy { AutoReadStore(this) }
     private var characterMemoryService: CharacterMemoryService? = null
     private var outlineStore: SessionOutlineStore? = null
-    private var proactiveSyncManager: ProactiveMessageSyncManager? = null
     private var sessionOptions: SessionChatOptions = SessionChatOptions()
     @Volatile private var autoNamingInFlight = false
     private var assistantResponseInProgress = false
@@ -294,23 +292,6 @@ class ChatSessionActivity : ThemedActivity() {
     private var olderRemainingCount = 0
     private var oldestLoadedCreatedAt = Long.MAX_VALUE
     private var oldestLoadedMessageId = Long.MAX_VALUE
-    private var proactivePollingActive = false
-
-    private val proactivePollRunnable = object : Runnable {
-        override fun run() {
-            if (!proactivePollingActive || isFinishing || isDestroyed) return
-            proactiveSyncManager?.syncOnce(object : ProactiveMessageSyncManager.SyncCallback {
-                override fun onSessionUpdated(updatedSessionId: String) {
-                    if (updatedSessionId != sessionId) return
-                    mainHandler.post {
-                        if (isFinishing || isDestroyed) return@post
-                        loadMessages()
-                    }
-                }
-            })
-            mainHandler.postDelayed(this, PROACTIVE_POLL_INTERVAL_MS)
-        }
-    }
 
     private val streamRenderRunnable = Runnable {
         streamRenderPending = false
@@ -373,7 +354,6 @@ class ChatSessionActivity : ThemedActivity() {
         characterAssistant = resolveCharacterAssistant()
         outlineStore = SessionOutlineStore(this)
         characterMemoryService = CharacterMemoryService(this)
-        proactiveSyncManager = ProactiveMessageSyncManager(this)
 
         chatService = ChatService(this)
         viewModel = ViewModelProvider(this).get(ChatViewModel::class.java)
@@ -647,9 +627,6 @@ class ChatSessionActivity : ThemedActivity() {
         historyForApi = buildHistoryForApi(historyForApi)
         val options = resolveChatOptions()
         val shouldUseCharacterMemory = shouldUseCharacterMemory()
-        if (shouldUseCharacterMemory) {
-            reportCharacterInteractionAsync(CharacterMemoryApi.ROLE_USER, text)
-        }
         val plainApiUserMessage = buildUserMessageForApi(text)
         val finalHistoryForApi = historyForApi
         val finalOptions = options
@@ -665,7 +642,7 @@ class ChatSessionActivity : ThemedActivity() {
         shouldUseCharacterMemory: Boolean
     ) {
         if (!shouldUseCharacterMemory) {
-            dispatchChatRequest(historyForApi, plainApiUserMessage, options, responseToken, false)
+            dispatchChatRequest(historyForApi, plainApiUserMessage, options, responseToken)
             return
         }
         showCharacterMemoryLoadingPlaceholder(responseToken)
@@ -681,7 +658,7 @@ class ChatSessionActivity : ThemedActivity() {
             mainHandler.post {
                 if (responseToken != activeResponseToken) return@post
                 if (isFinishing || isDestroyed) return@post
-                dispatchChatRequest(historyForApi, finalUserMessage, options, responseToken, true)
+                dispatchChatRequest(historyForApi, finalUserMessage, options, responseToken)
             }
         }
     }
@@ -690,8 +667,7 @@ class ChatSessionActivity : ThemedActivity() {
         historyForApi: List<Message>,
         apiUserMessage: String,
         options: SessionChatOptions,
-        responseToken: Long,
-        reportAssistantToMemory: Boolean
+        responseToken: Long
     ) {
         var streamingAssistant: Message?
         if (characterMemoryLoadingMessage != null) {
@@ -719,7 +695,7 @@ class ChatSessionActivity : ThemedActivity() {
         try {
             activeChatHandle = viewModel.doChatRequest(
                 historyForApi, apiUserMessage, options, responseToken,
-                reportAssistantToMemory, assistantId, characterMemoryService!!)
+                assistantId, characterMemoryService!!)
         } catch (e: Exception) {
             setAssistantResponseInProgress(false)
             activeChatHandle = null
@@ -784,18 +760,23 @@ class ChatSessionActivity : ThemedActivity() {
                 finishThinking(streaming)
                 stopStreamTypewriter(true)
                 streaming.content = safeContent
-                // 自动对话路径下, ChatViewModel.onSuccess 已写库, ProactiveChatPlanner 还会做
-                // split rewrite + 后续 split / follow-up 插入. 这里若再 persistSessionMessagesAsync
-                // 会 deleteBySession 把 planner 的写入冲掉, 所以仅在非自动对话时调用.
-                if (!event.autoChatActive) {
-                    viewModel.persistSessionMessagesAsync(allMessages)
+                // ViewModel.onSuccess 已 insert 这条 assistant 行, 把真实 id / sync 字段
+                // 同步回 streaming, 让后续 persistSessionMessagesAsync 走增量 upsert 时
+                // 能命中同一行, 不再 wipe + reinsert 导致 turnId 漂移.
+                if (event.assistantInsertedId > 0) {
+                    streaming.id = event.assistantInsertedId
+                    streaming.turnId = event.assistantTurnId
+                    streaming.assistantId = event.assistantAssignedId
+                    streaming.synced = 0
                 }
             } else {
                 val assistantMsg = Message(sessionId, Message.ROLE_ASSISTANT, safeContent)
+                if (event.assistantInsertedId > 0) {
+                    assistantMsg.id = event.assistantInsertedId
+                    assistantMsg.turnId = event.assistantTurnId
+                    assistantMsg.assistantId = event.assistantAssignedId
+                }
                 allMessages.add(assistantMsg)
-            }
-            if (event.reportAssistantToMemory) {
-                reportCharacterInteractionAsync(CharacterMemoryApi.ROLE_ASSISTANT, safeContent)
             }
             flushStreamRenderNow()
             maybeAutoScrollToBottom(shouldStick)
@@ -824,7 +805,7 @@ class ChatSessionActivity : ThemedActivity() {
         } else if (event.isCancelled) {
             // onCancelled
             removeCharacterMemoryLoadingPlaceholder()
-            handleResponseStopped(activeStreamingMessage, event.reportAssistantToMemory)
+            handleResponseStopped(activeStreamingMessage)
             activeStreamingMessage = null
         }
     }
@@ -982,17 +963,8 @@ class ChatSessionActivity : ThemedActivity() {
         streamRenderPending = false
         mainHandler.removeCallbacks(thinkingTicker)
         scrollMessagesView?.removeCallbacks(autoScrollRunnable)
-        stopProactivePolling()
         activeThinkingMessage = null
         super.onDestroy()
-    }
-
-    private fun persistAssistantMessageDetached(content: String, reportAssistantToMemory: Boolean) {
-        // ViewModel.onSuccess already persists the assistant message to DB.
-        assistantResponseInProgress = false
-        if (reportAssistantToMemory) {
-            executor.execute { reportCharacterInteractionSafely(CharacterMemoryApi.ROLE_ASSISTANT, content) }
-        }
     }
 
     override fun onResume() {
@@ -1012,12 +984,12 @@ class ChatSessionActivity : ThemedActivity() {
         refreshAutoTtsButton()
         sessionOptions = resolveChatOptions()
         applyMessagesAndTitle()
-        startProactivePollingIfNeeded()
-    }
-
-    override fun onPause() {
-        stopProactivePolling()
-        super.onPause()
+        // Bootstrap (coreMemories / coreFacts / relationshipState) — fire-and-forget;
+        // 跨日才会真正发请求, 同日 no-op. ChatViewModel 拼 prompt 时直接读 in-memory cache.
+        if (!assistantId.isNullOrEmpty()) {
+            com.example.aichat.sync.CharacterBootstrapStore
+                .getInstance(this).refreshIfStale(assistantId)
+        }
     }
 
     private fun updateToolbarModelSubtitle() {
@@ -1072,9 +1044,12 @@ class ChatSessionActivity : ThemedActivity() {
 
     private fun showSessionMoreMenu(anchor: View) {
         val density = resources.displayMetrics.density
+        val labels = listOf(
+            getString(R.string.quick_jump_chapters),
+            getString(R.string.tool_call_log),
+        )
         val popup = ListPopupWindow(this)
-        popup.setAdapter(ArrayAdapter(this, R.layout.item_popup_menu,
-            listOf(getString(R.string.quick_jump_chapters))))
+        popup.setAdapter(ArrayAdapter(this, R.layout.item_popup_menu, labels))
         popup.anchorView = anchor
         popup.width = (168 * density + 0.5f).toInt()
         popup.isModal = true
@@ -1085,11 +1060,19 @@ class ChatSessionActivity : ThemedActivity() {
             toolbarContainer.height - (anchor.top + anchor.height) + (8 * density + 0.5f).toInt()
         else (8 * density + 0.5f).toInt()
         popup.verticalOffset = extraVertical
-        popup.setOnItemClickListener { _, _, _, _ ->
+        popup.setOnItemClickListener { _, _, position, _ ->
             popup.dismiss()
-            showChapterJumpDialog()
+            when (position) {
+                0 -> showChapterJumpDialog()
+                1 -> openToolCallLog()
+            }
         }
         popup.show()
+    }
+
+    private fun openToolCallLog() {
+        startActivity(Intent(this, ToolCallLogActivity::class.java)
+            .putExtra(ToolCallLogActivity.EXTRA_SESSION_ID, sessionId))
     }
 
     private fun showChapterJumpDialog() {
@@ -1528,29 +1511,18 @@ class ChatSessionActivity : ThemedActivity() {
         return assistant != null && "character" == assistant.type
     }
 
+    /**
+     * memory-context 注入路径暂时弃用 (2026-05-07).
+     * 现在由 LLM 通过 search_memory tool 按需主动检索, 不再每条 user message 自动 prepend.
+     * 函数 / 接口 / DTO 全部保留, 后续若想恢复, 把 return false 换回原条件即可.
+     */
     private fun shouldUseCharacterMemory(): Boolean {
-        return characterAssistant
-                && !assistantId.isNullOrEmpty()
-                && characterMemoryService != null
-                && characterMemoryService!!.isEnabled()
-    }
-
-    private fun shouldEnableProactivePolling(): Boolean {
-        if (!shouldUseCharacterMemory()) return false
-        val assistant = MyAssistantStore(this).getById(assistantId!!)
-        return assistant != null && assistant.allowProactiveMessage
-    }
-
-    private fun startProactivePollingIfNeeded() {
-        stopProactivePolling()
-        if (!shouldEnableProactivePolling()) return
-        proactivePollingActive = true
-        mainHandler.post(proactivePollRunnable)
-    }
-
-    private fun stopProactivePolling() {
-        proactivePollingActive = false
-        mainHandler.removeCallbacks(proactivePollRunnable)
+        return false
+        // 原条件:
+        // return characterAssistant
+        //         && !assistantId.isNullOrEmpty()
+        //         && characterMemoryService != null
+        //         && characterMemoryService!!.isEnabled()
     }
 
     private fun showCharacterMemoryLoadingPlaceholder(responseToken: Long) {
@@ -1570,22 +1542,6 @@ class ChatSessionActivity : ThemedActivity() {
         allMessages.remove(loading)
         characterMemoryLoadingMessage = null
         applyMessagesAndTitle()
-    }
-
-    private fun reportCharacterInteractionAsync(role: String, content: String) {
-        executor.execute { reportCharacterInteractionSafely(role, content) }
-    }
-
-    private fun reportCharacterInteractionSafely(role: String, content: String) {
-        if (!shouldUseCharacterMemory()) return
-        val safeRole = role.trim()
-        val safeContent = content.trim()
-        if (safeRole.isEmpty() || safeContent.isEmpty()) return
-        try {
-            characterMemoryService?.reportInteraction(assistantId, sessionId, safeRole, safeContent)
-        } catch (e: Exception) {
-            Log.w(TAG, "report-interaction failed: ${e.message ?: ""}")
-        }
     }
 
     private fun indexOf(target: Message?): Int {
@@ -1900,10 +1856,10 @@ class ChatSessionActivity : ThemedActivity() {
         try {
             handle?.cancel()
         } catch (ignored: Exception) {}
-        handleResponseStopped(target, shouldUseCharacterMemory())
+        handleResponseStopped(target)
     }
 
-    private fun handleResponseStopped(streamingMessage: Message?, reportAssistantToMemory: Boolean) {
+    private fun handleResponseStopped(streamingMessage: Message?) {
         val shouldStickBottomAfterDone = autoScrollToBottomEnabled
         setAssistantResponseInProgress(false)
         if (streamingMessage != null) {
@@ -1915,9 +1871,6 @@ class ChatSessionActivity : ThemedActivity() {
                 allMessages.remove(streamingMessage)
             } else {
                 persistSessionMessagesAsync()
-                if (reportAssistantToMemory && hasContent) {
-                    reportCharacterInteractionAsync(CharacterMemoryApi.ROLE_ASSISTANT, streamingMessage.content!!)
-                }
             }
         } else {
             stopStreamTypewriter(true)

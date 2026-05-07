@@ -2,17 +2,15 @@ package com.example.aichat
 
 import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.LifecycleOwner
-import androidx.lifecycle.ProcessLifecycleOwner
 import com.example.aichat.sync.RemoteSyncConfigStore
 import com.example.aichat.sync.SyncScheduler
+import com.example.aichat.sync.WsClient
 import com.mikepenz.iconics.Iconics
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 
-class AIChatApp : Application(), DefaultLifecycleObserver {
+class AIChatApp : Application() {
     override fun onCreate() {
-        super<Application>.onCreate()
+        super.onCreate()
         Iconics.init(this) // typefaces auto-register via ContentProvider
         PDFBoxResourceLoader.init(this)
         applyTheme()
@@ -20,10 +18,9 @@ class AIChatApp : Application(), DefaultLifecycleObserver {
         VolcEngineHttpTTS.init(cacheDir)
         RoomMigrationHelper.migrateIfNeeded(this)
         ProactiveMessageNotifier(this).ensureChannel()
-        ProcessLifecycleOwner.get().lifecycle.addObserver(this)
-        ProactiveMessageWorkScheduler.scheduleNext(this)
         if (RemoteSyncConfigStore(this).isEnabled()) {
             SyncScheduler.start(this)
+            WsClient.start(this)
         }
     }
 
@@ -35,13 +32,5 @@ class AIChatApp : Application(), DefaultLifecycleObserver {
             else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
         }
         AppCompatDelegate.setDefaultNightMode(mode)
-    }
-
-    override fun onStart(owner: LifecycleOwner) {
-        ProactiveMessageWorkScheduler.cancel(this)
-    }
-
-    override fun onStop(owner: LifecycleOwner) {
-        ProactiveMessageWorkScheduler.scheduleNext(this)
     }
 }

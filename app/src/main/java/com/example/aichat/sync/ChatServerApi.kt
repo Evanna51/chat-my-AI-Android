@@ -62,6 +62,51 @@ class ChatServerApi(
     }
 
     /**
+     * POST /api/sync/snapshot — 一次性同步: 上传 assistants 元数据 + 一批 turns.
+     * 响应复用 [SyncPushResponse].
+     */
+    @Throws(IOException::class)
+    fun snapshotPush(request: SnapshotPushRequest): SyncPushResponse {
+        require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
+        val body = gson.toJson(request).toRequestBody(JSON)
+        val req = Request.Builder()
+            .url("$baseUrl/api/sync/snapshot")
+            .header("x-api-key", apiKey)
+            .post(body)
+            .build()
+        client.newCall(req).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) {
+                throw HttpStatusException(resp.code, text.take(512))
+            }
+            return parseResponse(text, SyncPushResponse::class.java)
+                ?: throw IOException("empty snapshot response")
+        }
+    }
+
+    /**
+     * GET /api/character/bootstrap — session 启动 / 每日固定调一次,
+     * 一次拿齐拼 system prompt 的 relationshipState + coreMemories + coreFacts.
+     * 不做语义检索 (那是 memory-context / search_memory 的事).
+     * 返回 raw JSON, 客户端层解析成 [BootstrapPayload].
+     */
+    @Throws(IOException::class)
+    fun characterBootstrap(assistantId: String): String {
+        require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
+        require(assistantId.isNotEmpty()) { "assistantId required" }
+        val url = "$baseUrl/api/character/bootstrap?assistantId=${urlEncode(assistantId)}"
+        val builder = Request.Builder().url(url).get()
+        if (apiKey.isNotEmpty()) builder.header("x-api-key", apiKey)
+        client.newCall(builder.build()).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) {
+                throw HttpStatusException(resp.code, text.take(512))
+            }
+            return text
+        }
+    }
+
+    /**
      * GET /api/sync/state — pull server-side counters for cross-checking.
      */
     @Throws(IOException::class)

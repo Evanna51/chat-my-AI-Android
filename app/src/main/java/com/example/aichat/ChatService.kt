@@ -1603,8 +1603,15 @@ class ChatService(context: Context) {
         }
         request.add("messages", arr)
         if (toolBridge != null && toolBridge.isReady() && toolRound < TOOL_LOOP_MAX_ROUNDS) {
-            request.add("tools", toolBridge.toolsJson())
+            val toolsArr = toolBridge.toolsJson()
+            request.add("tools", toolsArr)
             request.addProperty("tool_choice", "auto")
+            Log.d(TAG, "tools injected: count=${toolsArr.size()} round=$toolRound")
+        } else {
+            Log.d(TAG, "tools NOT injected:"
+                + " bridge=${if (toolBridge == null) "null" else "non-null"}"
+                + " ready=${toolBridge?.isReady()}"
+                + " round=$toolRound/$TOOL_LOOP_MAX_ROUNDS")
         }
         val stops = parseStopSequences(using.stop)
         if (stops != null && stops.isNotEmpty()) {

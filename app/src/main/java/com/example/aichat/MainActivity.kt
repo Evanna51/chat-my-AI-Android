@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
@@ -171,22 +172,26 @@ class MainActivity : ThemedActivity() {
         }
     }
 
+    /**
+     * 搜索: 立即用 SQL LIKE 关键词匹配返回结果, 不阻塞用户. 同时后台跑 embedding
+     * 索引 (fire-and-forget), 不影响本次搜索, 仅给以后的语义搜索铺路.
+     */
     private fun runSemanticSearch(query: String) {
         val service = SemanticSearchService(this)
-        if (service.resolveEmbeddingModel() == null) {
-            Toast.makeText(this, R.string.semantic_search_no_embedding_model, Toast.LENGTH_LONG).show()
-            return
-        }
-        Toast.makeText(this, getString(R.string.semantic_search_indexing, 0).replace("0", "…"), Toast.LENGTH_SHORT).show()
         executor.execute {
-            try {
-                service.indexPendingMessages(50)
-                val hits = service.searchSessions(query, 20)
-                mainHandler.post { applySemanticHits(hits) }
+            // 1. 立即关键词搜, UI 第一时间出结果
+            val hits = try {
+                service.searchByKeyword(query, 20)
             } catch (e: Exception) {
-                mainHandler.post {
-                    Toast.makeText(this, getString(R.string.semantic_search_failed, e.message ?: "unknown"), Toast.LENGTH_LONG).show()
-                }
+                emptyList()
+            }
+            mainHandler.post { applySemanticHits(hits) }
+
+            // 2. 后台机会性索引: 模型配齐了才跑, 没配也不报错
+            if (service.resolveEmbeddingModel() != null) {
+                try {
+                    service.indexPendingMessages(50)
+                } catch (_: Exception) {}
             }
         }
     }
@@ -312,12 +317,31 @@ class MainActivity : ThemedActivity() {
             if (glassToolbar.visibility == View.VISIBLE) {
                 glassToolbar.visibility = View.GONE
                 searchEdit?.setText("")
+                hideSoftInput(searchEdit)
                 loadSessions()
             } else {
                 glassToolbar.visibility = View.VISIBLE
-                searchEdit?.requestFocus()
+                searchEdit?.let { edit ->
+                    // toolbar 刚 visible 时 EditText 还没完成 layout, 直接 requestFocus
+                    // 弹键盘可能失败 — post 到下一帧再调.
+                    edit.post {
+                        edit.requestFocus()
+                        showSoftInput(edit)
+                    }
+                }
             }
         }
+    }
+
+    private fun showSoftInput(view: View) {
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager ?: return
+        imm.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun hideSoftInput(view: View?) {
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager ?: return
+        val token = view?.windowToken ?: window?.decorView?.windowToken ?: return
+        imm.hideSoftInputFromWindow(token, 0)
     }
 
     private fun loadSessions() {

@@ -32,6 +32,22 @@ data class SyncPushResponse(
     val error: String? = null
 )
 
+/** Assistant 元数据快照, 一次性同步时随 turns 一起上传. */
+data class AssistantSnapshotDto(
+    val assistantId: String,
+    val characterName: String,
+    /** 系统 prompt; 对真实 Assistant 取 options.systemPrompt, fallback assistant 留空. */
+    val characterBackground: String,
+    val allowAutoLife: Boolean,
+    val allowProactiveMessage: Boolean
+)
+
+data class SnapshotPushRequest(
+    val deviceId: String,
+    val assistants: List<AssistantSnapshotDto>,
+    val turns: List<SyncTurnDto>
+)
+
 data class SyncStateResponse(
     val ok: Boolean = false,
     val now: Long = 0,
