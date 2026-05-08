@@ -15,11 +15,15 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.View
 import android.view.MotionEvent
 import android.view.ViewParent
 import android.widget.EditText
+import android.widget.HorizontalScrollView
 import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import android.graphics.Typeface
@@ -74,6 +78,13 @@ class ChatSessionActivity : ThemedActivity() {
         private const val INITIAL_RENDER_MESSAGE_LIMIT = 200
         private const val LOAD_MORE_BATCH_SIZE = 50
         private const val TOP_LOAD_TRIGGER_GAP_DP = 8
+        /** 发送后这段时间内点击 [sendButton] 不会触发 stop, 防误触刚发出去的消息. */
+        private const val STOP_GUARD_MS = 1000L
+        /**
+         * 手指离开屏幕后还要延迟多久才解除 userGesturing — 覆盖 fling 惯性飞行期.
+         * 这段时间内流式 chunk 不会触发 auto scroll, 避免在用户 fling 翻历史时被强行拉回底.
+         */
+        private const val GESTURE_END_DELAY_MS = 600L
     }
 
     private var sessionId: String = ""
@@ -82,6 +93,17 @@ class ChatSessionActivity : ThemedActivity() {
     private val assistantMarkdownStateStore = MessageAdapter.AssistantMarkdownStateStore()
     private var sendButtonView: ImageButton? = null
     private var inputEditView: EditText? = null
+    private var attachmentsScrollView: HorizontalScrollView? = null
+    private var attachmentsContainerView: LinearLayout? = null
+    private val pendingAttachments: MutableList<PendingAttachment> = ArrayList()
+
+    private data class PendingAttachment(
+        val displayName: String,
+        val content: String,
+        val truncated: Boolean
+    )
+    /** 流式开始时间 (elapsedRealtime). 用于 [STOP_GUARD_MS] 防误触检查. */
+    private var streamStartedAtMs: Long = 0L
     private lateinit var chatService: ChatService
     private lateinit var viewModel: ChatViewModel
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -102,12 +124,14 @@ class ChatSessionActivity : ThemedActivity() {
                 if (isFinishing || isDestroyed) return@post
                 when (result) {
                     is AttachmentFileReader.Result.Text -> {
-                        val truncatedSuffix = if (result.truncated) "（已截断）" else ""
-                        val payload = "\n[文件: ${result.displayName}$truncatedSuffix]\n```\n${result.content}\n```\n"
-                        insertAttachmentText(payload)
+                        addPendingAttachment(
+                            PendingAttachment(result.displayName, result.content, result.truncated)
+                        )
                     }
                     is AttachmentFileReader.Result.Unsupported -> {
-                        insertAttachmentText("\n[文件: ${result.displayName}]\n")
+                        addPendingAttachment(
+                            PendingAttachment(result.displayName, "", false)
+                        )
                         Toast.makeText(
                             this,
                             getString(R.string.attachment_unsupported_format, result.reason),
@@ -177,6 +201,62 @@ class ChatSessionActivity : ThemedActivity() {
         edit.setText(current + text)
         edit.setSelection(edit.text?.length ?: 0)
         updateSendButtonState()
+    }
+
+    private fun addPendingAttachment(attachment: PendingAttachment) {
+        pendingAttachments.add(attachment)
+        refreshAttachmentBar()
+        updateSendButtonState()
+    }
+
+    private fun removePendingAttachment(attachment: PendingAttachment) {
+        if (pendingAttachments.remove(attachment)) {
+            refreshAttachmentBar()
+            updateSendButtonState()
+        }
+    }
+
+    private fun clearPendingAttachments() {
+        if (pendingAttachments.isEmpty()) return
+        pendingAttachments.clear()
+        refreshAttachmentBar()
+        updateSendButtonState()
+    }
+
+    private fun refreshAttachmentBar() {
+        val container = attachmentsContainerView ?: return
+        val scroll = attachmentsScrollView ?: return
+        container.removeAllViews()
+        if (pendingAttachments.isEmpty()) {
+            scroll.visibility = View.GONE
+            return
+        }
+        scroll.visibility = View.VISIBLE
+        val inflater = LayoutInflater.from(this)
+        for (att in pendingAttachments) {
+            val chip = inflater.inflate(R.layout.item_attachment_chip, container, false)
+            val nameView = chip.findViewById<TextView>(R.id.textAttachmentName)
+            val removeBtn = chip.findViewById<ImageButton>(R.id.btnAttachmentRemove)
+            val suffix = if (att.truncated) getString(R.string.attachment_truncated_suffix) else ""
+            nameView.text = att.displayName + suffix
+            removeBtn.setOnClickListener { removePendingAttachment(att) }
+            container.addView(chip)
+        }
+    }
+
+    private fun composeMessageWithPendingAttachments(text: String): String {
+        if (pendingAttachments.isEmpty()) return text
+        val sb = StringBuilder()
+        if (text.isNotEmpty()) sb.append(text)
+        for (att in pendingAttachments) {
+            if (sb.isNotEmpty() && !sb.endsWith("\n")) sb.append('\n')
+            val suffix = if (att.truncated) getString(R.string.attachment_truncated_suffix) else ""
+            sb.append("\n[文件: ").append(att.displayName).append(suffix).append("]\n")
+            if (att.content.isNotEmpty()) {
+                sb.append("```\n").append(att.content).append("\n```\n")
+            }
+        }
+        return sb.toString().trim()
     }
 
     private fun queryDisplayName(uri: Uri): String? {
@@ -444,6 +524,9 @@ class ChatSessionActivity : ThemedActivity() {
         val sendButton: ImageButton? = findViewById(R.id.sendButton)
         inputEditView = inputEdit
         sendButtonView = sendButton
+        attachmentsScrollView = findViewById(R.id.scrollAttachments)
+        attachmentsContainerView = findViewById(R.id.layoutAttachments)
+        refreshAttachmentBar()
         inputEdit?.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(s: android.text.Editable?) { updateSendButtonState() }
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -520,13 +603,18 @@ class ChatSessionActivity : ThemedActivity() {
         updateSendButtonState()
         sendButton?.setOnClickListener {
             if (assistantResponseInProgress) {
+                // 1s 防误触: 刚发出去手指还没离开按钮就识别成第二次点击 → 误触发 stop.
+                val sinceStart = android.os.SystemClock.elapsedRealtime() - streamStartedAtMs
+                if (streamStartedAtMs > 0 && sinceStart < STOP_GUARD_MS) return@setOnClickListener
                 stopLatestResponse()
                 return@setOnClickListener
             }
-            val text = inputEditView?.text?.toString()?.trim() ?: ""
-            if (text.isEmpty()) return@setOnClickListener
+            val rawText = inputEditView?.text?.toString()?.trim() ?: ""
+            val composed = composeMessageWithPendingAttachments(rawText)
+            if (composed.isEmpty()) return@setOnClickListener
             inputEditView?.setText("")
-            sendMessageFromText(text)
+            clearPendingAttachments()
+            sendMessageFromText(composed)
         }
         inputEdit?.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) collapseMessageActions()
@@ -606,6 +694,7 @@ class ChatSessionActivity : ThemedActivity() {
         if (text.isEmpty()) return
         if (isFinishing || isDestroyed) return
         if (VolcEngineTTSManager.isPlaying()) VolcEngineTTSManager.stop()
+        streamStartedAtMs = android.os.SystemClock.elapsedRealtime()
         setAssistantResponseInProgress(true)
         activeResponseToken = viewModel.incrementResponseToken()
         val responseToken = activeResponseToken
@@ -687,7 +776,8 @@ class ChatSessionActivity : ThemedActivity() {
             streamingAssistant.thinkingElapsedMs = 0L
             allMessages.add(streamingAssistant)
             applyMessagesAndTitle()
-            maybeAutoScrollToBottom(true)
+            // 不 force: 用户在底部就跟着, 在中间看历史就别强拽回底.
+            maybeAutoScrollToBottom(false)
         }
         activeStreamingMessage = streamingAssistant
         streamingTargetMessage = streamingAssistant
@@ -1534,7 +1624,8 @@ class ChatSessionActivity : ThemedActivity() {
         characterMemoryLoadingMessage = loading
         allMessages.add(loading)
         applyMessagesAndTitle()
-        maybeAutoScrollToBottom(true)
+        // 不 force: AI loading 占位也不该抢用户阅读位置.
+        maybeAutoScrollToBottom(false)
     }
 
     private fun removeCharacterMemoryLoadingPlaceholder() {
@@ -1765,17 +1856,26 @@ class ChatSessionActivity : ThemedActivity() {
         recyclerCurrent: RecyclerView?,
         scrollMessages: NestedScrollView?
     ) {
+        // 手势结束延迟 runnable: ACTION_UP 后过 GESTURE_END_DELAY_MS 才真正解除 userGesturing,
+        // 期间认为用户还在 fling, 流式 auto scroll 不抢. ACTION_DOWN 立即取消挂起的解除.
+        // 关键: 这里**不再**调 updateAutoScrollStateFromPosition() — 否则会用最后一次 scroll
+        // 位置重置 flag, 把"用户离开底部 → disengage"的状态又翻回 engage. 让 flag 保持
+        // 手势期间最后一次 ScrollChangeListener 写入的值, 直到用户主动滚回底部.
+        val gestureEndRunnable = Runnable {
+            userGesturing = false
+        }
         // 一个统一的触摸 listener：跟踪用户手势状态 + 顺便折叠消息操作栏。
         val touchHandler = View.OnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    mainHandler.removeCallbacks(gestureEndRunnable)
                     userGesturing = true
                     collapseMessageActions()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    userGesturing = false
-                    // fling 还在继续时 ScrollChangeListener 会持续更新 flag；这里只是兜底再读一次。
-                    updateAutoScrollStateFromPosition()
+                    // 不立即翻 false: 手指离开后还有 fling 惯性, 此时流式 chunk 不该强抢滚动.
+                    mainHandler.removeCallbacks(gestureEndRunnable)
+                    mainHandler.postDelayed(gestureEndRunnable, GESTURE_END_DELAY_MS)
                 }
             }
             false
@@ -1842,7 +1942,8 @@ class ChatSessionActivity : ThemedActivity() {
             btn.isEnabled = true
         } else {
             btn.setImageResource(R.drawable.ic_arrow_up)
-            btn.isEnabled = !inputEditView?.text?.toString()?.trim().isNullOrEmpty()
+            val hasText = !inputEditView?.text?.toString()?.trim().isNullOrEmpty()
+            btn.isEnabled = hasText || pendingAttachments.isNotEmpty()
         }
     }
 
@@ -1971,7 +2072,12 @@ class ChatSessionActivity : ThemedActivity() {
             return
         }
         val distanceToBottom = child.bottom - (scroll.scrollY + scroll.height)
-        val thresholdPx = (AUTO_SCROLL_BOTTOM_GAP_DP * resources.displayMetrics.density).toInt()
+        // 一律严格阈值 (4dp ≈ 几乎贴底). 简单一致的策略:
+        //   贴底 → engage (auto scroll 跟随)
+        //   离开底部 → disengage (auto scroll 不抢)
+        // 老 32dp 阈值的"灰色地带"是 bug 来源 — 用户拖了 < 32dp 时 flag 维持 engage,
+        // 流式 chunk 持续抢回, 用户感觉"滚不下去". 4dp 给一点 fling 误差余量, 不会震荡.
+        val thresholdPx = (4 * resources.displayMetrics.density).toInt()
         autoScrollToBottomEnabled = distanceToBottom <= thresholdPx
     }
 
@@ -2053,13 +2159,15 @@ class ChatSessionActivity : ThemedActivity() {
                 val target = allMessages.firstOrNull { it.id == event.rowId } ?: return
                 target.content = event.newContent
                 applyMessagesAndTitle()
-                maybeAutoScrollToBottom(true)
+                // 不 force: 自动对话 split rewrite 不该抢用户阅读位置.
+                maybeAutoScrollToBottom(false)
             }
             ChatViewModel.ProactiveMessageEvent.KIND_APPEND -> {
                 val msg = event.appendedMessage ?: return
                 allMessages.add(msg)
                 applyMessagesAndTitle()
-                maybeAutoScrollToBottom(true)
+                // 不 force: AI follow-up 主动消息不该抢用户阅读位置.
+                maybeAutoScrollToBottom(false)
             }
         }
     }

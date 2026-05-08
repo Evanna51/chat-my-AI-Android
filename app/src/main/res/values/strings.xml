@@ -218,6 +218,8 @@
     <string name="attachment_reading_file">正在读取文件…</string>
     <string name="attachment_unsupported_format">暂不支持解析 %1$s，已记录文件名</string>
     <string name="attachment_read_failed">读取失败：%1$s</string>
+    <string name="attachment_remove">移除附件</string>
+    <string name="attachment_truncated_suffix">（已截断）</string>
     <string name="embedding_model">嵌入模型</string>
     <string name="local_semantic_search">语义搜索对话</string>
     <string name="semantic_search_indexing">正在为 %1$d 条消息建立索引…</string>

@@ -280,6 +280,20 @@
         android:paddingTop="10dp"
         android:paddingBottom="24dp">
 
+        <HorizontalScrollView
+            android:id="@+id/scrollAttachments"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:scrollbars="none"
+            android:visibility="gone">
+            <LinearLayout
+                android:id="@+id/layoutAttachments"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
         <FrameLayout
             android:id="@+id/inputPill"
             android:layout_width="match_parent"
@@ -309,15 +323,16 @@
 
             <ImageButton
                 android:id="@+id/sendButton"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
+                android:layout_width="48dp"
+                android:layout_height="36dp"
                 android:layout_gravity="bottom|end"
-                android:layout_marginEnd="6dp"
+                android:layout_marginEnd="18dp"
                 android:layout_marginBottom="9dp"
                 android:padding="6dp"
                 android:scaleType="fitCenter"
                 android:background="@drawable/bg_send_button"
                 android:backgroundTint="@color/send_button_bg"
+                android:foreground="@drawable/ripple_send_button"
                 android:src="@drawable/ic_arrow_up"
                 android:tint="?attr/colorOnPrimary"
                 android:contentDescription="@string/send" />
