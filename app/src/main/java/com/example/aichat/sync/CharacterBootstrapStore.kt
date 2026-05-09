@@ -17,7 +17,9 @@ import java.util.concurrent.Executors
  * system prompt.
  *
  * - 内存级 cache (per-process). 不持久化 — 进程重启会重新拉.
- * - 跨自然日 (本地时区) TTL: 同一 assistantId 当天只 fetch 一次.
+ * - TTL: 同一 assistantId 距上次成功 fetch [TTL_MS] 内 no-op, 超过就 refresh.
+ *        粒度从原本的"自然日"降到分钟级, 让 server 端 promptFragment / coreMemories
+ *        改动能在当天内生效, 不必等到第二天.
  * - 失败容错: 网络错误时保留旧 cache, 不阻塞 chat.
  *
  * `relationshipState` 仍走现有 [RelationshipStateStore] (Room 持久化, 跨进程 ok).
@@ -51,16 +53,15 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
     private val executor = Executors.newSingleThreadExecutor()
 
     /**
-     * Fire-and-forget refresh. 跨自然日就 fetch, 同日命中就 no-op.
+     * Fire-and-forget refresh. 距上次成功 fetch 超过 [TTL_MS] 才发请求, 否则 no-op.
      * 调用方 (e.g. ChatSessionActivity.onResume) 不需要等 — chat dispatch 时
      * [getCached] 直接读, 没有也只是没注入 coreMemories/coreFacts, 不影响主流程.
      */
     fun refreshIfStale(assistantId: String?) {
         val aid = assistantId?.trim().orEmpty()
         if (aid.isEmpty()) return
-        val today = todayKey()
         val existing = cacheByAssistant[aid]
-        if (existing != null && existing.fetchedDayKey == today) return
+        if (existing != null && (System.currentTimeMillis() - existing.fetchedAtMs) < TTL_MS) return
         executor.execute { doRefresh(aid) }
     }
 
@@ -191,6 +192,8 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
 
     companion object {
         private const val TAG = "CharacterBootstrapStore"
+        /** Refresh TTL — same assistantId 间隔小于这个就走缓存. */
+        private const val TTL_MS = 10L * 60 * 1000
 
         @Volatile private var instance: CharacterBootstrapStore? = null
 
