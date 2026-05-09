@@ -16,6 +16,9 @@ class SessionAssistantBindingStore(context: Context) {
         entity.sessionId = sessionId
         entity.assistantId = assistantId
         dao.upsert(entity)
+        // 头像继承移到 ChatSessionActivity.initializeSessionOptionsFromAssistantOrGlobal,
+        // 和其它 assistant options 一起初始化. 不能在 bind 阶段 save 空 options,
+        // 否则 resolveChatOptions().has() 会误判为"已初始化", 跳过 assistant 设定继承.
     }
 
     fun getAssistantId(sessionId: String?): String {
