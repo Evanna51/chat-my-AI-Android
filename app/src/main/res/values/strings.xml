@@ -249,6 +249,9 @@
     <string name="remote_sync_failed">同步失败：%1$s</string>
     <string name="tool_call_log">工具调用日志</string>
     <string name="tool_call_log_empty">本会话还没有工具调用记录</string>
+    <string name="character_info">查看角色信息</string>
+    <string name="character_info_empty">暂无角色信息（未绑定人设或尚未拉取）</string>
+    <string name="character_info_fetched_at">拉取于 %1$s</string>
     <string name="tool_call_label_call">工具调用</string>
     <string name="tool_call_label_result">工具结果</string>
     <string name="remote_sync_backfill_history">一次性同步历史</string>

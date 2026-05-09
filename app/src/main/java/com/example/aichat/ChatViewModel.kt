@@ -658,8 +658,11 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     }
 
     /**
-     * Build "[角色已知事实/记忆]" prefix from bootstrap cache. Empty if no cache yet.
-     * coreMemories 是 pinned 整段叙事; coreFacts 是结构化 key-value, 密度高几乎不占 token.
+     * Build prompt prefix from character context/bootstrap cache. Empty if no cache yet.
+     *
+     * 优先级 (CR-04.1):
+     *   1. promptFragment — 来自 POST /api/character/context, server 拼好的 ≤1500 字 system 段
+     *   2. coreMemories + coreFacts — 老 bootstrap 端点的 fallback (server 还没部署 context 时)
      */
     private fun buildBootstrapPrefixIfAny(assistantId: String?): String {
         val aid = assistantId?.trim().orEmpty()
@@ -668,6 +671,11 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
             com.example.aichat.sync.CharacterBootstrapStore.getInstance(getApplication())
                 .getCached(aid)
         } catch (_: Exception) { null } ?: return ""
+
+        // 1. 新端点: 直接用 promptFragment, server 已经拼好了
+        if (cache.promptFragment.isNotEmpty()) return cache.promptFragment
+
+        // 2. 老端点 fallback: 自己拼 coreMemories + coreFacts
         if (cache.coreMemories.isEmpty() && cache.coreFacts.isEmpty()) return ""
         return buildString {
             if (cache.coreMemories.isNotEmpty()) {

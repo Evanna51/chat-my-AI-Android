@@ -30,10 +30,19 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
     /** Single-line in-memory cache row. */
     data class Cache(
         val assistantId: String,
+        /**
+         * CR-04.1: Server 拼好的 system prompt 片段 (≤1500 中文字).
+         * 来自 [POST /api/character/context], 优先用它直接拼 system prompt.
+         * 老 server 没部署新端点时回退到 bootstrap → 此字段为空, caller 走
+         * [coreMemories] / [coreFacts] 旧拼装路径.
+         */
+        val promptFragment: String,
         val coreMemories: List<CoreMemory>,
         val coreFacts: List<CoreFact>,
         val fetchedAtMs: Long,
         val fetchedDayKey: Int,
+        /** 原始 JSON 响应, 供"查看角色信息"页面展示. */
+        val rawJson: String = "",
     )
 
     data class CoreMemory(
@@ -82,15 +91,24 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
         val cfg = RemoteSyncConfigStore(appContext)
         if (!cfg.isEnabled() || cfg.getBaseUrl().isEmpty()) return null
         val api = ChatServerApi(cfg.getBaseUrl(), cfg.getApiKey())
+
+        // CR-04.1: 优先调新端点 /api/character/context (含 promptFragment).
+        // 老 server 没部署 → 404/5xx → fallback 到 bootstrap (CR-04.4 deprecated, 1 release 兼容窗口).
         val raw = try {
-            api.characterBootstrap(aid)
+            api.characterContext(aid, includePromptFragment = true)
         } catch (e: Exception) {
-            Log.w(TAG, "bootstrap fetch failed for $aid: ${e.message}")
-            return null
+            Log.w(TAG, "character/context failed, fallback to bootstrap: ${e.message}")
+            try {
+                @Suppress("DEPRECATION") api.characterBootstrap(aid)
+            } catch (e2: Exception) {
+                Log.w(TAG, "bootstrap also failed for $aid: ${e2.message}")
+                return null
+            }
         }
         val cache = parse(aid, raw) ?: return null
         cacheByAssistant[aid] = cache
-        // Fan out relationshipState into existing store (already used by prompt path).
+        // Fan out relationshipState into existing store (still works on bootstrap fallback;
+        // new context endpoint may not include this field — that's OK, the store keeps prior cache).
         try {
             extractRelationshipJson(raw)?.let { rsJson ->
                 RelationshipStateStore(appContext).upsertFromServerJson(aid, rsJson)
@@ -106,18 +124,20 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
         return try {
             val root = JsonParser().parse(raw).asJsonObject
             if (!readBool(root, "ok", true)) {
-                Log.w(TAG, "bootstrap returned ok=false: $raw")
+                Log.w(TAG, "context/bootstrap returned ok=false: $raw")
                 return null
             }
             Cache(
                 assistantId = aid,
+                promptFragment = readStr(root, "promptFragment"),
                 coreMemories = parseCoreMemories(root.get("coreMemories")),
                 coreFacts = parseCoreFacts(root.get("coreFacts")),
                 fetchedAtMs = System.currentTimeMillis(),
                 fetchedDayKey = todayKey(),
+                rawJson = raw,
             )
         } catch (e: Exception) {
-            Log.w(TAG, "bootstrap parse failed", e)
+            Log.w(TAG, "context/bootstrap parse failed", e)
             null
         }
     }

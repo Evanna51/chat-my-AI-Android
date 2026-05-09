@@ -993,6 +993,9 @@ class ChatSessionActivity : ThemedActivity() {
                 if (out.sessionAvatar.isNullOrEmpty()) {
                     out.sessionAvatar = AssistantAvatarHelper.resolveTextAvatar(assistant, assistant.name)
                 }
+                if (out.sessionAvatarImageBase64.isNullOrEmpty() && !assistant.avatarImageBase64.isNullOrEmpty()) {
+                    out.sessionAvatarImageBase64 = assistant.avatarImageBase64
+                }
             }
         }
 
@@ -1038,6 +1041,8 @@ class ChatSessionActivity : ThemedActivity() {
         out.autoChapterPlan = src.autoChapterPlan
         out.thinking = src.thinking
         out.googleThinkingBudget = src.googleThinkingBudget
+        out.autoChatEnabled = src.autoChatEnabled
+        out.proactiveDailyBudget = src.proactiveDailyBudget
         return out
     }
 
@@ -1137,6 +1142,7 @@ class ChatSessionActivity : ThemedActivity() {
         val labels = listOf(
             getString(R.string.quick_jump_chapters),
             getString(R.string.tool_call_log),
+            getString(R.string.character_info),
         )
         val popup = ListPopupWindow(this)
         popup.setAdapter(ArrayAdapter(this, R.layout.item_popup_menu, labels))
@@ -1155,6 +1161,7 @@ class ChatSessionActivity : ThemedActivity() {
             when (position) {
                 0 -> showChapterJumpDialog()
                 1 -> openToolCallLog()
+                2 -> openCharacterInfo()
             }
         }
         popup.show()
@@ -1163,6 +1170,11 @@ class ChatSessionActivity : ThemedActivity() {
     private fun openToolCallLog() {
         startActivity(Intent(this, ToolCallLogActivity::class.java)
             .putExtra(ToolCallLogActivity.EXTRA_SESSION_ID, sessionId))
+    }
+
+    private fun openCharacterInfo() {
+        startActivity(Intent(this, CharacterInfoActivity::class.java)
+            .putExtra(CharacterInfoActivity.EXTRA_SESSION_ID, sessionId))
     }
 
     private fun showChapterJumpDialog() {
