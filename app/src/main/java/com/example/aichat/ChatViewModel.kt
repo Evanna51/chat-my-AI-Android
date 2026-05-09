@@ -251,6 +251,21 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     }
 
     /**
+     * 按 id 删除 DB 里的一条消息 — 不依赖 persistSessionMessagesAsync 的对账.
+     *
+     * persist 流程只覆盖 role∈(0,1) 且 proactiveKind=0 的普通消息, proactive 行
+     * (远程推送 / 自动对话仿推送 / split) 不在对账列表里, 仅靠 allMessages 内存
+     * 移除是删不掉 DB 的, 重启 / loadMessages 又会被读出来 → "删除失败".
+     * onDelete 单条删除场景应直接调这个.
+     */
+    fun deleteMessageByIdAsync(messageId: Long) {
+        if (messageId <= 0L) return
+        executor.execute {
+            try { db.messageDao().deleteById(messageId) } catch (ignored: Exception) {}
+        }
+    }
+
+    /**
      * 增量同步 Activity 的 in-memory message list 到 DB:
      *   - id > 0 且 DB 里在 → update content/reasoning, 保留 turnId/synced
      *   - id == 0 → insert + stampForSync, 写回 m.id

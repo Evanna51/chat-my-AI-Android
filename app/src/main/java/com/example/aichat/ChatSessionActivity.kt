@@ -1392,6 +1392,9 @@ class ChatSessionActivity : ThemedActivity() {
                 if (idx < 0) return
                 allMessages.removeAt(idx)
                 applyMessagesAndTitle()
+                // proactiveKind != 0 的行 (远程推送 / 仿推送 / split) 不在 persist 对账范围,
+                // 只靠 persistSessionMessagesAsync 删不掉 DB; 这里按 id 兜底删一次.
+                if (message.id > 0L) viewModel.deleteMessageByIdAsync(message.id)
                 persistSessionMessagesAsync()
             }
 
