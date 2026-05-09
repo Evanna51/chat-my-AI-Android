@@ -13,6 +13,7 @@ import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.annotation.NonNull
 import androidx.recyclerview.widget.RecyclerView
+import com.google.gson.JsonParser
 import io.noties.markwon.Markwon
 import java.text.SimpleDateFormat
 import java.util.ArrayDeque
@@ -39,6 +40,12 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private val messages: MutableList<Message> = ArrayList()
     private val expandedReasoningMessages: MutableSet<Message> =
         Collections.newSetFromMap(IdentityHashMap())
+    /**
+     * Tool call/result 行 (role 3/4) 不单独显示, 把它们的摘要拼到紧跟其后的
+     * assistant 行, 复用 reasoning 折叠区显示.
+     * key 用 IdentityHashMap 避免 Message.equals 影响 (Message 是 Room entity, 没自定义 equals).
+     */
+    private val toolPrefixByMessage: MutableMap<Message, String> = IdentityHashMap()
     private var pinnedUserMessage: Message? = null
     private var pinnedAssistantMessage: Message? = null
     private var hidePinnedAssistantActions: Boolean = false
@@ -314,15 +321,82 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     fun setMessages(list: List<Message>?) {
         messages.clear()
+        toolPrefixByMessage.clear()
         if (list != null) {
-            messages.addAll(list)
+            // role=3/4 (tool_call / tool_result) 不进显示列表, 累积到 buffer 等下条 assistant 来收走;
+            // 用户输入 / proactiveKind!=0 等其它行打断 buffer (因为后续 assistant 不再属于这次工具链).
+            val pendingTools = ArrayList<Message>()
+            for (m in list) {
+                if (m == null) continue
+                when (m.role) {
+                    Message.ROLE_TOOL_CALL, Message.ROLE_TOOL_RESULT -> pendingTools.add(m)
+                    Message.ROLE_ASSISTANT -> {
+                        if (pendingTools.isNotEmpty() && m.proactiveKind == 0) {
+                            toolPrefixByMessage[m] = formatToolBuffer(pendingTools)
+                        }
+                        pendingTools.clear()
+                        messages.add(m)
+                    }
+                    else -> {
+                        pendingTools.clear()
+                        messages.add(m)
+                    }
+                }
+            }
         }
         expandedReasoningMessages.retainAll(messages)
+        toolPrefixByMessage.keys.retainAll(messages)
         actionPanelStateStore.onAllMessagesChanged(messages)
         actionPanelStateStore.applyAutoFold(messages)
         markdownRenderedSource.keys.retainAll(messages)
         markdownLastRenderAt.keys.retainAll(messages)
         notifyDataSetChanged()
+    }
+
+    /** 把 role=3/4 行序列拼成 reasoning 区可读的简短摘要. */
+    private fun formatToolBuffer(buffer: List<Message>): String {
+        val sb = StringBuilder()
+        for (m in buffer) {
+            when (m.role) {
+                Message.ROLE_TOOL_CALL -> {
+                    val (name, args) = parseFirstToolCall(m.toolCallsJson)
+                    if (name.isNotEmpty()) {
+                        sb.append("🔧 调用 ").append(name)
+                        if (args.isNotEmpty()) {
+                            val shown = args.take(120).replace('\n', ' ')
+                            sb.append("(").append(shown)
+                            if (args.length > 120) sb.append("…")
+                            sb.append(")")
+                        }
+                        sb.append('\n')
+                    }
+                }
+                Message.ROLE_TOOL_RESULT -> {
+                    val tn = m.toolName
+                    if (tn.isNotEmpty()) sb.append("→ ").append(tn).append(" 返回:\n")
+                    val content = m.content ?: ""
+                    val truncated = content.take(400)
+                    sb.append(truncated)
+                    if (content.length > 400) sb.append("\n…(已截断, 完整结果见工具调用日志)")
+                    sb.append('\n')
+                }
+            }
+        }
+        return sb.toString().trimEnd()
+    }
+
+    private fun parseFirstToolCall(json: String): Pair<String, String> {
+        if (json.isBlank()) return "" to ""
+        return try {
+            val arr = JsonParser().parse(json).asJsonArray
+            if (arr.size() == 0) return "" to ""
+            val fn = arr[0].asJsonObject?.getAsJsonObject("function") ?: return "" to ""
+            val name = fn.get("name")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            val args = fn.get("arguments")?.takeIf { !it.isJsonNull }?.asString ?: ""
+            name to args
+        } catch (_: Exception) {
+            "" to ""
+        }
     }
 
     fun addMessage(msg: Message) {
@@ -682,16 +756,30 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private fun bindReasoning(h: AssistantHolder, m: Message?, position: Int) {
         val hasReasoning = m != null && m.reasoning.trim().isNotEmpty()
-        val hasThinkingState = m != null && (m.thinkingRunning || m.thinkingElapsedMs > 0 || hasReasoning)
+        val toolPrefix = if (m != null) toolPrefixByMessage[m].orEmpty() else ""
+        val hasToolPrefix = toolPrefix.isNotEmpty()
+        val hasThinkingState = m != null &&
+            (m.thinkingRunning || m.thinkingElapsedMs > 0 || hasReasoning || hasToolPrefix)
         val hasUsage = m != null && (m.totalTokens > 0 || m.elapsedMs > 0)
         h.layoutReasoning.visibility = if (hasThinkingState) View.VISIBLE else View.GONE
         if (hasThinkingState) {
             h.textReasoningHeader.visibility = View.VISIBLE
             val expanded = m != null && expandedReasoningMessages.contains(m)
             val thinkingTime = formatSeconds(m?.thinkingElapsedMs ?: 0)
-            h.textReasoningHeader.text = (if (expanded) "Thinking \u25b2 " else "Thinking \u25bc ") + thinkingTime
-            val reasoning = m?.reasoning
-            val display = if (reasoning == null || reasoning.trim().isEmpty()) "Thinking 中..." else reasoning
+            val headerLabel = when {
+                hasToolPrefix && hasReasoning -> "\u5de5\u5177\u8c03\u7528 + Thinking"
+                hasToolPrefix -> "\u5de5\u5177\u8c03\u7528"
+                else -> "Thinking"
+            }
+            val arrow = if (expanded) "\u25b2" else "\u25bc"
+            h.textReasoningHeader.text = "$headerLabel $arrow $thinkingTime"
+            val reasoning = m?.reasoning?.takeIf { it.trim().isNotEmpty() }
+            val display = when {
+                hasToolPrefix && reasoning != null -> "$toolPrefix\n\n$reasoning"
+                hasToolPrefix -> toolPrefix
+                reasoning != null -> reasoning
+                else -> "Thinking 中..."
+            }
             h.textReasoningContent.visibility = View.VISIBLE
             h.textReasoningContent.text = display
             if (expanded) {
