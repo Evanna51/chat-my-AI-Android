@@ -33,7 +33,7 @@
             android:padding="12dp"
             android:textSize="12sp"
             android:fontFamily="monospace"
-            android:textIsSelectable="true"
+            android:ellipsize="end"
             android:textColor="?attr/colorOnSurface" />
     </com.google.android.material.card.MaterialCardView>
 
