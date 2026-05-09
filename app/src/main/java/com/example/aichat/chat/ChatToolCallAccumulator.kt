@@ -59,14 +59,19 @@ object ChatToolCallAccumulator {
     /**
      * Build the OpenAI-style `assistant` message that wraps a list of
      * accumulated tool_calls. content is `null` per OpenAI spec.
+     *
+     * 关键: 当流里没带 id 时, fallback id 要**写回 tc.id**, 后续 buildToolResultMessage
+     * 才能用同一个 id. 之前两处独立调 ifEmpty { nanoTime } 会生成不同 id, 模型协议层
+     * 关联不上 tool_call 与 tool result, 直接忽略 result —— 这是"AI 没用 tool 结果"的根因.
      */
     fun buildAssistantToolCallMessage(calls: List<ToolCallBuilder>): JsonObject = JsonObject().apply {
         addProperty("role", "assistant")
         add("content", JsonNull.INSTANCE)
         val arr = JsonArray()
-        for (tc in calls) {
+        for ((idx, tc) in calls.withIndex()) {
+            if (tc.id.isEmpty()) tc.id = "call_${System.nanoTime()}_$idx"
             arr.add(JsonObject().apply {
-                addProperty("id", tc.id.ifEmpty { "call_${System.nanoTime()}" })
+                addProperty("id", tc.id)
                 addProperty("type", tc.type.ifEmpty { "function" })
                 add("function", JsonObject().apply {
                     addProperty("name", tc.name)

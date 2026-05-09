@@ -1759,7 +1759,8 @@ class ChatService(context: Context) {
                                     ChatToolCallAccumulator.accumulateDelta(delta.getAsJsonArray("tool_calls"), toolCallsByIndex)
                                 }
                                 val finishReason = getString(first, "finish_reason")
-                                if (finishReason == "tool_calls") sawToolCallFinish = true
+                                // OpenAI/DeepSeek → "tool_calls"; Anthropic → "tool_use"
+                                if (finishReason == "tool_calls" || finishReason == "tool_use") sawToolCallFinish = true
                             } catch (ignored: Exception) {}
                         }
                     }
@@ -1828,15 +1829,24 @@ class ChatService(context: Context) {
                             try {
                                 callback.onToolCallStart(tc.name)
                             } catch (_: Exception) {}
-                            val resultJson = toolBridge.invoke(tc.name, tc.argumentsBuilder.toString())
-                            val resolvedCallId = tc.id.ifEmpty { "call_${System.nanoTime()}" }
-                            arr.add(ChatToolCallAccumulator.buildToolResultMessage(resolvedCallId, tc.name, resultJson))
+                            val rawResult = toolBridge.invoke(tc.name, tc.argumentsBuilder.toString())
+                            // tc.id 此时已被 buildAssistantToolCallMessage 写回过 (fallback 同源),
+                            // 所以这里直接用就跟 assistant.tool_calls[i].id 对得上.
+                            val resolvedCallId = tc.id
+                            // 喂给 LLM 的版本: search_memory 转成结构化纯文本, 别的 tool 直传 raw.
+                            //   背景: 模型 (尤其是 DeepSeek V3.2 这种) 把嵌套 JSON 当 tool result 读时
+                            //   常抓不到 memories[].content, 转纯文本后命中率显著提升.
+                            // ToolCallLog (audit log) 仍然存 raw 用于调试.
+                            val llmResult = if (tc.name == com.example.aichat.sync.ToolBridge.TOOL_SEARCH_MEMORY) {
+                                com.example.aichat.sync.SearchMemoryFormatter.format(rawResult)
+                            } else rawResult
+                            arr.add(ChatToolCallAccumulator.buildToolResultMessage(resolvedCallId, tc.name, llmResult))
                             // 2b. persistable record for this tool result.
                             try {
                                 callback.onToolMessageRecorded(
                                     ToolMessageRecord(
                                         role = Message.ROLE_TOOL_RESULT,
-                                        content = resultJson,
+                                        content = rawResult,
                                         toolCallsJson = "",
                                         toolCallId = resolvedCallId,
                                         toolName = tc.name,
