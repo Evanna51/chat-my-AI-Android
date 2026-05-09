@@ -85,11 +85,36 @@ class ChatServerApi(
     }
 
     /**
-     * GET /api/character/bootstrap — session 启动 / 每日固定调一次,
-     * 一次拿齐拼 system prompt 的 relationshipState + coreMemories + coreFacts.
-     * 不做语义检索 (那是 memory-context / search_memory 的事).
-     * 返回 raw JSON, 客户端层解析成 [BootstrapPayload].
+     * POST /api/character/context — Character Cognition v1 主入口 (CR-04.1).
+     * 一次返回 7 层 payload + 拼好的 promptFragment, 替代旧 bootstrap + relationship/state.
+     * Body: `{ "assistantId": "...", "includePromptFragment": true }`
      */
+    @Throws(IOException::class)
+    fun characterContext(assistantId: String, includePromptFragment: Boolean = true): String {
+        require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
+        require(assistantId.isNotEmpty()) { "assistantId required" }
+        val body = com.google.gson.JsonObject().apply {
+            addProperty("assistantId", assistantId)
+            addProperty("includePromptFragment", includePromptFragment)
+        }
+        val builder = Request.Builder()
+            .url("$baseUrl/api/character/context")
+            .post(body.toString().toRequestBody(JSON))
+        if (apiKey.isNotEmpty()) builder.header("x-api-key", apiKey)
+        client.newCall(builder.build()).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) {
+                throw HttpStatusException(resp.code, text.take(512))
+            }
+            return text
+        }
+    }
+
+    /**
+     * GET /api/character/bootstrap — DEPRECATED (CR-04.4): server 下个 release 移除.
+     * 仍保留作为 [characterContext] 失败时的 fallback (老 server 没部署新端点时兜底).
+     */
+    @Deprecated("Use characterContext (CR-04.1)", ReplaceWith("characterContext(assistantId)"))
     @Throws(IOException::class)
     fun characterBootstrap(assistantId: String): String {
         require(baseUrl.isNotEmpty()) { "baseUrl not configured" }

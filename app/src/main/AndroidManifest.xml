@@ -95,6 +95,11 @@
             android:exported="false"
             android:parentActivityName=".ChatSessionActivity"
             android:theme="@style/Theme.AIChat" />
+        <activity
+            android:name=".CharacterInfoActivity"
+            android:exported="false"
+            android:parentActivityName=".ChatSessionActivity"
+            android:theme="@style/Theme.AIChat" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

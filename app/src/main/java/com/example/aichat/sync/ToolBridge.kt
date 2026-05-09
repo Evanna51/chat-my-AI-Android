@@ -87,9 +87,10 @@ class ToolBridge(
             "chitchat", "personal_experience", "relationship_info", "knowledge",
             "goals_plans", "preferences", "decisions_reflections", "wellbeing", "ideas"
         )
+        // 与 server ALLOWED_MEMORY_TYPES (src/db.js) 保持同步.
+        // CR-03: assistant_turn 已移除; tool_call/tool_result/system_event 从未存在过.
         private val MEMORY_TYPE_VALUES = listOf(
-            "user_turn", "assistant_turn", "life_event", "work_event",
-            "tool_call", "tool_result", "system_event"
+            "user_turn", "life_event", "work_event", "knowledge"
         )
         private val QUALITY_GRADES = listOf("A", "B", "C", "D", "E")
         private val SOURCE_VALUES = listOf("user", "character", "all")
@@ -108,6 +109,12 @@ class ToolBridge(
                         "Search user/character memory. Use when user references past events, " +
                             "preferences, plans or relationships. " +
                             "query: refined topic words, not full user sentence.\n" +
+                            "source: 'user' (default) searches what user said in chats; " +
+                            "'character' ONLY searches character's own generated narratives " +
+                            "(very few entries — NOT user conversations). " +
+                            "For recalling anything the user mentioned (experiences, feelings, " +
+                            "events, opinions), always use 'user' or omit. " +
+                            "Use 'all' if unsure whether info came from user or character.\n" +
                             "Time params: pass dateString only if user names a specific date " +
                             "(yesterday/3-13/etc, computed from user's words, NOT today). " +
                             "Pass withinDays only if user names a range (recent/last week). " +
@@ -115,31 +122,27 @@ class ToolBridge(
                             "When unsure, omit time params.\n" +
                             "If count=0 or no semantic match, tell user there is no record. Never fabricate."
                     )
+                    // 参数精简到 6 个核心字段. 参数过多 (>6) 会让 DeepSeek/本地模型
+                    // 倾向不调用 tool. 高级参数 (minQuality/excludeIds/memoryType 等)
+                    // 由 bridge 层用默认值, LLM 不需要感知.
                     add("parameters", JsonObject().apply {
                         addProperty("type", "object")
                         add("required", JsonArray().apply { add("query") })
                         add("properties", JsonObject().apply {
-                            add("query", strProp("Refined topic words"))
-                            add("topK", intProp("1-20, default 5", min = 1, max = 20))
-                            add("source", enumProp(SOURCE_VALUES, "default user"))
-                            add("category", enumProp(CATEGORY_VALUES, "Optional category filter"))
-                            add("memoryType", enumProp(MEMORY_TYPE_VALUES, "Overrides source"))
-                            add("minQuality", enumProp(QUALITY_GRADES, "A strictest"))
-                            add("minScore", numProp("0-1, suggested 0.5", min = 0.0, max = 1.0))
+                            add("query", strProp("Refined topic keywords, not full user sentence"))
+                            add("topK", intProp("Number of results, 1-20, default 5", min = 1, max = 20))
+                            add("source", enumProp(SOURCE_VALUES,
+                                "user=user's own words (default); " +
+                                "character=character inner narratives only; " +
+                                "all=both"))
                             add("dateString", JsonObject().apply {
                                 addProperty("type", "string")
                                 addProperty("pattern", "^\\d{4}-\\d{2}-\\d{2}$")
                                 addProperty("description",
-                                    "YYYY-MM-DD. Only if user names a specific date. NOT today by default.")
+                                    "YYYY-MM-DD. Only if user names a specific date.")
                             })
-                            add("withinDays", intProp("Last N days; only if user named a range", min = 1))
-                            add("excludeIds", JsonObject().apply {
-                                addProperty("type", "array")
-                                add("items", strProp(null))
-                                addProperty("description", "Pagination: ids already seen")
-                            })
-                            add("excludeRecentEcho", boolProp("Default true; skip recent echo"))
-                            add("includeFacts", boolProp("Return memory_facts, default false"))
+                            add("withinDays", intProp("Last N days, only if user names a range", min = 1))
+                            add("includeFacts", boolProp("Return memory facts, default false"))
                         })
                     })
                 })
