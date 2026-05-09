@@ -422,7 +422,10 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         //     模型应当作"已经知道的事实", 不需要触发 search_memory.
         val bootstrapPrefix = buildBootstrapPrefixIfAny(assistantId)
 
-        // 3. 自动对话: 在 system 末尾注入 META 协议指令, 让模型在回复尾部自带 split / followUp 决策.
+        // 3. 工具使用指引: 仅 ToolBridge ready 时注入. 模型级系统指令, 和角色人设分离.
+        val toolSystemHint = buildToolSystemHint(toolBridge)
+
+        // 4. 自动对话: 在 system 末尾注入 META 协议指令, 让模型在回复尾部自带 split / followUp 决策.
         //    closeness 影响 followUp 默认门槛 (亲密度高 → 主动消息阈值放宽).
         val autoChatSuffix = if (options.autoChatEnabled)
             ProactivePromptBuilder.buildSystemSuffix(closeness) else ""
@@ -433,6 +436,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
             if (bootstrapPrefix.isNotEmpty()) append(bootstrapPrefix).append('\n')
             val origin = (options.systemPrompt ?: "").trim()
             if (origin.isNotEmpty()) append(origin)
+            if (toolSystemHint.isNotEmpty()) append("\n\n").append(toolSystemHint)
             if (autoChatSuffix.isNotEmpty()) append('\n').append(autoChatSuffix)
         }
         val effectiveOptions = if (mergedSystemPrompt != options.systemPrompt)
@@ -691,6 +695,37 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                 }
             }
         }.trimEnd()
+    }
+
+    /**
+     * 模型级工具使用指引. 和角色人设完全分离 — 这段写给"AI 模型"而非"角色".
+     * 只在 ToolBridge ready 时返回内容, 否则空串.
+     */
+    private fun buildToolSystemHint(toolBridge: com.example.aichat.sync.ToolBridge?): String {
+        if (toolBridge == null || !toolBridge.isReady()) return ""
+        val toolNames = try {
+            toolBridge.toolsJson().mapNotNull { el ->
+                el.asJsonObject?.getAsJsonObject("function")?.get("name")?.asString
+            }
+        } catch (_: Exception) { emptyList() }
+        if (toolNames.isEmpty()) return ""
+
+        return buildString {
+            append("[System — Tool Instructions]\n")
+            append("You have ${toolNames.size} tool(s) available: ${toolNames.joinToString(", ")}.\n")
+            if ("search_memory" in toolNames) {
+                append("- search_memory: search the user's conversation history and character narratives. ")
+                append("Use it when the user references past events, preferences, plans, or relationships. ")
+                append("For most queries about what the user said or experienced, use source='user' (default) or omit. ")
+                append("source='character' only searches character-generated internal narratives (very few entries), NOT user conversations. ")
+                append("Use source='all' when unsure.\n")
+            }
+            if ("correct_memory" in toolNames) {
+                append("- correct_memory: fix or delete incorrect memories found via search_memory.\n")
+            }
+            append("Call tools when relevant; do not fabricate information you could look up. ")
+            append("If a search returns count=0, tell the user honestly that no record was found.")
+        }
     }
 
     /**
