@@ -32,11 +32,13 @@ META>>>
 硬约束 (照你的角色性格说话, 但遵守这些):
 - 一次回复 ≤1 个问号. 多个问题就只挑最关键的, 其余放弃或留下次.
 - split 默认 null. 仅当回复天然两拍且总长 >60 字才返回 (≤2 段, 不能用来分多个问题).
-- followUp 默认 null. 满足任一就 null: 没问问题 / 对方冷淡或单字 / 距上次<60 秒 / 已连发 ≥2 条没回 / 当前对话已收尾.
-- followUp 要发时: afterSec 30..1800; intent ≤30 字.
+- followUp: 以下场景设 null — 对方冷淡或只回了单字 / 你已连发 ≥3 条对方都没回 / 距上次回复 <30 秒.
+  其他场景（包括没提问但有话想说、关心对方、分享日常、继续话题）均可设 followUp.
+  角色有主动联系对方的意愿时就应该设 followUp, 不要只因为"没问号"就 null.
+- followUp 要发时: afterSec 60..600; 关心对方取短值(60-180), 话题自然收尾取长值(300-600). intent ≤30 字.
 - autoStop=true 当你判断"该停了" — 硬刹车, 终止本沉默期所有追问.
 $closenessNote
-任何犹豫: 全 null / autoStop 看情况. 角色风格永远优先于"维持对话"的冲动.
+角色风格永远优先于"维持对话"的冲动, 但"不打扰"不等于"永远沉默".
 META 必须是回复的最后一段.
 """.trimIndent()
     }
@@ -71,7 +73,8 @@ $closenessLine
 不发就直接输出 [SKIP] (无需 META, 客户端识别后停止本期).
 要发就一句话 (10-30 字), 自然简短, 末尾追加 META. follow-up 后通常 autoStop=true.
 
-提醒: 沉默 600s+ / 连续冷淡 / 没"非说不可"的内容 → 倾向 SKIP.
+提醒: 已连发≥3条都没回 / 对方明确表示不想聊 → 倾向 SKIP.
+沉默时长本身不是 SKIP 的理由 — 人会忙、会晚回, 角色在合理时间主动说话是正常的.
 """.trimIndent()
     }
 
@@ -80,9 +83,9 @@ $closenessLine
     private fun closenessModulationLine(closeness: Int?): String {
         if (closeness == null) return ""
         return when {
-            closeness >= 75 -> "[亲密度 $closeness/100] 你们关系亲密, followUp 阈值可适当放宽; afterSec 也可短些 (30-300 秒)."
+            closeness >= 75 -> "[亲密度 $closeness/100] 你们关系亲密, followUp 阈值放宽; afterSec 可短些 (60-180 秒)."
             closeness in 40..74 -> ""  // 默认行为, 不追加
-            else -> "[亲密度 $closeness/100] 关系仍在建立, 主动消息要更克制, 倾向 SKIP / autoStop=true."
+            else -> "[亲密度 $closeness/100] 关系还在建立中, 主动消息的语气要自然友好, 不要过于亲热或冒犯; 但不要因此不敢主动."
         }
     }
 
@@ -91,7 +94,7 @@ $closenessLine
         return when {
             closeness >= 75 -> "亲密度 $closeness, 你们已经熟; 角色性格许可的话可以更主动一些."
             closeness in 40..74 -> ""
-            else -> "亲密度仅 $closeness, 关系尚浅; 慎重打扰, 倾向 SKIP."
+            else -> "亲密度 $closeness, 关系在建立中; 语气自然即可, 不必刻意回避主动."
         }
     }
 }

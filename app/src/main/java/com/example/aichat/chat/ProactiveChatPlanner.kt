@@ -6,6 +6,7 @@ import android.os.Looper
 import android.util.Log
 import com.example.aichat.AppDatabase
 import com.example.aichat.Message
+import com.example.aichat.MyAssistantStore
 import com.example.aichat.SessionChatOptions
 import com.example.aichat.proactive.ProactiveFollowUpWorker
 import java.util.concurrent.ConcurrentHashMap
@@ -100,12 +101,28 @@ class ProactiveChatPlanner(
             Log.i(TAG, "model emitted autoStop=true on user-driven turn; no follow-up scheduled")
             return
         }
+        // 模型给了 followUp 就用; 没给的话, 如果角色允许主动消息, 注入默认兜底 followUp.
+        val effectiveFollowUp = meta.followUp ?: buildFallbackFollowUp(assistantId)
         scheduleFollowUp(
             sessionId = sessionId,
             assistantId = assistantId,
-            followUp = meta.followUp,
+            followUp = effectiveFollowUp,
             chainDepth = 1,
         )
+    }
+
+    /**
+     * 兜底 follow-up: 当模型未输出 followUp 且角色有 allowProactiveMessage 时,
+     * 注入一个低优先级的默认追问, 避免 follow-up 链完全断裂.
+     */
+    private fun buildFallbackFollowUp(assistantId: String): ProactiveFollowUp? {
+        if (assistantId.isEmpty()) return null
+        return try {
+            val assistant = MyAssistantStore(context).getById(assistantId)
+            if (assistant?.allowProactiveMessage == true) {
+                ProactiveFollowUp(afterSec = 300, intent = "关心对方近况")
+            } else null
+        } catch (_: Exception) { null }
     }
 
     /**
@@ -158,14 +175,13 @@ class ProactiveChatPlanner(
             val r = Runnable {
                 executor.execute {
                     try {
-                        if (!ProactiveBudget.consumeIfAllowed(context, sessionId)) {
-                            Log.i(TAG, "split[$i] suppressed: daily budget exhausted")
-                            return@execute
-                        }
+                        // split 是对同一条回复的拆分显示, 不消耗 follow-up 每日预算
                         val msg = Message(sessionId, Message.ROLE_ASSISTANT, part)
                         msg.assistantId = assistantId
                         msg.proactiveKind = 1
-                        // 不 stamp turnId: server 还不收 split 副本.
+                        // turnId 用 Message 构造的默认 UuidV7 (本地稳定 id, 删除同步可定位).
+                        // synced=1: server 还不收 split 副本, drainer 别去推.
+                        msg.synced = 1
                         val newId = db.messageDao().insert(msg)
                         msg.id = newId
                         onMessageAppended(msg)

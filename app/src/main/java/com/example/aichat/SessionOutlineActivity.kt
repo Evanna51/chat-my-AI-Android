@@ -41,6 +41,21 @@ class SessionOutlineActivity : ThemedActivity() {
     private lateinit var textEmpty: TextView
     private val executor = Executors.newSingleThreadExecutor()
 
+    /** 解析大纲提示词：优先会话级，回退到助手级 */
+    private fun resolveOutlinePrompt(): String {
+        // 会话级 outlinePrompt
+        val sessionPrompt = SessionChatOptionsStore(this).get(sessionId).outlinePrompt.trim()
+        if (sessionPrompt.isNotEmpty()) return sessionPrompt
+        // 助手级 outlinePrompt
+        val assistantId = SessionAssistantBindingStore(this).getAssistantId(sessionId)
+        if (assistantId.isNotEmpty()) {
+            val assistant = MyAssistantStore(this).getById(assistantId)
+            val assistantPrompt = assistant?.options?.outlinePrompt?.trim().orEmpty()
+            if (assistantPrompt.isNotEmpty()) return assistantPrompt
+        }
+        return ""
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_session_outline)
@@ -745,7 +760,9 @@ class SessionOutlineActivity : ThemedActivity() {
             val contextItems = mutableListOf<SessionOutlineItem>()
             contextItems.addAll(rangeChapters)
             contextItems.addAll(all.filter { it.type in setOf("task", "world", "knowledge", "material") })
-            val promptCtx = OutlinePromptBuilder.buildFull(contextItems)
+            val promptCtx = OutlinePromptBuilder.appendOutlinePrompt(
+                OutlinePromptBuilder.buildFull(contextItems), resolveOutlinePrompt()
+            )
 
             Toast.makeText(this, "正在生成卷纲…", Toast.LENGTH_SHORT).show()
             ChatService(this).generateVolumeOutline(
@@ -839,10 +856,13 @@ class SessionOutlineActivity : ThemedActivity() {
      */
     private fun runKnowledgeExtraction() {
         val all = outlineStore.getAll(sessionId)
+        val oprompt = resolveOutlinePrompt()
         val chapters = all.filter { "chapter" == outlineStore.normalizeType(it.type) }
         if (chapters.isEmpty()) {
             // 没章节也允许跑：基于人物/世界/已有知情提取通用约束
-            val outlineText = OutlinePromptBuilder.buildFull(all)
+            val outlineText = OutlinePromptBuilder.appendOutlinePrompt(
+                OutlinePromptBuilder.buildFull(all), oprompt
+            )
             if (outlineText.isEmpty()) {
                 Toast.makeText(this, "大纲为空，无法分析", Toast.LENGTH_SHORT).show()
                 return
@@ -862,7 +882,9 @@ class SessionOutlineActivity : ThemedActivity() {
                     "task", "world", "knowledge", "material" -> filtered.add(item)
                 }
             }
-            val baseText = OutlinePromptBuilder.buildFull(filtered)
+            val baseText = OutlinePromptBuilder.appendOutlinePrompt(
+                OutlinePromptBuilder.buildFull(filtered), oprompt
+            )
             val scopeLabel = "${rangeChapters.first().title.trim()} ~ ${rangeChapters.last().title.trim()}"
             // 在 prompt 顶部插一个【目标章节范围】小节，让模型知道 chapter 字段只能取自这些标题。
             val outlineText = buildString {
@@ -1195,18 +1217,30 @@ class SessionOutlineActivity : ThemedActivity() {
     }
 
     private fun startChapterPlanRequest(spec: ChapterPlanTargetSpec) {
-        // 先弹编辑对话框（带"生成中…"状态），然后异步收集大纲与对话上下文，模型回调时填字段。
         val dialogTitle = if (spec.isExisting) "章节计划：${spec.targetTitle}（覆盖）"
                           else "章节计划：${spec.targetTitle}（新建）"
         val initial = ChapterPlanDraft().apply {
             if (spec.targetLength.isNotEmpty()) targetLength = spec.targetLength
         }
+        // resolved: true = 用户已手动保存或取消 → 停止一切后续处理
+        // backgroundMode: true = 用户点了"后台"按钮 → 对话框关闭但后台继续, 完成后自动添加草稿
         var resolved = false
+        var backgroundMode = false
         val controller = ChapterPlanDialog.show(
             this, dialogTitle, initial,
             initialStatus = "正在收集大纲与上下文…",
             object : ChapterPlanDialog.Callback {
-                override fun onCancel() { resolved = true }
+                override fun onCancel() {
+                    resolved = true
+                }
+                override fun onBackground() {
+                    backgroundMode = true
+                    Toast.makeText(
+                        this@SessionOutlineActivity,
+                        "章节计划在后台继续生成，完成后将自动添加草稿",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
                 override fun onSave(edited: ChapterPlanDraft) {
                     resolved = true
                     persistChapterPlanToOutline(spec, edited)
@@ -1234,43 +1268,57 @@ class SessionOutlineActivity : ThemedActivity() {
                 recentDialogue = dialogue,
                 userHint = spec.userHint,
                 targetLength = spec.targetLength,
+                outlinePrompt = resolveOutlinePrompt(),
             )
 
             runOnUiThread {
                 if (resolved) return@runOnUiThread
-                controller.setStatus("正在请求章节计划模型…")
+                if (!backgroundMode) controller.setStatus("正在请求章节计划模型…")
                 ChatService(this).generateChapterPlanJson(ctx, object : ChatService.ChatCallback {
                     override fun onPartial(delta: String) {
                         runOnUiThread {
-                            if (resolved) return@runOnUiThread
-                            if (delta.trim().isNotEmpty()) controller.setStatus(delta.trim())
+                            if (!resolved && !backgroundMode && delta.trim().isNotEmpty()) {
+                                controller.setStatus(delta.trim())
+                            }
                         }
                     }
 
                     override fun onSuccess(content: String) {
+                        if (resolved) return
                         runOnUiThread {
-                            if (resolved) return@runOnUiThread
                             val draft = parseChapterPlanDraft(content)
-                            if (draft == null) {
-                                controller.setStatus("计划解析失败，可手动填写后保存")
-                                return@runOnUiThread
-                            }
-                            if (spec.targetLength.isNotEmpty() && draft.targetLength.trim().isEmpty()) {
+                            if (draft != null && spec.targetLength.isNotEmpty()
+                                && draft.targetLength.trim().isEmpty()) {
                                 draft.targetLength = spec.targetLength
                             }
-                            controller.applyDraft(draft, fillOnlyEmpty = false)
-                            controller.setStatus(
-                                if (draft.hasAnyContent()) "章节计划已生成，可编辑后保存"
-                                else "已解析到结构，但字段为空；可手动填写后保存"
-                            )
+
+                            if (backgroundMode && draft != null && draft.hasAnyContent()) {
+                                // 后台模式 → 自动添加草稿到大纲
+                                persistChapterPlanDraftToOutline(spec, draft)
+                            } else if (!backgroundMode && draft != null) {
+                                // 对话框仍然打开 → 填入字段让用户编辑
+                                controller.applyDraft(draft, fillOnlyEmpty = false)
+                                controller.setStatus(
+                                    if (draft.hasAnyContent()) "章节计划已生成，可编辑后保存"
+                                    else "已解析到结构，但字段为空；可手动填写后保存"
+                                )
+                            }
                         }
                     }
 
                     override fun onError(message: String) {
+                        if (resolved) return
                         runOnUiThread {
-                            if (resolved) return@runOnUiThread
-                            val msg = if (message.trim().isNotEmpty()) message.trim() else "章节计划生成失败"
-                            controller.setStatus("$msg。可手动填写后保存。")
+                            if (backgroundMode) {
+                                Toast.makeText(
+                                    this@SessionOutlineActivity,
+                                    "章节计划后台生成失败",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                val msg = if (message.trim().isNotEmpty()) message.trim() else "章节计划生成失败"
+                                controller.setStatus("$msg。可手动填写后保存。")
+                            }
                         }
                     }
                 })
@@ -1278,16 +1326,21 @@ class SessionOutlineActivity : ThemedActivity() {
         }
     }
 
+    /** 后台生成完成后自动以"草稿"形式新增到大纲 */
+    private fun persistChapterPlanDraftToOutline(spec: ChapterPlanTargetSpec, draft: ChapterPlanDraft) {
+        val text = draft.toOutlineText()
+        val draftTitle = "${spec.targetTitle} 草稿"
+        outlineStore.add(sessionId, "chapter", draftTitle, text)
+        Toast.makeText(this, "草稿已自动添加：$draftTitle", Toast.LENGTH_SHORT).show()
+        refreshList()
+    }
+
+    /** 用户手动保存 → 始终新增草稿条目（不覆盖已有条目） */
     private fun persistChapterPlanToOutline(spec: ChapterPlanTargetSpec, draft: ChapterPlanDraft) {
         val text = draft.toOutlineText()
-        if (spec.isExisting && spec.existingItem != null) {
-            val updated = spec.existingItem.copy(content = text)
-            outlineStore.update(sessionId, updated)
-            Toast.makeText(this, "已覆盖：${spec.targetTitle}", Toast.LENGTH_SHORT).show()
-        } else {
-            outlineStore.add(sessionId, "chapter", spec.targetTitle, text)
-            Toast.makeText(this, "已加入大纲：${spec.targetTitle}", Toast.LENGTH_SHORT).show()
-        }
+        val draftTitle = "${spec.targetTitle} 草稿"
+        outlineStore.add(sessionId, "chapter", draftTitle, text)
+        Toast.makeText(this, "已加入大纲：$draftTitle", Toast.LENGTH_SHORT).show()
         refreshList()
     }
 

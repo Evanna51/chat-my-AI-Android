@@ -21,20 +21,32 @@ class CharacterMemoryService(context: Context) {
 
     fun isEnabled(): Boolean = configStore.isEnabled()
 
+    /**
+     * 调 /api/chat/context（Phase 2 取代旧 /api/tool/memory-context）。
+     * server 内部仍跑 retrieve decision + retrieval；返回的 ChatContextResponse 含
+     * memoryDecision.shouldRetrieve / memoryLines / memoryGuidance —— 这里保持
+     * MemoryContextResponse 旧 schema 以最小化 caller 改动。
+     */
     @Throws(Exception::class)
     fun getMemoryContext(
         assistantId: String?,
         sessionId: String?,
         userMessage: String?
     ): CharacterMemoryApi.MemoryContextResponse {
-        val body = CharacterMemoryApi.MemoryContextRequest()
-        body.assistantId = safeTrim(assistantId)
-        body.sessionId = safeTrim(sessionId)
         val safeInput = safeTrim(userMessage)
-        body.userInput = safeInput
-        body.userMessage = safeInput
-
-        val raw = postJson(CharacterMemoryApi.PATH_MEMORY_CONTEXT, GSON.toJson(body))
+        if (safeInput.isEmpty()) {
+            // chat/context 要求 userInput.min(1)
+            return CharacterMemoryApi.MemoryContextResponse().apply {
+                ok = false
+                reason = "empty_user_input"
+            }
+        }
+        val body = JsonObject().apply {
+            addProperty("assistantId", safeTrim(assistantId))
+            addProperty("sessionId", safeTrim(sessionId))
+            addProperty("userInput", safeInput)
+        }
+        val raw = postJson(CharacterMemoryApi.PATH_CHAT_CONTEXT, GSON.toJson(body))
         return parseMemoryContextResponse(raw)
     }
 
@@ -87,8 +99,12 @@ class CharacterMemoryService(context: Context) {
         try {
             val obj = JsonParser().parse(raw).asJsonObject
             out.ok = getBoolean(obj, "ok")
-            out.shouldUseMemory = getBoolean(obj, "shouldUseMemory")
-            out.reason = getString(obj, "reason")
+            // Phase 2: chat/context 用 memoryDecision.shouldRetrieve；旧 memory-context
+            // 用顶层 shouldUseMemory。优先读新字段，fallback 旧字段（保护启动期不一致）。
+            val mdObj = if (obj.has("memoryDecision") && obj.get("memoryDecision").isJsonObject)
+                obj.getAsJsonObject("memoryDecision") else null
+            out.shouldUseMemory = if (mdObj != null) getBoolean(mdObj, "shouldRetrieve") else getBoolean(obj, "shouldUseMemory")
+            out.reason = if (mdObj != null) getString(mdObj, "reason") else getString(obj, "reason")
             out.memoryGuidance = getString(obj, "memoryGuidance")
 
             val lines: JsonArray? = if (obj.has("memoryLines") && obj.get("memoryLines").isJsonArray)

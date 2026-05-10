@@ -41,7 +41,8 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:fillViewport="true">
+        android:fillViewport="true"
+        android:layout_marginBottom="0dp">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -333,8 +334,27 @@
             android:layout_height="match_parent"
             android:layout_weight="1"
             android:text="取消"
-            android:textSize="16sp"
+            android:textSize="15sp"
             android:textColor="@color/ios_section_label"
+            android:gravity="center"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <View
+            android:layout_width="0.5dp"
+            android:layout_height="match_parent"
+            android:background="?attr/colorOutline"
+            android:alpha="0.3" />
+
+        <TextView
+            android:id="@+id/btnPlanBackground"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:text="后台"
+            android:textSize="15sp"
+            android:textColor="?attr/colorSecondary"
             android:gravity="center"
             android:background="?attr/selectableItemBackground"
             android:clickable="true"
@@ -351,8 +371,8 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:text="保存到大纲"
-            android:textSize="16sp"
+            android:text="保存"
+            android:textSize="15sp"
             android:textStyle="bold"
             android:textColor="?attr/colorPrimary"
             android:gravity="center"

@@ -279,6 +279,9 @@ class ProactiveFollowUpWorker(
             val msg = Message(sessionId, Message.ROLE_ASSISTANT, finalContent)
             msg.assistantId = assistantId
             msg.proactiveKind = 2
+            // turnId 用 Message 构造的默认 UuidV7 (确保删除同步可定位).
+            // synced=1: 这条 server 不收 (本地 worker 自决), drainer 别去推.
+            msg.synced = 1
             db.messageDao().insert(msg)
         } catch (e: Exception) {
             Log.w(TAG, "persist failed", e)

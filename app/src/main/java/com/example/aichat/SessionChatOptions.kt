@@ -31,5 +31,11 @@ data class SessionChatOptions(
      * 每日上限. 0 = 走 [com.example.aichat.chat.ProactiveChatPlanner.DEFAULT_DAILY_BUDGET].
      * 用户可在会话设置里调整 (1..200; 太大也没意义, 角色不应轰炸用户).
      */
-    @JvmField var proactiveDailyBudget: Int = 0
+    @JvmField var proactiveDailyBudget: Int = 0,
+    /**
+     * 大纲生成时注入的额外 prompt（文风/风格指导等）。
+     * 在 OutlinePromptBuilder 构建大纲上下文时追加到末尾，喂给模型辅助生成。
+     * 对话配置和助手配置都可设置；对话级覆盖助手级。
+     */
+    @JvmField var outlinePrompt: String = ""
 )

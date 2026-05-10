@@ -26,6 +26,8 @@ data class ChapterPlanContext(
     val userHint: String,
     /** 期望篇幅（字数），从输入框透传给模型作为 targetLength 默认值。 */
     val targetLength: String,
+    /** 大纲提示词（文风/风格指导），从助手或对话设置解析，可为空。 */
+    val outlinePrompt: String = "",
 )
 
 class CharacterDrive {

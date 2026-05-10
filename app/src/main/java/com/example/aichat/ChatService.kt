@@ -418,7 +418,7 @@ class ChatService(context: Context) {
         })
     }
 
-    fun generateSessionOutline(history: List<Message>?, callback: ChatCallback) {
+    fun generateSessionOutline(history: List<Message>?, outlinePrompt: String? = null, callback: ChatCallback) {
         val source = history ?: ArrayList()
         if (source.isEmpty()) {
             callback.onError("暂无可总结内容")
@@ -477,6 +477,10 @@ class ChatService(context: Context) {
             .build()
         val api = retrofit.create(ChatApi::class.java)
 
+        val styleGuide = outlinePrompt?.trim().orEmpty()
+        val styleLine = if (styleGuide.isNotEmpty())
+            "\n8) 文风与风格指导：$styleGuide" else ""
+
         val requestMessages = ArrayList<ChatApi.ChatMessage>()
         requestMessages.add(ChatApi.ChatMessage("system",
             "你是对话大纲助手。请根据输入对话生成\u201C信息保真\u201D的大纲正文（80到320字），宁可稍长也不要遗漏关键信息。\n" +
@@ -489,7 +493,7 @@ class ChatService(context: Context) {
                     "4) outline 内容不要标题，不要列表。\n" +
                     "5) 必须保留关键细节：人物/对象名称、核心事件、动机或目标、约束条件、结果或当前进展。\n" +
                     "6) 若原文出现时间、地点、数字、专有名词、规则设定，优先保留，不要泛化改写。\n" +
-                    "7) 避免空泛词（如\u201C发生了一些事\u201D\u201C进行了讨论\u201D），改为具体事实。"))
+                    "7) 避免空泛词（如\u201C发生了一些事\u201D\u201C进行了讨论\u201D），改为具体事实。" + styleLine))
         requestMessages.add(ChatApi.ChatMessage("user", prompt))
 
         val request = ChatApi.ChatRequest()
@@ -553,7 +557,7 @@ class ChatService(context: Context) {
             })
     }
 
-    fun summarizeMessageForOutline(content: String?, callback: ChatCallback) {
+    fun summarizeMessageForOutline(content: String?, outlinePrompt: String? = null, callback: ChatCallback) {
         var source = content?.trim() ?: ""
         if (source.isEmpty()) {
             callback.onError(context.getString(R.string.error_message_empty))
@@ -600,6 +604,10 @@ class ChatService(context: Context) {
         val api = retrofit.create(ChatApi::class.java)
 
         val requestMessages = ArrayList<ChatApi.ChatMessage>()
+        val styleGuide2 = outlinePrompt?.trim().orEmpty()
+        val styleLine2 = if (styleGuide2.isNotEmpty())
+            "\n8) 文风与风格指导：$styleGuide2" else ""
+
         requestMessages.add(ChatApi.ChatMessage("system",
             "你是小说写作助手。请把输入内容提炼为可放入大纲的条目正文（80到280字），要求细节充分、便于后续续写。\n" +
                     "仅输出一个JSON对象，不要任何额外文本。\n" +
@@ -611,7 +619,7 @@ class ChatService(context: Context) {
                     "4) summary 内容不要标题，不要列表。\n" +
                     "5) 必须覆盖：关键事件经过、人物意图/冲突、重要设定或规则、任务线索与阶段结果。\n" +
                     "6) 保留可复用细节：时间地点、名称称谓、数字阈值、道具/能力/组织名等。\n" +
-                    "7) 不要只写结论，需包含必要过程与因果关系。"))
+                    "7) 不要只写结论，需包含必要过程与因果关系。" + styleLine2))
         requestMessages.add(ChatApi.ChatMessage("user", source))
 
         val request = ChatApi.ChatRequest()
@@ -839,6 +847,11 @@ class ChatService(context: Context) {
         val target = ctx.targetLength.trim()
         if (target.isNotEmpty()) {
             sb.append("\n【期望篇幅】").append(target).append("（请将此值写入 targetLength 字段）\n")
+        }
+
+        val oprompt = ctx.outlinePrompt.trim()
+        if (oprompt.isNotEmpty()) {
+            sb.append("\n【文风与风格指导】\n").append(truncate(oprompt, 600)).append("\n")
         }
 
         // 末尾再强调一次目标章节，模型在长 prompt 中往往关注首尾。
@@ -2219,11 +2232,15 @@ class ChatService(context: Context) {
          * to the local message log so chat history is a faithful audit trail
          * of every LLM round.
          *
-         * Phase A2 contract: rows persisted via this callback MUST NOT be
-         * pushed to the remote sync server — server schema does not yet
-         * accept role=tool_call / tool_result. Implementations should leave
-         * `turnId`/`assistantId` empty on the inserted row so
-         * SyncQueueDrainer's `WHERE turnId != ''` filter skips it.
+         * Contract: rows persisted via this callback MUST NOT be pushed to
+         * the remote sync server — they're a local-only audit trail.
+         * (Server schema since 2026-Q1 *does* accept role=tool_call /
+         * tool_result, but we intentionally keep tool rounds local to limit
+         * upload volume.) Implementations should leave `assistantId` empty
+         * so SyncQueueDrainer's `assistantId != ''` filter skips them.
+         * `turnId` is auto-assigned a non-empty UuidV7 by Message's
+         * constructor — leave it alone; future cross-end delete sync may
+         * rely on it.
          */
         fun onToolMessageRecorded(record: ToolMessageRecord) {}
         /**

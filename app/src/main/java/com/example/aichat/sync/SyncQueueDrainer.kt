@@ -50,13 +50,13 @@ object SyncQueueDrainer {
             if (batch.isEmpty()) break
             anyRound = true
 
-            val request = SyncPushRequest(
+            val request = ChatTurnRequest(
                 deviceId = deviceId,
                 turns = batch.map { it.toTurnDto() }
             )
 
             val response = try {
-                api.syncPush(request)
+                api.chatTurn(request)
             } catch (e: ChatServerApi.HttpStatusException) {
                 if (e.statusCode == 401) {
                     val msg = "unauthorized (api key invalid)"
@@ -88,8 +88,8 @@ object SyncQueueDrainer {
                 )
             }
 
-            totalAccepted += response.accepted
-            totalSkipped += response.skipped
+            totalAccepted += response.ingested
+            totalSkipped += response.deduped
             totalRejected += response.rejected
 
             if (batch.size < BATCH_SIZE) break

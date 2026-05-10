@@ -11,6 +11,15 @@ import java.util.concurrent.TimeUnit
 /**
  * Thin HTTP client for wi-chat-server sync endpoints. Synchronous; designed
  * to be called from a background executor / WorkManager / coroutine on IO.
+ *
+ * Phase 2 端点（client lifecycle 视角，见 docs/api-redesign-plan.md §3 + §6 Phase 2）：
+ *   App 启动 / 切换角色      → [getCharacter]
+ *   每轮发消息前 hot path    → [chatContext]
+ *   发完一轮上传             → [chatTurn]
+ *   删除一条消息             → [deleteChatTurn]
+ *
+ * 兼容端点：[characterContext]（admin / debug / boot cache 用），[snapshotPush]，
+ * [syncState]。已删除：syncPush / characterBootstrap（Phase 2 cleanup）。
  */
 class ChatServerApi(
     private val baseUrl: String,
@@ -38,28 +47,106 @@ class ChatServerApi(
         } catch (_: Exception) { false }
     }
 
+    // ── Phase 2: client-lifecycle endpoints ─────────────────────────────
+
     /**
-     * POST /api/sync/push — batch upload turns. Response is parsed into
-     * [SyncPushResponse]; on transport error, an exception is thrown.
+     * GET /api/character/{assistantId} — App 启动 / 切换角色时拉静态 slots（取代 bootstrap）。
+     * 返回 profile + identity + 5 个 rendered slot（role / character / background /
+     * constraints / tool_protocol）+ etag。客户端长缓存到 etag 失效。
      */
     @Throws(IOException::class)
-    fun syncPush(request: SyncPushRequest): SyncPushResponse {
+    fun getCharacter(assistantId: String): ChatCharacterResponse {
         require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
-        val body = gson.toJson(request).toRequestBody(JSON)
-        val req = Request.Builder()
-            .url("$baseUrl/api/sync/push")
-            .header("x-api-key", apiKey)
-            .post(body)
-            .build()
-        client.newCall(req).execute().use { resp ->
+        require(assistantId.isNotEmpty()) { "assistantId required" }
+        val url = "$baseUrl/api/character/${urlEncode(assistantId)}"
+        val builder = Request.Builder().url(url).get()
+        if (apiKey.isNotEmpty()) builder.header("x-api-key", apiKey)
+        client.newCall(builder.build()).execute().use { resp ->
             val text = resp.body?.string().orEmpty()
             if (!resp.isSuccessful) {
                 throw HttpStatusException(resp.code, text.take(512))
             }
-            return parseResponse(text, SyncPushResponse::class.java)
-                ?: throw IOException("empty push response")
+            return parseResponse(text, ChatCharacterResponse::class.java)
+                ?: throw IOException("empty character response")
         }
     }
+
+    /**
+     * POST /api/chat/context — 每轮发消息前 hot path（取代 character/context + memory-context）。
+     * 一次返回：facts slot（含 coreFacts + retrieved）+ narrative slot + assistantPrefill +
+     * memoryDecision + etag（如失配附 renderedSlots）。
+     *
+     * 客户端 merge 顺序：role + character + background + constraints + facts + narrative
+     * + <client>(客户端本地追加) + tool_protocol，末尾 assistantPrefill。详见
+     * docs/client-prompt-merge-protocol.md。
+     */
+    @Throws(IOException::class)
+    fun chatContext(request: ChatContextRequest): ChatContextResponse {
+        require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
+        require(request.assistantId.isNotEmpty()) { "assistantId required" }
+        require(request.sessionId.isNotEmpty()) { "sessionId required" }
+        val body = gson.toJson(request).toRequestBody(JSON)
+        val builder = Request.Builder()
+            .url("$baseUrl/api/chat/context")
+            .post(body)
+        if (apiKey.isNotEmpty()) builder.header("x-api-key", apiKey)
+        client.newCall(builder.build()).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) {
+                throw HttpStatusException(resp.code, text.take(512))
+            }
+            return parseResponse(text, ChatContextResponse::class.java)
+                ?: throw IOException("empty chat context response")
+        }
+    }
+
+    /**
+     * POST /api/chat/turn — 上传一轮（语义化别名 /api/sync/push，行为完全等价）。
+     * server 内部走同一个 ingestTurnsBatch；用同一个客户端 turn UUID 即可幂等。
+     */
+    @Throws(IOException::class)
+    fun chatTurn(request: ChatTurnRequest): ChatTurnResponse {
+        require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
+        require(request.turns.isNotEmpty()) { "turns required" }
+        val body = gson.toJson(request).toRequestBody(JSON)
+        val builder = Request.Builder()
+            .url("$baseUrl/api/chat/turn")
+            .post(body)
+        if (apiKey.isNotEmpty()) builder.header("x-api-key", apiKey)
+        client.newCall(builder.build()).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) {
+                throw HttpStatusException(resp.code, text.take(512))
+            }
+            return parseResponse(text, ChatTurnResponse::class.java)
+                ?: throw IOException("empty chat turn response")
+        }
+    }
+
+    /**
+     * DELETE /api/chat/turn/{turnId} — 删除一条消息 + cascade（含衍生 memory_items / facts /
+     * episode_links 等清理 + 触发 state 重算 + WS 推 turn_deleted 给所有客户端）。
+     */
+    @Throws(IOException::class)
+    fun deleteChatTurn(turnId: String): DeleteTurnResponse {
+        require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
+        require(turnId.isNotEmpty()) { "turnId required" }
+        val url = "$baseUrl/api/chat/turn/${urlEncode(turnId)}"
+        val builder = Request.Builder().url(url).delete()
+        if (apiKey.isNotEmpty()) builder.header("x-api-key", apiKey)
+        client.newCall(builder.build()).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful && resp.code != 404) {
+                throw HttpStatusException(resp.code, text.take(512))
+            }
+            return parseResponse(text, DeleteTurnResponse::class.java)
+                ?: throw IOException("empty delete response")
+        }
+    }
+
+    // ── 兼容端点 ────────────────────────────────────────────────────────
+    // /api/sync/push 已于 Phase 2 删除（语义化为 chatTurn，行为等价）。
+    // /api/sync/snapshot 保留 — assistants + turns 一次性同步，与 chat/turn 不同语义。
 
     /**
      * POST /api/sync/snapshot — 一次性同步: 上传 assistants 元数据 + 一批 turns.
@@ -85,17 +172,21 @@ class ChatServerApi(
     }
 
     /**
-     * POST /api/character/context — Character Cognition v1 主入口 (CR-04.1).
-     * 一次返回 7 层 payload + 拼好的 promptFragment, 替代旧 bootstrap + relationship/state.
-     * Body: `{ "assistantId": "...", "includePromptFragment": true }`
+     * POST /api/character/context — admin / debug / boot cache 端点。
+     * 返回 7 层认知态 payload + V_NEW_LEAN 8 个 slot + mergedSystem + assistantPrefill。
+     * 不带本轮 user 上下文（无 sessionId / userInput）；返回的 mergedSystem 中 facts /
+     * narrative slot 是占位（chat hot path 走 [chatContext] 拿带 facts 的版本）。
+     *
+     * 主要用于 [CharacterBootstrapStore] boot 时缓存 system prompt 雏形，让首条消息
+     * 延迟低。
      */
     @Throws(IOException::class)
-    fun characterContext(assistantId: String, includePromptFragment: Boolean = true): String {
+    fun characterContext(assistantId: String, lastUserMessage: String? = null): String {
         require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
         require(assistantId.isNotEmpty()) { "assistantId required" }
         val body = com.google.gson.JsonObject().apply {
             addProperty("assistantId", assistantId)
-            addProperty("includePromptFragment", includePromptFragment)
+            if (!lastUserMessage.isNullOrEmpty()) addProperty("lastUserMessage", lastUserMessage)
         }
         val builder = Request.Builder()
             .url("$baseUrl/api/character/context")
@@ -110,26 +201,8 @@ class ChatServerApi(
         }
     }
 
-    /**
-     * GET /api/character/bootstrap — DEPRECATED (CR-04.4): server 下个 release 移除.
-     * 仍保留作为 [characterContext] 失败时的 fallback (老 server 没部署新端点时兜底).
-     */
-    @Deprecated("Use characterContext (CR-04.1)", ReplaceWith("characterContext(assistantId)"))
-    @Throws(IOException::class)
-    fun characterBootstrap(assistantId: String): String {
-        require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
-        require(assistantId.isNotEmpty()) { "assistantId required" }
-        val url = "$baseUrl/api/character/bootstrap?assistantId=${urlEncode(assistantId)}"
-        val builder = Request.Builder().url(url).get()
-        if (apiKey.isNotEmpty()) builder.header("x-api-key", apiKey)
-        client.newCall(builder.build()).execute().use { resp ->
-            val text = resp.body?.string().orEmpty()
-            if (!resp.isSuccessful) {
-                throw HttpStatusException(resp.code, text.take(512))
-            }
-            return text
-        }
-    }
+    // /api/character/bootstrap 已于 Phase 2 删除（dev 客户端，无兼容包袱）。
+    // 客户端走 [getCharacter]（合并 profile + identity + etag-able 静态 slots）。
 
     /**
      * GET /api/sync/state — pull server-side counters for cross-checking.

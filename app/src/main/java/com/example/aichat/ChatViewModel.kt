@@ -26,8 +26,9 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
 
     companion object {
         private const val TAG = "ChatViewModel"
-        private const val INITIAL_RENDER_MESSAGE_LIMIT = 200
-        private const val LOAD_MORE_BATCH_SIZE = 50
+        // 微信式分页：默认只渲染最近 60 条，上拉加载更多。降低长会话打开时的卡顿。
+        private const val INITIAL_RENDER_MESSAGE_LIMIT = 60
+        private const val LOAD_MORE_BATCH_SIZE = 30
         private const val MAX_CORE_MEMORIES_IN_PROMPT = 8
         private const val MAX_CORE_FACTS_IN_PROMPT = 15
     }
@@ -250,18 +251,29 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         com.example.aichat.sync.WsClient.sendMessageUpdate(turnId, content, assistantId)
     }
 
+    /** 实时通道: message 被删 → 通知 server 删 turn + memory embedding + 跨端同步. */
+    private fun relayDeleteToWs(turnId: String, assistantId: String) {
+        if (turnId.isEmpty()) return
+        com.example.aichat.sync.WsClient.sendMessageDelete(turnId, assistantId)
+    }
+
     /**
-     * 按 id 删除 DB 里的一条消息 — 不依赖 persistSessionMessagesAsync 的对账.
-     *
-     * persist 流程只覆盖 role∈(0,1) 且 proactiveKind=0 的普通消息, proactive 行
-     * (远程推送 / 自动对话仿推送 / split) 不在对账列表里, 仅靠 allMessages 内存
-     * 移除是删不掉 DB 的, 重启 / loadMessages 又会被读出来 → "删除失败".
-     * onDelete 单条删除场景应直接调这个.
+     * 删一条消息: DB 删 + WS 同步 (server re-embed/删 memory + 跨端).
+     * 不依赖 persistSessionMessagesAsync 的对账 — proactive 行 (远程推送 / 仿推送 / split)
+     * 不在对账列表里, 仅靠 allMessages 内存移除是删不掉 DB 的, 重启 / loadMessages 又会被
+     * 读出来 → "删除失败". onDelete 单条删除场景应直接调这个.
      */
-    fun deleteMessageByIdAsync(messageId: Long) {
-        if (messageId <= 0L) return
+    fun deleteMessageAsync(message: Message) {
+        if (message.id <= 0L) return
+        val msgId = message.id
+        val turnId = message.turnId
+        val assistantId = message.assistantId
         executor.execute {
-            try { db.messageDao().deleteById(messageId) } catch (ignored: Exception) {}
+            try { db.messageDao().deleteById(msgId) } catch (ignored: Exception) {}
+            // ws 离线时 no-op; server 没收到也无大碍 — 本地 DB 已经删, 同账号其它端
+            // 下次 拉 server 也拉不到这条 (server 删了) 或仍能拉到 (server 没删, 此时
+            // 用户在其它端再删一次即可).
+            relayDeleteToWs(turnId, assistantId)
         }
     }
 
@@ -417,9 +429,9 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         val relationshipHint = buildRelationshipHintIfAny(assistantId)
         val closeness = readClosenessForAssistant(assistantId)
 
-        // 2b. Bootstrap-only: pinned coreMemories + 高分 coreFacts. 来自
-        //     GET /api/character/bootstrap 的内存 cache, 跨日才刷新.
-        //     模型应当作"已经知道的事实", 不需要触发 search_memory.
+        // 2b. V_NEW_LEAN mergedSystem (Phase 2). 来自 POST /api/character/context 的内存 cache，
+        //     server 已经渲染好 8 个 slot；含 facts / narrative slot 占位（boot 时无 user 上下文，
+        //     facts 是空），客户端 chat hot path 后续可以走 /api/chat/context 拿带 retrieved 的版本。
         val bootstrapPrefix = buildBootstrapPrefixIfAny(assistantId)
 
         // 3. 工具使用指引: 仅 ToolBridge ready 时注入. 模型级系统指令, 和角色人设分离.
@@ -562,9 +574,11 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                 override fun onToolMessageRecorded(record: ChatService.ToolMessageRecord) {
                     if (isStale()) return
                     // Persist tool-round messages to the local log for audit / replay.
-                    // Intentionally bypass stampForSync: server schema doesn't yet
-                    // accept role=tool_call/tool_result, so we leave turnId empty and
-                    // SyncQueueDrainer's `WHERE turnId != ''` filter will skip it.
+                    // Intentionally bypass stampForSync: 工具行只做本地审计, 不进
+                    // 同步队列. 不调 stampForSync → assistantId 留空 →
+                    // SyncQueueDrainer 的 `assistantId != ''` 过滤排除它.
+                    // (turnId 由 Message 构造器分配 UuidV7 默认值, 非空 — 跨端
+                    //  message_delete 仍可定位, 即使工具行当前未跨端同步.)
                     executor.execute {
                         try {
                             val msg = Message(sid, record.role, record.content)
@@ -662,11 +676,16 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     }
 
     /**
-     * Build prompt prefix from character context/bootstrap cache. Empty if no cache yet.
+     * Build prompt prefix from character/context cache. Empty if no cache yet.
      *
-     * 优先级 (CR-04.1):
-     *   1. promptFragment — 来自 POST /api/character/context, server 拼好的 ≤1500 字 system 段
-     *   2. coreMemories + coreFacts — 老 bootstrap 端点的 fallback (server 还没部署 context 时)
+     * Phase 2: 走 V_NEW_LEAN mergedSystem —— server 已经把 8 个 slot（role / character /
+     * background / constraints / facts / narrative / tool_protocol，不含 client slot）
+     * 渲染好。cache 里的 mergedSystem 来自 boot 时调 /api/character/context（不带本轮
+     * userInput，所以 facts/narrative 是占位）。
+     *
+     * 真实 chat hot path 应该每轮调 /api/chat/context 拿带 facts/narrative 的 mergedSystem
+     * —— 这是 followup（见 docs/client-prompt-merge-protocol.md），暂时仍用 boot cache
+     * 兜底以确保第一条消息延迟低。
      */
     private fun buildBootstrapPrefixIfAny(assistantId: String?): String {
         val aid = assistantId?.trim().orEmpty()
@@ -676,25 +695,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                 .getCached(aid)
         } catch (_: Exception) { null } ?: return ""
 
-        // 1. 新端点: 直接用 promptFragment, server 已经拼好了
-        if (cache.promptFragment.isNotEmpty()) return cache.promptFragment
-
-        // 2. 老端点 fallback: 自己拼 coreMemories + coreFacts
-        if (cache.coreMemories.isEmpty() && cache.coreFacts.isEmpty()) return ""
-        return buildString {
-            if (cache.coreMemories.isNotEmpty()) {
-                append("[你和用户的核心记忆 — 始终在你脑海里]\n")
-                cache.coreMemories.take(MAX_CORE_MEMORIES_IN_PROMPT).forEach { m ->
-                    append("- ").append(m.content).append('\n')
-                }
-            }
-            if (cache.coreFacts.isNotEmpty()) {
-                append("[角色已知关键事实]\n")
-                cache.coreFacts.take(MAX_CORE_FACTS_IN_PROMPT).forEach { f ->
-                    append("- ").append(f.factKey).append(": ").append(f.factValue).append('\n')
-                }
-            }
-        }.trimEnd()
+        return cache.mergedSystem
     }
 
     /**

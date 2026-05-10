@@ -1,17 +1,9 @@
 package com.example.aichat
 
 object CharacterMemoryApi {
-    const val PATH_MEMORY_CONTEXT = "/api/tool/memory-context"
+    // Phase 2: /api/tool/memory-context 已删除；客户端走 /api/chat/context（合并 character/context + memory-context）
+    const val PATH_CHAT_CONTEXT = "/api/chat/context"
     const val PATH_REPORT_CHARACTER_PROFILE = "/api/assistant-profile/upsert"
-
-    data class MemoryContextRequest(
-        @JvmField var assistantId: String = "",
-        @JvmField var sessionId: String = "",
-        // Keep both keys for server compatibility:
-        // some deployments expect `userInput`, others may still read `userMessage`.
-        @JvmField var userInput: String = "",
-        @JvmField var userMessage: String = ""
-    )
 
     data class CharacterProfileRequest(
         @JvmField var assistantId: String = "",

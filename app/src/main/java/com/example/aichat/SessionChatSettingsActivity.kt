@@ -62,6 +62,10 @@ class SessionChatSettingsActivity : ThemedActivity() {
         val assistantId = SessionAssistantBindingStore(this).getAssistantId(sessionId)
         boundAssistant = if (assistantId.isNotEmpty()) MyAssistantStore(this).getById(assistantId) else null
 
+        // writer 类型的会话显示大纲提示词区域
+        val isWriter = boundAssistant?.type == "writer"
+        formModule.setOutlinePromptVisible(isWriter)
+
         imageAvatarPreview = findViewById(R.id.imageSessionAvatarPreview)
         textAvatarPreview = findViewById(R.id.textSessionAvatarPreview)
         btnClearAvatarImage = findViewById(R.id.btnClearSessionAvatarImage)

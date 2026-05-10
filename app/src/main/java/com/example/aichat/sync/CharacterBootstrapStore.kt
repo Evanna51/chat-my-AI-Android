@@ -12,18 +12,22 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 /**
- * Caches `GET /api/character/bootstrap` payloads per assistantId so the chat
- * dispatch path can read coreMemories / coreFacts synchronously when building
- * system prompt.
+ * Caches `POST /api/character/context` payloads per assistantId so the chat
+ * dispatch path can read mergedSystem / coreFacts / coreMemories synchronously
+ * when building system prompt.
  *
  * - 内存级 cache (per-process). 不持久化 — 进程重启会重新拉.
  * - TTL: 同一 assistantId 距上次成功 fetch [TTL_MS] 内 no-op, 超过就 refresh.
- *        粒度从原本的"自然日"降到分钟级, 让 server 端 promptFragment / coreMemories
- *        改动能在当天内生效, 不必等到第二天.
  * - 失败容错: 网络错误时保留旧 cache, 不阻塞 chat.
  *
+ * Phase 2 cleanup（2026-05-10）：
+ *   - server 已删 /api/character/bootstrap 端点。fallback 路径移除。
+ *   - cache.promptFragment 字段重命名为 mergedSystem（V_NEW_LEAN：server 渲染好的
+ *     完整 8-slot system prompt，含 role/character/background/constraints/facts/
+ *     narrative/tool_protocol；不含 <client> slot — 那是客户端职责，见
+ *     docs/client-prompt-merge-protocol.md）。
+ *
  * `relationshipState` 仍走现有 [RelationshipStateStore] (Room 持久化, 跨进程 ok).
- * 这里只缓存 bootstrap 特有的 coreMemories / coreFacts.
  */
 class CharacterBootstrapStore private constructor(private val appContext: Context) {
 
@@ -31,12 +35,11 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
     data class Cache(
         val assistantId: String,
         /**
-         * CR-04.1: Server 拼好的 system prompt 片段 (≤1500 中文字).
-         * 来自 [POST /api/character/context], 优先用它直接拼 system prompt.
-         * 老 server 没部署新端点时回退到 bootstrap → 此字段为空, caller 走
-         * [coreMemories] / [coreFacts] 旧拼装路径.
+         * V_NEW_LEAN: server 渲染好的完整 system prompt（含 8 个 slot）。
+         * 客户端在 <narrative> 后、<tool_protocol> 前插入自己的 <client> slot
+         * 后即得最终 system prompt。详见 docs/client-prompt-merge-protocol.md。
          */
-        val promptFragment: String,
+        val mergedSystem: String,
         val coreMemories: List<CoreMemory>,
         val coreFacts: List<CoreFact>,
         val fetchedAtMs: Long,
@@ -92,23 +95,18 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
         if (!cfg.isEnabled() || cfg.getBaseUrl().isEmpty()) return null
         val api = ChatServerApi(cfg.getBaseUrl(), cfg.getApiKey())
 
-        // CR-04.1: 优先调新端点 /api/character/context (含 promptFragment).
-        // 老 server 没部署 → 404/5xx → fallback 到 bootstrap (CR-04.4 deprecated, 1 release 兼容窗口).
+        // 调 /api/character/context（admin/debug 端点 — 拿 V_NEW_LEAN mergedSystem
+        // + 7 层认知态 + slots，不带本轮 user 上下文）。chat hot path 每轮发消息时
+        // 走 chatContext 拿带 facts/narrative 的当轮上下文 — 那是 ChatViewModel 的事。
         val raw = try {
-            api.characterContext(aid, includePromptFragment = true)
+            api.characterContext(aid)
         } catch (e: Exception) {
-            Log.w(TAG, "character/context failed, fallback to bootstrap: ${e.message}")
-            try {
-                @Suppress("DEPRECATION") api.characterBootstrap(aid)
-            } catch (e2: Exception) {
-                Log.w(TAG, "bootstrap also failed for $aid: ${e2.message}")
-                return null
-            }
+            Log.w(TAG, "character/context failed for $aid: ${e.message}")
+            return null
         }
         val cache = parse(aid, raw) ?: return null
         cacheByAssistant[aid] = cache
-        // Fan out relationshipState into existing store (still works on bootstrap fallback;
-        // new context endpoint may not include this field — that's OK, the store keeps prior cache).
+        // Fan out relationshipState into existing store
         try {
             extractRelationshipJson(raw)?.let { rsJson ->
                 RelationshipStateStore(appContext).upsertFromServerJson(aid, rsJson)
@@ -124,12 +122,12 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
         return try {
             val root = JsonParser().parse(raw).asJsonObject
             if (!readBool(root, "ok", true)) {
-                Log.w(TAG, "context/bootstrap returned ok=false: $raw")
+                Log.w(TAG, "character/context returned ok=false: $raw")
                 return null
             }
             Cache(
                 assistantId = aid,
-                promptFragment = readStr(root, "promptFragment"),
+                mergedSystem = readStr(root, "mergedSystem"),
                 coreMemories = parseCoreMemories(root.get("coreMemories")),
                 coreFacts = parseCoreFacts(root.get("coreFacts")),
                 fetchedAtMs = System.currentTimeMillis(),
@@ -137,7 +135,7 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
                 rawJson = raw,
             )
         } catch (e: Exception) {
-            Log.w(TAG, "context/bootstrap parse failed", e)
+            Log.w(TAG, "character/context parse failed", e)
             null
         }
     }

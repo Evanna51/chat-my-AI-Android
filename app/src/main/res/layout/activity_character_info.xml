@@ -21,6 +21,7 @@
         android:layout_height="wrap_content"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
+        android:paddingTop="4dp"
         android:paddingBottom="4dp"
         android:textSize="12sp"
         android:textColor="@color/ios_section_label" />
@@ -28,30 +29,15 @@
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1">
+        android:layout_weight="1"
+        android:fillViewport="true">
 
-        <com.google.android.material.card.MaterialCardView
+        <LinearLayout
+            android:id="@+id/contentContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            android:layout_marginTop="8dp"
-            android:layout_marginBottom="16dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="@color/ios_cell_bg"
-            app:cardCornerRadius="12dp"
-            app:strokeWidth="0dp">
-
-            <TextView
-                android:id="@+id/textContent"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:padding="12dp"
-                android:textSize="12sp"
-                android:fontFamily="monospace"
-                android:textIsSelectable="true"
-                android:textColor="?attr/colorOnSurface" />
-        </com.google.android.material.card.MaterialCardView>
+            android:orientation="vertical"
+            android:paddingBottom="32dp" />
     </ScrollView>
 
     <TextView

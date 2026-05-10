@@ -7,7 +7,7 @@ import com.google.gson.JsonParser
  *
  * Design notes:
  * - 容错优先: 模型经常忘 close 标签 / 加多余空白 / 用 ``` 包 JSON. 我们尽量从混乱中抢救出 JSON.
- * - clamp 数值边界: afterSec 钳到 [30, 1800], split 最多 5 段 (硬上限避免刷屏).
+ * - clamp 数值边界: afterSec 钳到 [30, 600], split 最多 5 段 (硬上限避免刷屏).
  * - 解析失败一律返回 null meta + 原 content, 不抛异常.
  *
  * Marker 用 `<<<META` / `META>>>` 而不是 XML/JSON 嵌入, 因为:
@@ -20,7 +20,7 @@ object ProactiveMetaParser {
     private const val CLOSE_TAG = "META>>>"
 
     private const val MIN_FOLLOWUP_SEC = 30
-    private const val MAX_FOLLOWUP_SEC = 1800
+    private const val MAX_FOLLOWUP_SEC = 600
     private const val MAX_SPLIT_PARTS = 5
     private const val MAX_INTENT_LEN = 80
 

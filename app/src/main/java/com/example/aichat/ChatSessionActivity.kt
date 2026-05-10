@@ -75,8 +75,11 @@ class ChatSessionActivity : ThemedActivity() {
         private const val WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS = 500
         private const val WRITER_ASSISTANT_LAST_SEGMENT_CHARS = 1000
         private const val CHARACTER_MEMORY_LOADING_TEXT = "[...正在输入中]"
-        private const val INITIAL_RENDER_MESSAGE_LIMIT = 200
-        private const val LOAD_MORE_BATCH_SIZE = 50
+        // 微信式分页：默认只渲染最近 60 条，上拉加载更多。降低长会话打开时的卡顿。
+        // 注意：此处和 ChatViewModel 共享同名常量；分页逻辑在 ViewModel，Activity
+        // 这里仅用于"是否需要 history/current 双 RecyclerView"判定。
+        private const val INITIAL_RENDER_MESSAGE_LIMIT = 60
+        private const val LOAD_MORE_BATCH_SIZE = 30
         private const val TOP_LOAD_TRIGGER_GAP_DP = 8
         /** 发送后这段时间内点击 [sendButton] 不会触发 stop, 防误触刚发出去的消息. */
         private const val STOP_GUARD_MS = 1000L
@@ -1405,8 +1408,8 @@ class ChatSessionActivity : ThemedActivity() {
                 allMessages.removeAt(idx)
                 applyMessagesAndTitle()
                 // proactiveKind != 0 的行 (远程推送 / 仿推送 / split) 不在 persist 对账范围,
-                // 只靠 persistSessionMessagesAsync 删不掉 DB; 这里按 id 兜底删一次.
-                if (message.id > 0L) viewModel.deleteMessageByIdAsync(message.id)
+                // 只靠 persistSessionMessagesAsync 删不掉 DB; 这里走专用入口: DB 删 + WS 同步.
+                if (message.id > 0L) viewModel.deleteMessageAsync(message)
                 persistSessionMessagesAsync()
             }
 
@@ -1505,7 +1508,8 @@ class ChatSessionActivity : ThemedActivity() {
             return
         }
         Toast.makeText(this, "正在提取到大纲…", Toast.LENGTH_SHORT).show()
-        chatService.summarizeMessageForOutline(source, object : ChatService.ChatCallback {
+        val oprompt = resolveOutlinePrompt()
+        chatService.summarizeMessageForOutline(source, oprompt, object : ChatService.ChatCallback {
             override fun onSuccess(content: String) {
                 mainHandler.post {
                     val summary = content.trim()
@@ -1530,6 +1534,17 @@ class ChatSessionActivity : ThemedActivity() {
                 }
             }
         })
+    }
+
+    private fun resolveOutlinePrompt(): String {
+        val sessionPrompt = SessionChatOptionsStore(this).get(sessionId).outlinePrompt.trim()
+        if (sessionPrompt.isNotEmpty()) return sessionPrompt
+        val aid = SessionAssistantBindingStore(this).getAssistantId(sessionId)
+        if (aid.isNotEmpty()) {
+            val ap = MyAssistantStore(this).getById(aid)?.options?.outlinePrompt?.trim().orEmpty()
+            if (ap.isNotEmpty()) return ap
+        }
+        return ""
     }
 
     private fun buildUserMessageForApi(text: String): String {

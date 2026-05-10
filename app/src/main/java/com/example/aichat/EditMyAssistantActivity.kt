@@ -44,6 +44,8 @@ class EditMyAssistantActivity : ThemedActivity() {
     private lateinit var editName: TextInputEditText
     private var editSystemPrompt: TextInputEditText? = null
     private var editFirstDialogue: TextInputEditText? = null
+    private var editOutlinePrompt: TextInputEditText? = null
+    private var layoutOutlinePrompt: View? = null
     private lateinit var characterMemoryService: CharacterMemoryService
     private var pendingCropSourceUri: Uri? = null
     private var pendingCropOutputUri: Uri? = null
@@ -72,7 +74,9 @@ class EditMyAssistantActivity : ThemedActivity() {
         editName = findViewById(R.id.editAssistantName)
         editSystemPrompt = findViewById(R.id.editAssistantSystemPrompt)
         editFirstDialogue = findViewById(R.id.editAssistantFirstDialogue)
-        FormInputScrollHelper.enableFor(editSystemPrompt, editFirstDialogue)
+        editOutlinePrompt = findViewById(R.id.editOutlinePrompt)
+        layoutOutlinePrompt = findViewById(R.id.layoutOutlinePrompt)
+        FormInputScrollHelper.enableFor(editSystemPrompt, editFirstDialogue, editOutlinePrompt)
         val radioType: RadioGroup = findViewById(R.id.radioAssistantType)
         val layoutCharacterOptions: View? = findViewById(R.id.layoutCharacterOptions)
         val checkCharacterAutoLife: MaterialCheckBox? = findViewById(R.id.checkCharacterAutoLife)
@@ -90,6 +94,7 @@ class EditMyAssistantActivity : ThemedActivity() {
         val initialOptions = assistant.options
         if (initialOptions != null) {
             editSystemPrompt?.setText(initialOptions.systemPrompt)
+            editOutlinePrompt?.setText(initialOptions.outlinePrompt)
         }
         editFirstDialogue?.setText(assistant.firstDialogue)
         when {
@@ -158,11 +163,13 @@ class EditMyAssistantActivity : ThemedActivity() {
             val savedOptions = assistant.options
             if (savedOptions != null) {
                 savedOptions.systemPrompt = editSystemPrompt?.text?.toString()?.trim() ?: ""
+                savedOptions.outlinePrompt = editOutlinePrompt?.text?.toString()?.trim() ?: ""
                 savedOptions.autoChapterPlan = "writer" == assistant.type
                         && switchAutoChapterPlanWriter != null
                         && switchAutoChapterPlanWriter.isChecked
                 if ("writer" != assistant.type) {
                     savedOptions.autoChapterPlan = false
+                    savedOptions.outlinePrompt = ""
                 }
             }
             assistant.updatedAt = System.currentTimeMillis()
@@ -412,7 +419,8 @@ class EditMyAssistantActivity : ThemedActivity() {
     }
 
     private fun updateWriterOnlySettingsVisibility(writerSettingView: View?, checkedTypeId: Int) {
-        writerSettingView?.visibility =
-            if (checkedTypeId == R.id.typeWriter) View.VISIBLE else View.GONE
+        val isWriter = checkedTypeId == R.id.typeWriter
+        writerSettingView?.visibility = if (isWriter) View.VISIBLE else View.GONE
+        layoutOutlinePrompt?.visibility = if (isWriter) View.VISIBLE else View.GONE
     }
 }
