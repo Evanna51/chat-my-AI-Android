@@ -120,7 +120,7 @@ class ProactiveChatPlanner(
         return try {
             val assistant = MyAssistantStore(context).getById(assistantId)
             if (assistant?.allowProactiveMessage == true) {
-                ProactiveFollowUp(afterSec = 300, intent = "关心对方近况")
+                ProactiveFollowUp(afterSec = 180, intent = "关心对方近况")
             } else null
         } catch (_: Exception) { null }
     }

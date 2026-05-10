@@ -57,9 +57,14 @@ class ProactiveFollowUpWorker(
         const val KEY_PREVIOUS_INTENT = "previous_intent"
         const val KEY_CHAIN_DEPTH = "chain_depth"
         const val KEY_LAST_USER_MESSAGE_TS = "last_user_msg_ts"
+        const val KEY_CHAIN_START_EPOCH_MS = "chain_start_epoch_ms"
 
         /** Worker max runtime ~ 10min; 上限 chat 调用应远低于此. */
         private const val MAX_WAIT_SECONDS = 90L
+
+        /** 单沉默期 follow-up 链最长存活时间. 超过后即使模型仍想继续也强制终止.
+         *  防止链在后台长期驻留（如用户睡觉后设备解 Doze，积压的 job 一次打出来）. */
+        private const val CHAIN_WINDOW_MS = 2 * 60 * 60 * 1000L  // 2 小时
 
         /** Follow-up history depth (与 in-process planner 对齐). */
         private const val FOLLOWUP_HISTORY_LIMIT = 10
@@ -79,6 +84,7 @@ class ProactiveFollowUpWorker(
             previousIntent: String,
             delaySec: Int,
             chainDepth: Int,
+            chainStartEpochMs: Long = System.currentTimeMillis(),
         ) {
             if (sessionId.isEmpty()) return
             val data = Data.Builder()
@@ -87,6 +93,7 @@ class ProactiveFollowUpWorker(
                 .putString(KEY_PREVIOUS_INTENT, previousIntent)
                 .putInt(KEY_CHAIN_DEPTH, chainDepth)
                 .putLong(KEY_LAST_USER_MESSAGE_TS, System.currentTimeMillis())
+                .putLong(KEY_CHAIN_START_EPOCH_MS, chainStartEpochMs)
                 .build()
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -122,10 +129,16 @@ class ProactiveFollowUpWorker(
         val previousIntent = inputData.getString(KEY_PREVIOUS_INTENT).orEmpty()
         val chainDepth = inputData.getInt(KEY_CHAIN_DEPTH, 1)
         val lastUserTsAtSchedule = inputData.getLong(KEY_LAST_USER_MESSAGE_TS, 0L)
+        val chainStartEpochMs = inputData.getLong(KEY_CHAIN_START_EPOCH_MS, System.currentTimeMillis())
 
         if (sessionId.isEmpty()) return Result.success()
         if (chainDepth > ProactiveBudget.HARD_FOLLOWUP_CHAIN_MAX) {
             Log.i(TAG, "chain hard ceiling ($chainDepth); aborting")
+            return Result.success()
+        }
+        val chainAgeMs = System.currentTimeMillis() - chainStartEpochMs
+        if (chainAgeMs > CHAIN_WINDOW_MS) {
+            Log.i(TAG, "chain window expired (${chainAgeMs / 60_000}min > 120min); aborting")
             return Result.success()
         }
 
@@ -269,39 +282,34 @@ class ProactiveFollowUpWorker(
             return Result.success()
         }
 
-        // 我们仍要再 parse 一次, 以便拿到 followUp 决策来排下一轮.
+        // 我们仍要再 parse 一次, 以便拿到 followUp / split 决策.
         // (ChatService 已经 strip; 但若 strip 后还有未分离的 META 它仍 idempotent.)
         val extract = ProactiveMetaParser.extract(cleaned)
         val finalContent = extract.cleanContent.ifEmpty { cleaned }
+        val splitParts = extract.meta?.split?.takeIf { it.size >= 2 }
 
-        // 持久化 follow-up message
-        try {
-            val msg = Message(sessionId, Message.ROLE_ASSISTANT, finalContent)
-            msg.assistantId = assistantId
-            msg.proactiveKind = 2
-            // turnId 用 Message 构造的默认 UuidV7 (确保删除同步可定位).
-            // synced=1: 这条 server 不收 (本地 worker 自决), drainer 别去推.
-            msg.synced = 1
-            db.messageDao().insert(msg)
-        } catch (e: Exception) {
-            Log.w(TAG, "persist failed", e)
-            return Result.retry()
-        }
+        val assistantName = if (assistantId.isNotEmpty())
+            try { MyAssistantStore(ctx).getById(assistantId)?.name?.takeIf { it.isNotBlank() } }
+            catch (_: Exception) { null }
+        else null
 
-        // Notification (deep-link 到该 session)
-        try {
-            val assistantName = if (assistantId.isNotEmpty())
-                MyAssistantStore(ctx).getById(assistantId)?.name?.takeIf { it.isNotBlank() }
-                else null
-            ProactiveMessageNotifier(ctx).notifyMessage(
-                messageId = "proactive_${sessionId}_${System.currentTimeMillis()}",
-                title = assistantName ?: "新消息",
-                body = finalContent,
-                sessionId = sessionId,
-                assistantId = assistantId
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "notify failed", e)
+        if (splitParts != null) {
+            // follow-up split: 逐段延迟入库 + 通知, 模拟真人分条发消息节奏.
+            // Worker 在后台线程, 直接 Thread.sleep 做段间延迟（无 Handler/UI 依赖）.
+            for ((i, part) in splitParts.withIndex()) {
+                if (i > 0) {
+                    val delay = splitPartDelayMs(splitParts, i)
+                    try { Thread.sleep(delay) } catch (_: InterruptedException) { break }
+                }
+                persistAndNotifyPart(
+                    sessionId, assistantId, part, assistantName, ctx, db,
+                    isRetryWorthy = i == 0
+                ).also { if (it == Result.retry()) return Result.retry() }
+            }
+        } else {
+            persistAndNotifyPart(sessionId, assistantId, finalContent, assistantName, ctx, db,
+                isRetryWorthy = true)
+                .also { if (it == Result.retry()) return Result.retry() }
         }
 
         // chain. AI 的 META.autoStop=true 是硬刹车, 即便 followUp 非 null 也不再排.
@@ -316,7 +324,8 @@ class ProactiveFollowUpWorker(
                 assistantId,
                 nextFollow.intent,
                 nextFollow.afterSec,
-                chainDepth + 1
+                chainDepth + 1,
+                chainStartEpochMs,
             )
         }
         return Result.success()
@@ -339,14 +348,64 @@ class ProactiveFollowUpWorker(
      *   SKIP     → 不带括号
      */
     private fun isSkipResponse(s: String): Boolean {
-        if (s.length > 30) return false  // 太长就别假定 SKIP, 当真消息处理
+        if (s.length > 30) return false
         val normalized = s.trim()
-            .trim('`', '"', '\'', '“', '”', '‘', '’')
+            .trim('`', '"', '\'', '\u201C', '\u201D', '\u2018', '\u2019')
             .trim()
             .trimEnd('.', '。', '!', '！', '?', '？')
             .trim()
             .lowercase(java.util.Locale.ROOT)
         return normalized == "[skip]" || normalized == "skip" ||
             normalized == "(skip)" || normalized == "<skip>"
+    }
+
+    /** 入库一条 follow-up 消息 + 触发通知. 返回 retry() 表示调用方应重试. */
+    private fun persistAndNotifyPart(
+        sessionId: String,
+        assistantId: String,
+        content: String,
+        assistantName: String?,
+        ctx: android.content.Context,
+        db: AppDatabase,
+        isRetryWorthy: Boolean,
+    ): Result {
+        try {
+            val msg = Message(sessionId, Message.ROLE_ASSISTANT, content)
+            msg.assistantId = assistantId
+            msg.proactiveKind = 2
+            msg.synced = 1
+            db.messageDao().insert(msg)
+        } catch (e: Exception) {
+            Log.w(TAG, "persist failed", e)
+            return if (isRetryWorthy) Result.retry() else Result.success()
+        }
+        try {
+            ProactiveMessageNotifier(ctx).notifyMessage(
+                messageId = "proactive_${sessionId}_${System.currentTimeMillis()}",
+                title = assistantName ?: "新消息",
+                body = content,
+                sessionId = sessionId,
+                assistantId = assistantId,
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "notify failed", e)
+        }
+        return Result.success()
+    }
+
+    /**
+     * 和 ProactiveChatPlanner.computeSplitDelayMs 相同的累积逻辑:
+     * 每段延迟 = clamp(MIN + perChar * len, MAX)，前一段的延迟累加给后续段.
+     */
+    private fun splitPartDelayMs(parts: List<String>, idx: Int): Long {
+        val minMs = 2500L
+        val maxMs = 8000L
+        val perChar = 80L
+        var cumulative = 0L
+        for (i in 0 until idx) {
+            val len = parts.getOrNull(i)?.length ?: 0
+            cumulative += (minMs + perChar * len).coerceAtMost(maxMs)
+        }
+        return cumulative
     }
 }
