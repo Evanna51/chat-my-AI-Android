@@ -1486,7 +1486,13 @@ class ChatService(context: Context) {
     ): List<ChatApi.ChatMessage> {
         val messages = ArrayList<ChatApi.ChatMessage>()
         if (using.systemPrompt != null && using.systemPrompt.trim().isNotEmpty()) {
-            messages.add(ChatApi.ChatMessage("system", using.systemPrompt.trim()))
+            val sys = using.systemPrompt.trim()
+            messages.add(ChatApi.ChatMessage("system", sys))
+            // 自动对话调试: 看 system prompt 末尾是不是真的带 <output_protocol> 块.
+            // 没带就说明 ChatViewModel 那边 options.systemPrompt 被中途覆盖了.
+            val hasOutputProtocol = sys.contains("<output_protocol>")
+            val tail = sys.takeLast(1500).replace("\n", "\\n")
+            Log.d(TAG, "SYSTEM len=${sys.length} hasOutputProtocol=$hasOutputProtocol tail1500=$tail")
         }
         val source = history ?: ArrayList()
         val limit = using.contextMessageCount
@@ -1686,10 +1692,11 @@ class ChatService(context: Context) {
                 val fullReasoning = StringBuilder()
                 val inlineThinkState = InlineThinkState()
                 val normalizeInlineThink = InlineThinkProcessor.shouldNormalize(providerId)
-                // 自动对话: 流式过滤 `<<<META...META>>>` 尾块, 防止用户气泡里闪现.
-                // 仅在 autoChatEnabled 时启用; 关闭时是 no-op (process 直接返回原 chunk).
-                val proactiveMetaFilter = if (using.autoChatEnabled)
-                    com.example.aichat.chat.ProactiveMetaStreamFilter() else null
+                // V8 (2026-05-10): autoChat 双协议. 段间 `\n\n` 自然分隔 (流式直接显示);
+                // 末尾 `||==FOLLOWUP/STOP/SKIP==||` 元信息标记由 splitFilter 流式吞掉.
+                // fullContent 累加完整 raw, onSuccess 时 ProactiveMetaParser 切分 + 提元信息.
+                val splitFilter = if (using.autoChatEnabled)
+                    com.example.aichat.chat.ProactiveSplitStreamFilter() else null
                 var promptTokens = 0
                 var completionTokens = 0
                 var totalTokens = 0
@@ -1748,8 +1755,7 @@ class ChatService(context: Context) {
                                         val parts = InlineThinkProcessor.splitInlineThink(contentDelta, inlineThinkState, false)
                                         if (parts.content.isNotEmpty()) {
                                             fullContent.append(parts.content)
-                                            // META filter 在 think 处理之后, 仅过滤 user-visible content.
-                                            val visible = proactiveMetaFilter?.process(parts.content) ?: parts.content
+                                            val visible = splitFilter?.process(parts.content) ?: parts.content
                                             if (visible.isNotEmpty()) callback.onPartial(visible)
                                         }
                                         if (parts.reasoning.isNotEmpty()) {
@@ -1759,7 +1765,7 @@ class ChatService(context: Context) {
                                         }
                                     } else {
                                         fullContent.append(contentDelta)
-                                        val visible = proactiveMetaFilter?.process(contentDelta) ?: contentDelta
+                                        val visible = splitFilter?.process(contentDelta) ?: contentDelta
                                         if (visible.isNotEmpty()) callback.onPartial(visible)
                                     }
                                 }
@@ -1789,7 +1795,7 @@ class ChatService(context: Context) {
                     val tail = InlineThinkProcessor.splitInlineThink("", inlineThinkState, true)
                     if (tail.content.isNotEmpty()) {
                         fullContent.append(tail.content)
-                        val visible = proactiveMetaFilter?.process(tail.content) ?: tail.content
+                        val visible = splitFilter?.process(tail.content) ?: tail.content
                         if (visible.isNotEmpty()) callback.onPartial(visible)
                     }
                     if (tail.reasoning.isNotEmpty()) {
@@ -1797,8 +1803,8 @@ class ChatService(context: Context) {
                         callback.onReasoning(fullReasoning.toString())
                     }
                 }
-                // 自动对话: 把 META filter 还没决断的尾巴吐出来 (没遇到 META 时可能保留 6 字节).
-                proactiveMetaFilter?.flushTail()?.let { tail ->
+                // V8: 把 split filter 缓冲的 tail (没遇到 ||== 时可能保留 3 字符) flush.
+                splitFilter?.flushTail()?.let { tail ->
                     if (tail.isNotEmpty()) callback.onPartial(tail)
                 }
                 if (handle.isCancelled()) {
@@ -1879,14 +1885,51 @@ class ChatService(context: Context) {
                     }
                 }
                 callback.onUsage(promptTokens, completionTokens, totalTokens, System.currentTimeMillis() - start)
-                // 自动对话: 解析尾部 META 块, 把 cleanContent 交给上层. 模型未启用 / 没发 META
-                // 时 ProactiveMetaParser.extract 返回 (raw.trimEnd, null), 行为与未引入 META 时一致.
+                // V8: parser 提元信息 + 按 \n\n 切. autoChat 关闭时直接返回 raw.trim().
+                // cleanContent 空 + 没 split + autoChat 启用 (排除 SKIP/STOP-only 元信息) =
+                // 输出无效, 走 onError 防 UI 卡空消息.
                 val rawFinal = fullContent.toString()
-                val metaExtract = com.example.aichat.chat.ProactiveMetaParser.extract(rawFinal)
-                callback.onProactiveMeta(metaExtract.meta)
-                callback.onSuccess(metaExtract.cleanContent)
+                if (using.autoChatEnabled) {
+                    val metaExtract = com.example.aichat.chat.ProactiveMetaParser.extract(rawFinal)
+                    logProactiveMetaDebug(rawFinal, metaExtract)
+                    if (metaExtract.cleanContent.isBlank()
+                        && (metaExtract.meta?.split == null || metaExtract.meta.split.isEmpty())
+                        && metaExtract.meta == null) {  // SKIP 路径 meta 非 null, 不当错误
+                        callback.onError("自动对话输出为空 (rawLen=${rawFinal.length})")
+                        return
+                    }
+                    callback.onProactiveMeta(metaExtract.meta)
+                    callback.onSuccess(metaExtract.cleanContent)
+                } else {
+                    callback.onProactiveMeta(null)
+                    callback.onSuccess(rawFinal.trim())
+                }
             }
         })
+    }
+
+    /**
+     * V7 自动对话 split-marker 诊断日志:
+     *   - meta=null + cleanContent 非空 → 单段, 没 marker 也合理 (短句 / 单句长回复)
+     *   - meta.split.size>=2 → 多段成功切分
+     *   - cleanContent 空 → LLM 啥也没输出 (上层 onError 兜底)
+     * raw 前 400 字 dump 用于人工核对 LLM 实际输出 (确认 marker 是否真的出现).
+     */
+    private fun logProactiveMetaDebug(
+        rawFinal: String,
+        extract: com.example.aichat.chat.ProactiveMetaExtractResult,
+    ) {
+        val rawHead = rawFinal.take(400).replace("\n", "\\n")
+        val meta = extract.meta
+        if (meta == null) {
+            // raw 不是合法 JSON, 或者 autoChat 关闭走普通模式 (此时 cleanContent = raw)
+            Log.d(TAG, "META: parse=null (rawLen=${rawFinal.length}, head=$rawHead)")
+            return
+        }
+        val splitSize = meta.split?.size ?: 0
+        val splitPreview = meta.split?.joinToString(separator = " | ") { it.take(20) } ?: "null"
+        val followUp = meta.followUp
+        Log.d(TAG, "META: split.size=$splitSize parts=[$splitPreview] followUp=${followUp?.let { "afterSec=${it.afterSec} intent=${it.intent.take(30)}" } ?: "null"} autoStop=${meta.autoStop} cleanLen=${extract.cleanContent.length} | rawHead=$rawHead")
     }
 
     private fun fireCancelledOnce(callback: ChatCallback?, handle: ChatHandleImpl?) {

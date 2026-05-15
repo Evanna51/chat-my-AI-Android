@@ -79,11 +79,15 @@ class ProactiveChatPlanner(
 
     /**
      * Called by ChatViewModel after it inserts a consolidated Message for the assistant turn.
+     *
+     * @param splitGroupTurnId split[0] 行的 turnId. split[1..N] 将共用此 turnId
+     *   (保持 synced=1, 不推服务端), 以便删除时通过 turnId 一次性清掉整组.
      */
     fun onAssistantTurnFinalized(
         sessionId: String,
         assistantId: String,
         insertedMessageId: Long,
+        splitGroupTurnId: String,
         @Suppress("UNUSED_PARAMETER") cleanContent: String,
         meta: ProactiveMeta?,
         options: SessionChatOptions,
@@ -95,7 +99,7 @@ class ProactiveChatPlanner(
         cancelFollowUp(sessionId)
         cancelPendingSplits(sessionId)
 
-        applySplit(sessionId, assistantId, insertedMessageId, meta.split)
+        applySplit(sessionId, assistantId, insertedMessageId, splitGroupTurnId, meta.split)
         // autoStop 是硬刹车: 即便 followUp 非 null, 模型已声明本次不再追问.
         if (meta.autoStop) {
             Log.i(TAG, "model emitted autoStop=true on user-driven turn; no follow-up scheduled")
@@ -137,9 +141,18 @@ class ProactiveChatPlanner(
         for (r in list) mainHandler.removeCallbacks(r)
     }
 
-    /** Stop all timers; call from ChatViewModel.onCleared. */
+    /**
+     * Called from ChatViewModel.onCleared (user left chat page). We do NOT
+     * cancel pending split runnables here — they run on mainHandler (the
+     * application looper) and write DB via [com.example.aichat.IngestExecutor],
+     * both of which outlive ViewModel. Letting them complete means the user
+     * sees all split segments persisted when they reopen the chat.
+     *
+     * For active user-initiated cancellation (Stop button), use
+     * [cancelPendingSplits] instead — that one does cancel the runnables.
+     */
     fun shutdown() {
-        for ((_, list) in pendingSplitRunnables) for (r in list) mainHandler.removeCallbacks(r)
+        // Drop our session-keyed bookkeeping; runnables themselves keep firing.
         pendingSplitRunnables.clear()
     }
 
@@ -149,13 +162,16 @@ class ProactiveChatPlanner(
         sessionId: String,
         assistantId: String,
         insertedMessageId: Long,
+        splitGroupTurnId: String,
         split: List<String>?,
     ) {
         if (split == null || split.size < 2) return
         if (insertedMessageId <= 0) return
 
-        // V1: 把第一条改写到刚插入的 row, 后续 split 作为新 row 间隔插入
-        executor.execute {
+        // App-scoped executor: split DB writes MUST complete even after user
+        // leaves chat page (ViewModel cleared, its executor shut down).
+        // See [com.example.aichat.IngestExecutor].
+        com.example.aichat.IngestExecutor.execute {
             try {
                 db.messageDao().updateContentAndProactiveKind(
                     insertedMessageId, split[0], 1
@@ -173,14 +189,16 @@ class ProactiveChatPlanner(
             val part = split[i]
             val delay = computeSplitDelayMs(split, i)
             val r = Runnable {
-                executor.execute {
+                com.example.aichat.IngestExecutor.execute {
                     try {
-                        // split 是对同一条回复的拆分显示, 不消耗 follow-up 每日预算
+                        // split 是对同一条回复的拆分显示, 不消耗 follow-up 每日预算.
                         val msg = Message(sessionId, Message.ROLE_ASSISTANT, part)
                         msg.assistantId = assistantId
                         msg.proactiveKind = 1
-                        // turnId 用 Message 构造的默认 UuidV7 (本地稳定 id, 删除同步可定位).
-                        // synced=1: server 还不收 split 副本, drainer 别去推.
+                        // 共用 split[0] 的 turnId: 删除时可通过 turnId 一次性清掉整组孤儿行.
+                        // synced=1: server 不收 split 副本, drainer 不推; 但共享 turnId
+                        //   不影响 drainer — drainer 只选 synced=0 行.
+                        msg.turnId = splitGroupTurnId
                         msg.synced = 1
                         val newId = db.messageDao().insert(msg)
                         msg.id = newId

@@ -74,7 +74,7 @@ class ChatSessionActivity : ThemedActivity() {
         private const val AUTO_SCROLL_BOTTOM_GAP_DP = 32
         private const val WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS = 500
         private const val WRITER_ASSISTANT_LAST_SEGMENT_CHARS = 1000
-        private const val CHARACTER_MEMORY_LOADING_TEXT = "[...正在输入中]"
+        private const val LOADING_PLACEHOLDER_TEXT = "[...正在输入中]"
         // 微信式分页：默认只渲染最近 60 条，上拉加载更多。降低长会话打开时的卡顿。
         // 注意：此处和 ChatViewModel 共享同名常量；分页逻辑在 ViewModel，Activity
         // 这里仅用于"是否需要 history/current 双 RecyclerView"判定。
@@ -343,7 +343,6 @@ class ChatSessionActivity : ThemedActivity() {
     private var autoTtsEnabled = false
     private var btnAutoTtsView: ImageButton? = null
     private val autoReadStore by lazy { AutoReadStore(this) }
-    private var characterMemoryService: CharacterMemoryService? = null
     private var outlineStore: SessionOutlineStore? = null
     private var sessionOptions: SessionChatOptions = SessionChatOptions()
     @Volatile private var autoNamingInFlight = false
@@ -363,7 +362,7 @@ class ChatSessionActivity : ThemedActivity() {
     private var streamingTargetMessage: Message? = null
     private val pendingStreamChars = StringBuilder()
     private var streamTypewriterRunning = false
-    private var characterMemoryLoadingMessage: Message? = null
+    private var loadingPlaceholderMessage: Message? = null
     private var loadEarlierMessagesView: TextView? = null
     private var quickModelSwitchView: TextView? = null
     private var firstDialoguePreviewView: TextView? = null
@@ -436,7 +435,6 @@ class ChatSessionActivity : ThemedActivity() {
         writerAssistant = resolveWriterAssistant()
         characterAssistant = resolveCharacterAssistant()
         outlineStore = SessionOutlineStore(this)
-        characterMemoryService = CharacterMemoryService(this)
 
         chatService = ChatService(this)
         viewModel = ViewModelProvider(this).get(ChatViewModel::class.java)
@@ -486,10 +484,13 @@ class ChatSessionActivity : ThemedActivity() {
                 handleStreamDeltaEvent(event)
             }
         }
-        viewModel.proactiveMessageEvent.observe(this) { event ->
+        // drain 整个队列, 防止 Activity STOPPED 期间多个 split 段触发时 LiveData
+        // coalesce 只保留最后一个值导致中间段丢失.
+        viewModel.proactiveMessageEvent.observe(this) { _ ->
             if (isFinishing || isDestroyed) return@observe
-            if (event == null) return@observe
-            handleProactiveMessageEvent(event)
+            for (event in viewModel.drainPendingProactiveEvents()) {
+                handleProactiveMessageEvent(event)
+            }
         }
 
         sessionOptions = resolveChatOptions()
@@ -718,40 +719,88 @@ class ChatSessionActivity : ThemedActivity() {
         if (historyForApi.isNotEmpty()) (historyForApi as MutableList).removeAt(historyForApi.size - 1)
         historyForApi = buildHistoryForApi(historyForApi)
         val options = resolveChatOptions()
-        val shouldUseCharacterMemory = shouldUseCharacterMemory()
         val plainApiUserMessage = buildUserMessageForApi(text)
-        val finalHistoryForApi = historyForApi
-        val finalOptions = options
         // Chapter plan auto-trigger removed; plan is now generated manually from the outline page "更多" menu.
-        dispatchChatRequestWithOptionalMemory(finalHistoryForApi, plainApiUserMessage, finalOptions, responseToken, shouldUseCharacterMemory)
+        dispatchChatRequestWithRemoteContextIfEnabled(historyForApi, plainApiUserMessage, options, responseToken)
     }
 
-    private fun dispatchChatRequestWithOptionalMemory(
+    /**
+     * V3 hot path：每轮发消息前调 `POST /api/chat/context`，拿 server 渲染好的
+     * mergedSystem 直接当 system prompt，末尾追加客户端 `<client>` slot 与
+     * `<output_protocol>`。详见 wi-chat-server/docs/client-prompt-merge-protocol.md。
+     *
+     * 调用条件：远程同步开启 + baseUrl + assistantId + sessionId 全部齐备。任一缺失
+     * 就直接走 fallback（boot cache mergedSystem + 本地 systemPrompt）。
+     *
+     * 容错：网络/解析失败不阻塞 chat — 走 fallback 同样能发出消息。
+     */
+    private fun dispatchChatRequestWithRemoteContextIfEnabled(
         historyForApi: List<Message>,
-        plainApiUserMessage: String,
+        apiUserMessage: String,
         options: SessionChatOptions,
         responseToken: Long,
-        shouldUseCharacterMemory: Boolean
     ) {
-        if (!shouldUseCharacterMemory) {
-            dispatchChatRequest(historyForApi, plainApiUserMessage, options, responseToken)
+        val cfg = com.example.aichat.sync.RemoteSyncConfigStore(this)
+        val aid = assistantId.orEmpty().trim()
+        val sid = sessionId.orEmpty()
+        val shouldFetch = cfg.isEnabled() && cfg.getBaseUrl().isNotEmpty()
+            && aid.isNotEmpty() && sid.isNotEmpty()
+        if (!shouldFetch) {
+            dispatchChatRequest(historyForApi, apiUserMessage, options, responseToken, null)
             return
         }
-        showCharacterMemoryLoadingPlaceholder(responseToken)
+        showLoadingPlaceholder(responseToken)
+        val historyTurns = buildChatContextHistory(historyForApi)
+        val baseUrl = cfg.getBaseUrl()
+        val apiKey = cfg.getApiKey()
         executor.execute {
-            var enrichedUserMessage = plainApiUserMessage
+            var ctxResp: com.example.aichat.sync.ChatContextResponse? = null
             try {
-                val memory = characterMemoryService?.getMemoryContext(assistantId, sessionId, plainApiUserMessage)
-                enrichedUserMessage = buildUserMessageForApiWithMemory(plainApiUserMessage, memory)
+                val api = com.example.aichat.sync.ChatServerApi(baseUrl, apiKey)
+                ctxResp = api.chatContext(com.example.aichat.sync.ChatContextRequest(
+                    assistantId = aid,
+                    sessionId = sid,
+                    userInput = apiUserMessage,
+                    history = historyTurns,
+                ))
+                logChatContextDebug(ctxResp)
             } catch (e: Exception) {
-                Log.w(TAG, "memory-context failed: ${e.message ?: ""}")
+                Log.w(TAG, "chat/context failed: ${e.message ?: ""}")
             }
-            val finalUserMessage = enrichedUserMessage
+            val finalCtx = ctxResp
             mainHandler.post {
                 if (responseToken != activeResponseToken) return@post
                 if (isFinishing || isDestroyed) return@post
-                dispatchChatRequest(historyForApi, finalUserMessage, options, responseToken)
+                dispatchChatRequest(historyForApi, apiUserMessage, options, responseToken, finalCtx)
             }
+        }
+    }
+
+    /** 取 history 最后 ≤4 轮（user/assistant），转 ChatHistoryTurn。 */
+    private fun buildChatContextHistory(historyForApi: List<Message>): List<com.example.aichat.sync.ChatHistoryTurn> {
+        if (historyForApi.isEmpty()) return emptyList()
+        val recent = historyForApi.asReversed().asSequence()
+            .filter { it.role == Message.ROLE_USER || it.role == Message.ROLE_ASSISTANT }
+            .filter { !(it.content.isNullOrBlank()) }
+            .take(4)
+            .toList()
+            .asReversed()
+        return recent.map {
+            com.example.aichat.sync.ChatHistoryTurn(
+                role = if (it.role == Message.ROLE_ASSISTANT) "assistant" else "user",
+                content = it.content.orEmpty(),
+            )
+        }
+    }
+
+    private fun logChatContextDebug(resp: com.example.aichat.sync.ChatContextResponse) {
+        val rd = resp.routerDecision
+        if (rd != null) {
+            Log.d(TAG, "chat/context router register=${rd.register} skills=${rd.skillIds?.joinToString(",") ?: "-"} budget=${rd.budget} reason=${rd.reason ?: "-"}")
+        }
+        val att = resp.attention1h
+        if (att != null) {
+            Log.d(TAG, "chat/context attention topics=[${att.topics?.joinToString(" / ") ?: ""}] focus=${att.innerFocus ?: "-"} tone=${att.emotionalTone ?: "-"} turns=${att.turnCount}")
         }
     }
 
@@ -759,15 +808,16 @@ class ChatSessionActivity : ThemedActivity() {
         historyForApi: List<Message>,
         apiUserMessage: String,
         options: SessionChatOptions,
-        responseToken: Long
+        responseToken: Long,
+        chatCtx: com.example.aichat.sync.ChatContextResponse?,
     ) {
         var streamingAssistant: Message?
-        if (characterMemoryLoadingMessage != null) {
+        if (loadingPlaceholderMessage != null) {
             // Reuse loading placeholder bubble to avoid a blank gap between loading and first token.
-            streamingAssistant = characterMemoryLoadingMessage
-            characterMemoryLoadingMessage = null
+            streamingAssistant = loadingPlaceholderMessage
+            loadingPlaceholderMessage = null
             if (streamingAssistant?.content.isNullOrEmpty()) {
-                streamingAssistant?.content = CHARACTER_MEMORY_LOADING_TEXT
+                streamingAssistant?.content = LOADING_PLACEHOLDER_TEXT
             }
             streamingAssistant?.thinkingRunning = false
             streamingAssistant?.thinkingStartedAt = 0L
@@ -788,7 +838,7 @@ class ChatSessionActivity : ThemedActivity() {
         try {
             activeChatHandle = viewModel.doChatRequest(
                 historyForApi, apiUserMessage, options, responseToken,
-                assistantId, characterMemoryService!!)
+                assistantId, chatCtx)
         } catch (e: Exception) {
             setAssistantResponseInProgress(false)
             activeChatHandle = null
@@ -804,7 +854,7 @@ class ChatSessionActivity : ThemedActivity() {
             val streamingMsg = activeStreamingMessage
             if (streamingMsg != null) {
                 stopStreamTypewriter(true)
-                streamingMsg.content = CHARACTER_MEMORY_LOADING_TEXT
+                streamingMsg.content = LOADING_PLACEHOLDER_TEXT
                 streamingMsg.reasoning = ""
                 streamingMsg.thinkingRunning = false
                 streamingMsg.thinkingElapsedMs = 0L
@@ -815,18 +865,18 @@ class ChatSessionActivity : ThemedActivity() {
         if (event.delta != null) {
             // onPartial
             val streamingMsg = activeStreamingMessage
-            if (streamingMsg != null && CHARACTER_MEMORY_LOADING_TEXT == streamingMsg.content?.trim()) {
+            if (streamingMsg != null && LOADING_PLACEHOLDER_TEXT == streamingMsg.content?.trim()) {
                 streamingMsg.content = ""
-                removeCharacterMemoryLoadingPlaceholder()
+                removeLoadingPlaceholder()
             }
             finishThinking(activeStreamingMessage)
             enqueueStreamDelta(activeStreamingMessage, event.delta)
         } else if (event.reasoning != null) {
             // onReasoning
             val streamingMsg = activeStreamingMessage
-            if (streamingMsg != null && CHARACTER_MEMORY_LOADING_TEXT == streamingMsg.content?.trim()) {
+            if (streamingMsg != null && LOADING_PLACEHOLDER_TEXT == streamingMsg.content?.trim()) {
                 streamingMsg.content = ""
-                removeCharacterMemoryLoadingPlaceholder()
+                removeLoadingPlaceholder()
             }
             beginThinking(activeStreamingMessage)
             activeStreamingMessage?.reasoning = event.reasoning ?: ""
@@ -848,7 +898,7 @@ class ChatSessionActivity : ThemedActivity() {
             val streaming = activeStreamingMessage
             activeStreamingMessage = null
             val safeContent = event.successContent ?: ""
-            removeCharacterMemoryLoadingPlaceholder()
+            removeLoadingPlaceholder()
             if (streaming != null) {
                 finishThinking(streaming)
                 stopStreamTypewriter(true)
@@ -880,7 +930,7 @@ class ChatSessionActivity : ThemedActivity() {
             activeChatHandle = null
             val streaming = activeStreamingMessage
             activeStreamingMessage = null
-            removeCharacterMemoryLoadingPlaceholder()
+            removeLoadingPlaceholder()
             if (streaming != null) {
                 finishThinking(streaming)
             }
@@ -897,7 +947,7 @@ class ChatSessionActivity : ThemedActivity() {
             ).show()
         } else if (event.isCancelled) {
             // onCancelled
-            removeCharacterMemoryLoadingPlaceholder()
+            removeLoadingPlaceholder()
             handleResponseStopped(activeStreamingMessage)
             activeStreamingMessage = null
         }
@@ -1405,7 +1455,15 @@ class ChatSessionActivity : ThemedActivity() {
             override fun onDelete(message: Message) {
                 val idx = indexOf(message)
                 if (idx < 0) return
-                allMessages.removeAt(idx)
+                // split 组 (proactiveKind=1 且有 turnId): 内存列表里同组所有段落一并移除,
+                // 对应 DB 层的 deleteSplitGroupByTurnId 整组清除, 保持 UI 与 DB 一致.
+                val splitGroupTurnId = if (message.proactiveKind == 1 && message.turnId.isNotEmpty())
+                    message.turnId else null
+                if (splitGroupTurnId != null) {
+                    allMessages.removeAll { it.proactiveKind == 1 && it.turnId == splitGroupTurnId }
+                } else {
+                    allMessages.removeAt(idx)
+                }
                 applyMessagesAndTitle()
                 // proactiveKind != 0 的行 (远程推送 / 仿推送 / split) 不在 persist 对账范围,
                 // 只靠 persistSessionMessagesAsync 删不掉 DB; 这里走专用入口: DB 删 + WS 同步.
@@ -1561,20 +1619,6 @@ class ChatSessionActivity : ThemedActivity() {
         }.trim()
     }
 
-    private fun buildUserMessageForApiWithMemory(
-        baseUserMessage: String,
-        memory: CharacterMemoryApi.MemoryContextResponse?
-    ): String {
-        val source = baseUserMessage.trim()
-        if (source.isEmpty()) return source
-        if (memory == null || !memory.shouldUseMemory) return source
-        val guidance = memory.memoryGuidance?.trim() ?: ""
-        if (guidance.isEmpty()) return source
-        val maxChars = 1200
-        val truncated = if (guidance.length > maxChars) guidance.substring(0, maxChars) else guidance
-        return "$source\n\n【角色长期记忆参考】\n$truncated"
-    }
-
     private fun buildHistoryForApi(sourceHistory: List<Message>): List<Message> {
         val source = sourceHistory.ifEmpty { return emptyList() }
         if (!writerAssistant) return source
@@ -1632,36 +1676,26 @@ class ChatSessionActivity : ThemedActivity() {
     }
 
     /**
-     * memory-context 注入路径暂时弃用 (2026-05-07).
-     * 现在由 LLM 通过 search_memory tool 按需主动检索, 不再每条 user message 自动 prepend.
-     * 函数 / 接口 / DTO 全部保留, 后续若想恢复, 把 return false 换回原条件即可.
+     * Show a "[…正在输入中]" assistant bubble while we wait for slow async work
+     * (V3 chat/context fetch, in-flight tool calls, etc). Cleared the moment
+     * the first stream token arrives or on completion.
      */
-    private fun shouldUseCharacterMemory(): Boolean {
-        return false
-        // 原条件:
-        // return characterAssistant
-        //         && !assistantId.isNullOrEmpty()
-        //         && characterMemoryService != null
-        //         && characterMemoryService!!.isEnabled()
-    }
-
-    private fun showCharacterMemoryLoadingPlaceholder(responseToken: Long) {
+    private fun showLoadingPlaceholder(responseToken: Long) {
         if (responseToken != activeResponseToken) return
-        if (!shouldUseCharacterMemory()) return
-        removeCharacterMemoryLoadingPlaceholder()
-        val loading = Message(sessionId, Message.ROLE_ASSISTANT, CHARACTER_MEMORY_LOADING_TEXT)
+        removeLoadingPlaceholder()
+        val loading = Message(sessionId, Message.ROLE_ASSISTANT, LOADING_PLACEHOLDER_TEXT)
         loading.createdAt = System.currentTimeMillis()
-        characterMemoryLoadingMessage = loading
+        loadingPlaceholderMessage = loading
         allMessages.add(loading)
         applyMessagesAndTitle()
         // 不 force: AI loading 占位也不该抢用户阅读位置.
         maybeAutoScrollToBottom(false)
     }
 
-    private fun removeCharacterMemoryLoadingPlaceholder() {
-        val loading = characterMemoryLoadingMessage ?: return
+    private fun removeLoadingPlaceholder() {
+        val loading = loadingPlaceholderMessage ?: return
         allMessages.remove(loading)
-        characterMemoryLoadingMessage = null
+        loadingPlaceholderMessage = null
         applyMessagesAndTitle()
     }
 
@@ -1983,7 +2017,7 @@ class ChatSessionActivity : ThemedActivity() {
         activeResponseToken = viewModel.incrementResponseToken()
         activeChatHandle = null
         activeStreamingMessage = null
-        removeCharacterMemoryLoadingPlaceholder()
+        removeLoadingPlaceholder()
         try {
             handle?.cancel()
         } catch (ignored: Exception) {}
