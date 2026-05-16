@@ -11,7 +11,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.example.aichat.sync.CharacterBootstrapStore
-import com.example.aichat.sync.ChatContextCache
+import com.example.aichat.sync.EffectivePromptStore
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.card.MaterialCardView
 import com.google.gson.JsonElement
@@ -62,19 +62,22 @@ class CharacterInfoActivity : ThemedActivity() {
         fetchedAtView.text = getString(R.string.character_info_fetched_at,
             timeFmt.format(Date(cache.fetchedAtMs)))
 
-        val chatCtxMergedSystem = ChatContextCache.get(assistantId)?.mergedSystem.orEmpty()
-        renderSections(container, cache.rawJson, chatCtxMergedSystem)
+        val effectivePrompt = EffectivePromptStore.get(assistantId)
+        renderSections(container, cache.rawJson, effectivePrompt)
     }
 
     // ── 渲染入口 ───────────────────────────────────────────────────────
 
-    private fun renderSections(container: LinearLayout, rawJson: String, mergedSystem: String) {
+    private fun renderSections(
+        container: LinearLayout,
+        rawJson: String,
+        effectivePrompt: EffectivePromptStore.Snapshot?,
+    ) {
         container.removeAllViews()
 
         val root = try {
             JsonParser().parse(rawJson).asJsonObject
         } catch (_: Exception) {
-            // 解析失败时直接用 monospace 展示原文兜底
             addSection(container, "原始 JSON（解析失败）", rawJson, monospace = true)
             return
         }
@@ -97,11 +100,22 @@ class CharacterInfoActivity : ThemedActivity() {
         // 6. 叙事记忆（reflection / episodes / topics）
         renderNarrativeSection(container, root)
 
-        // 7. 完整 system prompt（来自 chat/context 缓存）
+        // 7. 实际下发 system prompt（EffectivePromptStore 记录，每次发消息后更新）
+        val promptText = effectivePrompt?.systemPrompt.orEmpty()
+        val meta = buildString {
+            if (effectivePrompt != null) {
+                append("source: ${effectivePrompt.source}")
+                if (!effectivePrompt.routerSummary.isNullOrBlank())
+                    append("  |  ${effectivePrompt.routerSummary}")
+            }
+        }
+        if (meta.isNotBlank()) {
+            addSection(container, "ℹ️ prompt 来源", meta, small = true)
+        }
         addSection(container,
-            "🛠 完整 system prompt（chat/context）",
-            mergedSystem.ifBlank { "（暂无缓存 — 在聊天页发一条消息后刷新此页）" },
-            monospace = mergedSystem.isNotBlank(),
+            "🛠 实际下发 system prompt",
+            promptText.ifBlank { "（暂无记录 — 在聊天页发一条消息后刷新此页）" },
+            monospace = promptText.isNotBlank(),
             small = true)
     }
 
