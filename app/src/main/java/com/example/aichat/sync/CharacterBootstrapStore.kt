@@ -13,19 +13,12 @@ import java.util.concurrent.Executors
 
 /**
  * Caches `POST /api/character/context` payloads per assistantId so the chat
- * dispatch path can read mergedSystem / coreFacts / coreMemories synchronously
+ * dispatch path can read renderedSlots / coreFacts / coreMemories synchronously
  * when building system prompt.
  *
  * - 内存级 cache (per-process). 不持久化 — 进程重启会重新拉.
  * - TTL: 同一 assistantId 距上次成功 fetch [TTL_MS] 内 no-op, 超过就 refresh.
  * - 失败容错: 网络错误时保留旧 cache, 不阻塞 chat.
- *
- * Phase 2 cleanup（2026-05-10）：
- *   - server 已删 /api/character/bootstrap 端点。fallback 路径移除。
- *   - cache.promptFragment 字段重命名为 mergedSystem（V_NEW_LEAN：server 渲染好的
- *     完整 8-slot system prompt，含 role/character/background/constraints/facts/
- *     narrative/tool_protocol；不含 <client> slot — 那是客户端职责，见
- *     docs/client-prompt-merge-protocol.md）。
  *
  * `relationshipState` 仍走现有 [RelationshipStateStore] (Room 持久化, 跨进程 ok).
  */
@@ -34,8 +27,6 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
     /** Single-line in-memory cache row. */
     data class Cache(
         val assistantId: String,
-        /** 保留以备兼容，新路径改用 [renderedSlots] 拼接。 */
-        val mergedSystem: String,
         /** character/context renderedSlots：role / character / background / constraints / toolProtocol. */
         val renderedSlots: ChatRenderedSlots? = null,
         val coreMemories: List<CoreMemory>,
@@ -125,7 +116,6 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
             }
             Cache(
                 assistantId = aid,
-                mergedSystem = readStr(root, "mergedSystem"),
                 renderedSlots = parseRenderedSlots(root),
                 coreMemories = parseCoreMemories(root.get("coreMemories")),
                 coreFacts = parseCoreFacts(root.get("coreFacts")),

@@ -173,12 +173,10 @@ class ChatServerApi(
 
     /**
      * POST /api/character/context — admin / debug / boot cache 端点。
-     * 返回 7 层认知态 payload + V_NEW_LEAN 8 个 slot + mergedSystem + assistantPrefill。
-     * 不带本轮 user 上下文（无 sessionId / userInput）；返回的 mergedSystem 中 facts /
-     * narrative slot 是占位（chat hot path 走 [chatContext] 拿带 facts 的版本）。
+     * 返回 7 层认知态 payload + renderedSlots（role/character/background/constraints/toolProtocol）。
+     * 不带本轮 user 上下文（无 sessionId / userInput）；facts / narrative 是占位。
      *
-     * 主要用于 [CharacterBootstrapStore] boot 时缓存 system prompt 雏形，让首条消息
-     * 延迟低。
+     * 主要用于 [CharacterBootstrapStore] boot 时缓存 renderedSlots，让首条消息延迟低。
      */
     @Throws(IOException::class)
     fun characterContext(assistantId: String, lastUserMessage: String? = null): String {

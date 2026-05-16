@@ -442,9 +442,9 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
      * server-rendered `mergedSystem` + a client-only `<client>` slot
      * (path B in wi-chat-server/docs/client-prompt-merge-protocol.md).
      *
-     * If [chatCtx] is null we fall back to the boot-cache `mergedSystem` from
-     * `POST /api/character/context` and the local-only hints — same behavior
-     * as before V3 wired up.
+     * If [chatCtx] is null we fall back to boot-cache renderedSlots
+     * (role/character/background/constraints) from `POST /api/character/context`
+     * assembled in [buildBootstrapPrefixIfAny], plus local-only hints.
      */
     fun doChatRequest(
         historyForApi: List<Message>,
@@ -460,7 +460,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         val toolBridge = com.example.aichat.sync.ToolBridge.build(getApplication(), assistantId, sid)
 
         // ── Client-side dynamic hints — go into the `<client>` slot in V3 path B,
-        //    or get prepended/appended around boot cache mergedSystem in fallback.
+        //    or assembled alongside boot-cache renderedSlots in fallback.
         val timePrefix = buildTimeContextIfRoleplay(assistantId)
         val relationshipHint = buildRelationshipHintIfAny(assistantId)
         val closeness = readClosenessForAssistant(assistantId)
@@ -836,9 +836,9 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     }
 
     /**
-     * Fallback when chat/context isn't available: same legacy layout we used
-     * before V3 — local hints around the boot-cache mergedSystem (which has
-     * facts/narrative slots empty, but role/character/etc are populated).
+     * Fallback when chat/context isn't available: assembles from boot-cache
+     * renderedSlots (role/character/background/constraints) + local client hints.
+     * facts/narrative are absent — those only come from per-turn chat/context.
      */
     private fun composeSystemPromptFallback(
         assistantId: String?,
