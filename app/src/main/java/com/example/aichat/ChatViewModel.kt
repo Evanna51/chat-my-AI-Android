@@ -473,6 +473,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         // 创作 / 通用对话场景的输出格式.
         val isCharacter = isCharacterAssistant(assistantId)
         val effectiveAutoChat = options.autoChatEnabled && isCharacter
+        Log.d(TAG, "autoChat: autoChatEnabled=${options.autoChatEnabled} isCharacter=$isCharacter → effectiveAutoChat=$effectiveAutoChat | aid=$assistantId")
         val autoChatSuffix = if (effectiveAutoChat)
             ProactivePromptBuilder.buildSystemSuffix(closeness) else ""
         val localSystemPrompt = (options.systemPrompt ?: "").trim()
@@ -556,6 +557,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                         event.assistantTurnId = msg.turnId
                         event.assistantAssignedId = msg.assistantId
                         postStreamEvent(event)
+                        Log.d(TAG, "onSuccess: autoChatActive=$autoChatActive insertedId=$insertedId meta=${capturedMeta?.let { "split=${it.split?.size} followUp=${it.followUp?.afterSec} autoStop=${it.autoStop}" } ?: "null"}")
                         if (autoChatActive && insertedId > 0) {
                             try {
                                 ensurePlanner().onAssistantTurnFinalized(

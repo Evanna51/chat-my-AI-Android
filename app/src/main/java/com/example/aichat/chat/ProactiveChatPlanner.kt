@@ -92,21 +92,36 @@ class ProactiveChatPlanner(
         meta: ProactiveMeta?,
         options: SessionChatOptions,
     ) {
+        Log.d(TAG, "onAssistantTurnFinalized: sid=$sessionId aid=$assistantId autoChatEnabled=${options.autoChatEnabled} meta=${meta?.let { "split=${it.split?.size} followUp=${it.followUp?.afterSec}s autoStop=${it.autoStop}" } ?: "null"}")
         if (sessionId.isEmpty()) return
-        if (!options.autoChatEnabled) return
-        if (meta == null) return
+        if (!options.autoChatEnabled) {
+            Log.w(TAG, "autoChatEnabled=false, skip (shouldn't reach here)")
+            return
+        }
 
         cancelFollowUp(sessionId)
         cancelPendingSplits(sessionId)
 
+        // meta == null: 模型没有遵守协议（无任何 marker）.
+        // split 需要模型输出分段 marker，无法兜底；但 follow-up 可以用 fallback.
+        if (meta == null) {
+            val fallback = buildFallbackFollowUp(assistantId)
+            Log.d(TAG, "meta=null → fallback=${fallback?.let { "afterSec=${it.afterSec}" } ?: "null (allowProactiveMessage=false?)"}")
+            if (fallback != null) {
+                scheduleFollowUp(sessionId, assistantId, fallback, 1)
+            }
+            return
+        }
+
         applySplit(sessionId, assistantId, insertedMessageId, splitGroupTurnId, meta.split)
         // autoStop 是硬刹车: 即便 followUp 非 null, 模型已声明本次不再追问.
         if (meta.autoStop) {
-            Log.i(TAG, "model emitted autoStop=true on user-driven turn; no follow-up scheduled")
+            Log.i(TAG, "autoStop=true; no follow-up scheduled")
             return
         }
         // 模型给了 followUp 就用; 没给的话, 如果角色允许主动消息, 注入默认兜底 followUp.
         val effectiveFollowUp = meta.followUp ?: buildFallbackFollowUp(assistantId)
+        Log.d(TAG, "scheduling follow-up: followUp=${effectiveFollowUp?.let { "afterSec=${it.afterSec} intent=${it.intent}" } ?: "null (no schedule)"}")
         scheduleFollowUp(
             sessionId = sessionId,
             assistantId = assistantId,
@@ -221,8 +236,15 @@ class ProactiveChatPlanner(
         followUp: ProactiveFollowUp?,
         chainDepth: Int,
     ) {
-        if (followUp == null) return
-        if (chainDepth > ProactiveBudget.HARD_FOLLOWUP_CHAIN_MAX) return
+        if (followUp == null) {
+            Log.d(TAG, "scheduleFollowUp: followUp=null, nothing enqueued")
+            return
+        }
+        if (chainDepth > ProactiveBudget.HARD_FOLLOWUP_CHAIN_MAX) {
+            Log.i(TAG, "scheduleFollowUp: chainDepth=$chainDepth > hard max, skip")
+            return
+        }
+        Log.i(TAG, "scheduleFollowUp: enqueuing WorkManager job afterSec=${followUp.afterSec} chainDepth=$chainDepth intent='${followUp.intent}'")
         ProactiveFollowUpWorker.schedule(
             context = context,
             sessionId = sessionId,

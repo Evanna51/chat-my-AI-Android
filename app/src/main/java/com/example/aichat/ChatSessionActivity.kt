@@ -1138,6 +1138,14 @@ class ChatSessionActivity : ThemedActivity() {
             com.example.aichat.sync.CharacterBootstrapStore
                 .getInstance(this).refreshIfStale(assistantId)
         }
+        com.example.aichat.proactive.ActiveSessionTracker.setActive(sessionId) {
+            runOnUiThread { viewModel.loadMessages() }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        com.example.aichat.proactive.ActiveSessionTracker.clearActive()
     }
 
     private fun updateToolbarModelSubtitle() {

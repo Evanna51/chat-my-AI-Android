@@ -20,7 +20,7 @@ import com.example.aichat.RelationshipStateStore
 import com.example.aichat.SessionChatOptionsStore
 import com.example.aichat.chat.ChatTimeContext
 import com.example.aichat.chat.ProactiveBudget
-import com.example.aichat.chat.ProactiveMetaParser
+
 import com.example.aichat.chat.ProactivePromptBuilder
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -131,6 +131,7 @@ class ProactiveFollowUpWorker(
         val lastUserTsAtSchedule = inputData.getLong(KEY_LAST_USER_MESSAGE_TS, 0L)
         val chainStartEpochMs = inputData.getLong(KEY_CHAIN_START_EPOCH_MS, System.currentTimeMillis())
 
+        Log.i(TAG, "doWork: sid=$sessionId aid=$assistantId depth=$chainDepth intent='$previousIntent'")
         if (sessionId.isEmpty()) return Result.success()
         if (chainDepth > ProactiveBudget.HARD_FOLLOWUP_CHAIN_MAX) {
             Log.i(TAG, "chain hard ceiling ($chainDepth); aborting")
@@ -149,6 +150,7 @@ class ProactiveFollowUpWorker(
             Log.i(TAG, "autoChat disabled for $sessionId; skip")
             return Result.success()
         }
+        Log.d(TAG, "opts ok: modelKey=${opts.modelKey} autoChatEnabled=${opts.autoChatEnabled}")
 
         // 决定本轮用哪个模型: 云端 chain ≤ CLOUD_FOLLOWUP_CHAIN_MAX, 之后切本地 fallback.
         // 没有本地 provider 就此停链, 不再继续.
@@ -242,8 +244,16 @@ class ProactiveFollowUpWorker(
         val latch = CountDownLatch(1)
         val resultRef = arrayOfNulls<String>(1)
         val errorRef = arrayOfNulls<String>(1)
+        // ChatService calls onProactiveMeta BEFORE onSuccess; capture it here so we
+        // have access to split parts and followUp decisions (ChatService already strips
+        // the raw markers from content before onSuccess, so re-parsing onSuccess content
+        // would always yield meta=null).
+        var capturedMeta: com.example.aichat.chat.ProactiveMeta? = null
 
         chatService.chat(historyAsc, instruction, effective, object : ChatService.ChatCallback {
+            override fun onProactiveMeta(meta: com.example.aichat.chat.ProactiveMeta?) {
+                capturedMeta = meta
+            }
             override fun onSuccess(content: String) {
                 resultRef[0] = content
                 latch.countDown()
@@ -272,21 +282,28 @@ class ProactiveFollowUpWorker(
             return Result.retry()
         }
         val raw = resultRef[0].orEmpty()
-        if (raw.isEmpty()) return Result.success()
-
-        // ChatService 已在 onSuccess 之前 strip 过 META, raw 即 cleanContent.
-        val cleaned = raw.trim()
-        // [SKIP] 检测: 容忍模型加 backtick / 标点 (e.g. `[SKIP]`, "[SKIP].", "[skip]!")
-        if (cleaned.isEmpty() || isSkipResponse(cleaned)) {
-            Log.i(TAG, "follow-up SKIP / empty")
+        Log.d(TAG, "chat done: rawLen=${raw.length} capturedMeta=${capturedMeta?.let { "split=${it.split?.size} followUp=${it.followUp?.afterSec}s autoStop=${it.autoStop}" } ?: "null"}")
+        if (raw.isEmpty()) {
+            Log.i(TAG, "raw empty (SKIP path); done")
             return Result.success()
         }
 
-        // 我们仍要再 parse 一次, 以便拿到 followUp / split 决策.
-        // (ChatService 已经 strip; 但若 strip 后还有未分离的 META 它仍 idempotent.)
-        val extract = ProactiveMetaParser.extract(cleaned)
-        val finalContent = extract.cleanContent.ifEmpty { cleaned }
-        val splitParts = extract.meta?.split?.takeIf { it.size >= 2 }
+        // ChatService already stripped META before calling onSuccess; raw = cleanContent.
+        val cleaned = raw.trim()
+        // [SKIP] 检测: 容忍模型加 backtick / 标点 (e.g. `[SKIP]`, "[SKIP].", "[skip]!")
+        if (cleaned.isEmpty() || isSkipResponse(cleaned)) {
+            Log.i(TAG, "follow-up SKIP / empty (isSkipResponse match)")
+            return Result.success()
+        }
+        Log.d(TAG, "follow-up content: '${cleaned.take(80)}'")
+
+        // Use the meta captured via onProactiveMeta (already parsed by ChatService).
+        // Do NOT re-parse `cleaned` — ChatService already consumed all markers.
+        val finalContent = capturedMeta?.let { m ->
+            m.split?.firstOrNull()?.takeIf { it.isNotEmpty() }
+        } ?: cleaned
+        val splitParts = capturedMeta?.split?.takeIf { it.size >= 2 }
+        Log.d(TAG, "persist: splitParts=${splitParts?.size ?: "null"} finalContent='${finalContent.take(60)}'")
 
         val assistantName = if (assistantId.isNotEmpty())
             try { MyAssistantStore(ctx).getById(assistantId)?.name?.takeIf { it.isNotBlank() } }
@@ -313,8 +330,9 @@ class ProactiveFollowUpWorker(
         }
 
         // chain. AI 的 META.autoStop=true 是硬刹车, 即便 followUp 非 null 也不再排.
-        val autoStop = extract.meta?.autoStop == true
-        val nextFollow = extract.meta?.followUp
+        val autoStop = capturedMeta?.autoStop == true
+        val nextFollow = capturedMeta?.followUp
+        Log.d(TAG, "chain decision: autoStop=$autoStop nextFollow=${nextFollow?.let { "afterSec=${it.afterSec}" } ?: "null"} depth=$chainDepth")
         if (autoStop) {
             Log.i(TAG, "model emitted autoStop=true; chain ends at $chainDepth")
         } else if (nextFollow != null && chainDepth + 1 <= ProactiveBudget.HARD_FOLLOWUP_CHAIN_MAX) {
@@ -379,16 +397,21 @@ class ProactiveFollowUpWorker(
             Log.w(TAG, "persist failed", e)
             return if (isRetryWorthy) Result.retry() else Result.success()
         }
-        try {
-            ProactiveMessageNotifier(ctx).notifyMessage(
-                messageId = "proactive_${sessionId}_${System.currentTimeMillis()}",
-                title = assistantName ?: "新消息",
-                body = content,
-                sessionId = sessionId,
-                assistantId = assistantId,
-            )
-        } catch (e: Exception) {
-            Log.w(TAG, "notify failed", e)
+        if (ActiveSessionTracker.isActive(sessionId)) {
+            // User is looking at this session — refresh in-place, skip status bar notification.
+            ActiveSessionTracker.notifyNewFollowUp()
+        } else {
+            try {
+                ProactiveMessageNotifier(ctx).notifyMessage(
+                    messageId = "proactive_${sessionId}_${System.currentTimeMillis()}",
+                    title = assistantName ?: "新消息",
+                    body = content,
+                    sessionId = sessionId,
+                    assistantId = assistantId,
+                )
+            } catch (e: Exception) {
+                Log.w(TAG, "notify failed", e)
+            }
         }
         return Result.success()
     }

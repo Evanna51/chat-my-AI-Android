@@ -3,32 +3,30 @@ package com.example.aichat.chat
 import com.google.gson.JsonParser
 
 /**
- * V8 (2026-05-10): 双协议解析.
+ * V9: 双协议解析.
  *   1. 末尾 `||==FOLLOWUP==||{...}` / `||==STOP==||` / `||==SKIP==||` 元信息标记
  *      → 提取 followUp / autoStop / skip 决策, 从 raw 删除
- *   2. 剩余正文按 `\n\n+` 切分 → messages 数组
+ *   2. 剩余正文按 `|||` 切分 → messages 数组; 无 `|||` 时回退 `\n\n+`（验证中）
  *   3. 多段时 cleanContent = messages[0] (主气泡), split = 完整数组 (剩余段由
  *      ProactiveChatPlanner 逐条追加渲染)
  *
  * 容错:
  *   - SKIP 标记: messages 强制清空, 上层视作"放弃本次发言"
  *   - FOLLOWUP JSON 解析失败: 当作没传 followUp, 不影响其它字段
- *   - 多个段段超 [MAX_SPLIT_PARTS]: 截断保留前 N 段
- *   - 完全没 marker 也没 \n\n: 整条原文当 cleanContent (单段)
+ *   - 超 [MAX_SPLIT_PARTS]: 截断保留前 N 段
+ *   - 完全没 marker 也没分隔: 整条原文当 cleanContent (单段)
  */
 object ProactiveMetaParser {
 
     private const val FOLLOWUP_PREFIX = "||==FOLLOWUP==||"
     private const val STOP_MARKER = "||==STOP==||"
     private const val SKIP_MARKER = "||==SKIP==||"
+    private const val SPLIT_MARKER = "|||"           // 文字分段（兼容保留）
+    private val SPLIT_NL = Regex("""\n{3,}""")       // 两个空行 = 消息分段，与 ProactiveSplitStreamFilter 对齐
     private const val MAX_SPLIT_PARTS = 5
     private const val MIN_FOLLOWUP_SEC = 30
     private const val MAX_FOLLOWUP_SEC = 600
     private const val MAX_INTENT_LEN = 80
-    // 与 ProactiveSplitStreamFilter 保持一致: 两个连续换行 (不允许中间有空格).
-    // 之前用 \n\s*\n+ 允许空白行, 与 filter 的 "\n\n" 精确匹配不一致, 导致
-    // LLM 输出 "\n \n" 时 filter 不触发 (流式照常显示后续段) 但 parser 却把它切开.
-    private val PARAGRAPH_SEP = Regex("""\n\n+""")
     // 形如 ||==FOLLOWUP==||{"afterSec":120,"intent":"..."}
     private val FOLLOWUP_REGEX = Regex(
         """\|\|==FOLLOWUP==\|\|\s*(\{[^}]*\})""",
@@ -73,8 +71,12 @@ object ProactiveMetaParser {
             return ProactiveMetaExtractResult("", meta)
         }
 
-        // 5) 按 \n\n+ 切段 (空白 / tab / 多换行都算段间分隔)
-        val parts = body.split(PARAGRAPH_SEP)
+        // 5) 切段: ||| 优先（prompt 明确指定）; \n{3,} 容错; 无则单段
+        val parts = when {
+            body.contains(SPLIT_MARKER)    -> body.split(SPLIT_MARKER)
+            SPLIT_NL.containsMatchIn(body) -> SPLIT_NL.split(body)
+            else                           -> listOf(body)
+        }
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .take(MAX_SPLIT_PARTS)
