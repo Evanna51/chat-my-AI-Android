@@ -764,8 +764,13 @@ class ChatSessionActivity : ThemedActivity() {
                     history = historyTurns,
                 ))
                 logChatContextDebug(ctxResp)
+                com.example.aichat.sync.ChatContextCache.put(aid, ctxResp)
             } catch (e: Exception) {
-                Log.w(TAG, "chat/context failed: ${e.message ?: ""}")
+                Log.w(TAG, "chat/context failed: ${e.message ?: ""}, trying cache")
+                ctxResp = com.example.aichat.sync.ChatContextCache.get(aid)
+                if (ctxResp != null) {
+                    Log.d(TAG, "chat/context: using cached response for $aid")
+                }
             }
             val finalCtx = ctxResp
             mainHandler.post {
