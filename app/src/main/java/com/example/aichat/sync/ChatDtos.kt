@@ -51,15 +51,36 @@ data class ChatRenderedSlots(
 
 // ── POST /api/chat/context ───────────────────────────────────────────
 
+data class ChatHistoryTurn(
+    val role: String,
+    val content: String,
+)
+
 data class ChatContextRequest(
     val assistantId: String,
     /** 必传 —— 决定 retrieve query 的 sessionId 上下文 + tool decision 行为 */
     val sessionId: String,
     val userInput: String,
+    /** 最近几轮对话，供 server 做 attention/router 决策 */
+    val history: List<ChatHistoryTurn>? = null,
     /** 客户端持有的 slots etag；server 端 etag 一致就回传 renderedSlots=null（客户端用缓存） */
     val haveSlotsETag: String? = null,
     /** 可选 —— 覆盖默认 retrievalTopK */
     val topK: Int? = null,
+)
+
+data class RouterDecision(
+    val register: Boolean = false,
+    val skillIds: List<String>? = null,
+    val budget: Int = 0,
+    val reason: String? = null,
+)
+
+data class Attention1h(
+    val topics: List<String>? = null,
+    val innerFocus: String? = null,
+    val emotionalTone: String? = null,
+    val turnCount: Int = 0,
 )
 
 data class ChatContextResponse(
@@ -74,6 +95,10 @@ data class ChatContextResponse(
     val assistantPrefill: String? = null,
     val salientPhrase: Map<String, Any?>? = null,
     val memoryDecision: ChatMemoryDecision? = null,
+    /** V3 path A+：server 渲染好的完整 system prompt，直接替换本地拼接 */
+    val mergedSystem: String? = null,
+    val routerDecision: RouterDecision? = null,
+    val attention1h: Attention1h? = null,
     /** 客户端缓存这个 etag；下次 chat/context 调用时回传 haveSlotsETag */
     val etag: String? = null,
     /** server 推断 state 版本；客户端可用作 sync 比对 */

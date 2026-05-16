@@ -22,11 +22,12 @@ import java.util.Locale
 
 /**
  * 展示当前会话绑定的角色最近一次 /api/character/context 响应内容.
+ * 和 /api/chat/context的内容
  * 从 [CharacterBootstrapStore] 内存缓存读取, 无网络请求.
  *
  * Phase 2 cleanup（2026-05-10）：从单一 raw JSON 文本展示，改为分段格式化展示：
  *   - 角色档案、当下心境、角色身份、约束、关系动力学、叙事记忆 — 友好可读
- *   - 完整 system prompt 预览（V_NEW_LEAN mergedSystem）— monospace 块
+ *   - 完整 system prompt  mergedSystem — monospace 块
  */
 class CharacterInfoActivity : ThemedActivity() {
 
@@ -97,7 +98,7 @@ class CharacterInfoActivity : ThemedActivity() {
         // 7. 完整 system prompt（V_NEW_LEAN mergedSystem）
         if (mergedSystem.isNotBlank()) {
             addSection(container,
-                "🛠 完整 system prompt（V_NEW_LEAN，含 8 个 slot）",
+                "🛠 完整 system prompt",
                 mergedSystem,
                 monospace = true,
                 small = true)
