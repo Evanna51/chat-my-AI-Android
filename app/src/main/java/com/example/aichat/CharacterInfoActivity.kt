@@ -11,6 +11,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.example.aichat.sync.CharacterBootstrapStore
+import com.example.aichat.sync.ChatContextCache
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.card.MaterialCardView
 import com.google.gson.JsonElement
@@ -61,7 +62,8 @@ class CharacterInfoActivity : ThemedActivity() {
         fetchedAtView.text = getString(R.string.character_info_fetched_at,
             timeFmt.format(Date(cache.fetchedAtMs)))
 
-        renderSections(container, cache.rawJson, cache.mergedSystem)
+        val chatCtxMergedSystem = ChatContextCache.get(assistantId)?.mergedSystem.orEmpty()
+        renderSections(container, cache.rawJson, chatCtxMergedSystem)
     }
 
     // ── 渲染入口 ───────────────────────────────────────────────────────
@@ -95,14 +97,12 @@ class CharacterInfoActivity : ThemedActivity() {
         // 6. 叙事记忆（reflection / episodes / topics）
         renderNarrativeSection(container, root)
 
-        // 7. 完整 system prompt（V_NEW_LEAN mergedSystem）
-        if (mergedSystem.isNotBlank()) {
-            addSection(container,
-                "🛠 完整 system prompt",
-                mergedSystem,
-                monospace = true,
-                small = true)
-        }
+        // 7. 完整 system prompt（来自 chat/context 缓存）
+        addSection(container,
+            "🛠 完整 system prompt（chat/context）",
+            mergedSystem.ifBlank { "（暂无缓存 — 在聊天页发一条消息后刷新此页）" },
+            monospace = mergedSystem.isNotBlank(),
+            small = true)
     }
 
     // ── section: 角色档案 ─────────────────────────────────────────────
