@@ -867,9 +867,10 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     }
 
     /**
-     * Boot-cache mergedSystem from `POST /api/character/context` (no per-turn
-     * facts/narrative). Used only by the fallback path; V3 hot path replaces
-     * this entirely with chatCtx.mergedSystem.
+     * Fallback system prompt prefix built from boot-cache [CharacterBootstrapStore].
+     * Uses [ChatRenderedSlots] (role / character / background / constraints) rather
+     * than the pre-merged monolithic string, so we control which slots go in and in
+     * what order. toolProtocol is omitted — per-turn tool hints come from chatCtx.
      */
     private fun buildBootstrapPrefixIfAny(assistantId: String?): String {
         val aid = assistantId?.trim().orEmpty()
@@ -879,7 +880,19 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                 .getCached(aid)
         } catch (_: Exception) { null } ?: return ""
 
-        return cache.mergedSystem
+        val slots = cache.renderedSlots
+        if (slots != null) {
+            val parts = listOfNotNull(
+                slots.role?.trim()?.takeIf { it.isNotEmpty() },
+                slots.character?.trim()?.takeIf { it.isNotEmpty() },
+                slots.background?.trim()?.takeIf { it.isNotEmpty() },
+                slots.constraints?.trim()?.takeIf { it.isNotEmpty() },
+            )
+            if (parts.isNotEmpty()) return parts.joinToString("\n\n")
+        }
+        // slots 未缓存时（旧 boot cache 未包含 renderedSlots）退到本地 systemPrompt，
+        // 什么都不注入，让 composeSystemPromptFallback 只拼客户端信号。
+        return ""
     }
 
     /**

@@ -34,12 +34,10 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
     /** Single-line in-memory cache row. */
     data class Cache(
         val assistantId: String,
-        /**
-         * V_NEW_LEAN: server 渲染好的完整 system prompt（含 8 个 slot）。
-         * 客户端在 <narrative> 后、<tool_protocol> 前插入自己的 <client> slot
-         * 后即得最终 system prompt。详见 docs/client-prompt-merge-protocol.md。
-         */
+        /** 保留以备兼容，新路径改用 [renderedSlots] 拼接。 */
         val mergedSystem: String,
+        /** character/context renderedSlots：role / character / background / constraints / toolProtocol. */
+        val renderedSlots: ChatRenderedSlots? = null,
         val coreMemories: List<CoreMemory>,
         val coreFacts: List<CoreFact>,
         val fetchedAtMs: Long,
@@ -128,6 +126,7 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
             Cache(
                 assistantId = aid,
                 mergedSystem = readStr(root, "mergedSystem"),
+                renderedSlots = parseRenderedSlots(root),
                 coreMemories = parseCoreMemories(root.get("coreMemories")),
                 coreFacts = parseCoreFacts(root.get("coreFacts")),
                 fetchedAtMs = System.currentTimeMillis(),
@@ -138,6 +137,19 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
             Log.w(TAG, "character/context parse failed", e)
             null
         }
+    }
+
+    private fun parseRenderedSlots(root: JsonObject): ChatRenderedSlots? {
+        val el = root.get("renderedSlots") ?: return null
+        if (el.isJsonNull || !el.isJsonObject) return null
+        val obj = el.asJsonObject
+        return ChatRenderedSlots(
+            role        = readStr(obj, "role").takeIf { it.isNotEmpty() },
+            character   = readStr(obj, "character").takeIf { it.isNotEmpty() },
+            background  = readStr(obj, "background").takeIf { it.isNotEmpty() },
+            constraints = readStr(obj, "constraints").takeIf { it.isNotEmpty() },
+            toolProtocol = readStr(obj, "tool_protocol").takeIf { it.isNotEmpty() },
+        )
     }
 
     private fun parseCoreMemories(el: JsonElement?): List<CoreMemory> {
