@@ -11,7 +11,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import com.example.aichat.sync.CharacterBootstrapStore
-import com.example.aichat.sync.EffectivePromptStore
+import com.example.aichat.sync.ChatContextCache
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.card.MaterialCardView
 import com.google.gson.JsonElement
@@ -22,13 +22,15 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * 展示当前会话绑定的角色最近一次 /api/character/context 响应内容.
- * 和 /api/chat/context的内容
- * 从 [CharacterBootstrapStore] 内存缓存读取, 无网络请求.
+ * 展示当前会话绑定的角色信息.
  *
- * Phase 2 cleanup（2026-05-10）：从单一 raw JSON 文本展示，改为分段格式化展示：
- *   - 角色档案、当下心境、角色身份、约束、关系动力学、叙事记忆 — 友好可读
- *   - 完整 system prompt  mergedSystem — monospace 块
+ * 数据来源（两路独立）：
+ *   - [CharacterBootstrapStore] — boot 时拉取的 /api/character/context，含 rawJson（用于解析
+ *     emotion / identity / dynamics / narrative 各 section）；
+ *   - [ChatContextCache] — 每轮发消息时拉取的 /api/chat/context，含 mergedSystem（完整
+ *     system prompt，section 7 展示）。
+ *
+ * 两路各自独立判空：boot cache 为空时不影响 mergedSystem section 展示，反之亦然。
  */
 class CharacterInfoActivity : ThemedActivity() {
 
@@ -50,20 +52,26 @@ class CharacterInfoActivity : ThemedActivity() {
         val sid = intent.getStringExtra(EXTRA_SESSION_ID).orEmpty()
         val assistantId = if (sid.isNotEmpty())
             SessionAssistantBindingStore(this).getAssistantId(sid) else ""
+
+        // Two independent sources — neither gates the other.
+        val mergedSystem = ChatContextCache.get(assistantId)?.mergedSystem.orEmpty()
         val cache = CharacterBootstrapStore.getInstance(this).getCached(assistantId)
 
-        if (cache == null || cache.rawJson.isBlank()) {
+        if ((cache == null || cache.rawJson.isBlank()) && mergedSystem.isBlank()) {
             emptyView.visibility = View.VISIBLE
             container.visibility = View.GONE
             fetchedAtView.visibility = View.GONE
             return
         }
 
-        fetchedAtView.text = getString(R.string.character_info_fetched_at,
-            timeFmt.format(Date(cache.fetchedAtMs)))
+        if (cache != null && cache.fetchedAtMs > 0L) {
+            fetchedAtView.text = getString(R.string.character_info_fetched_at,
+                timeFmt.format(Date(cache.fetchedAtMs)))
+        } else {
+            fetchedAtView.visibility = View.GONE
+        }
 
-        val effectivePrompt = EffectivePromptStore.get(assistantId)
-        renderSections(container, cache.rawJson, effectivePrompt)
+        renderSections(container, cache?.rawJson.orEmpty(), mergedSystem)
     }
 
     // ── 渲染入口 ───────────────────────────────────────────────────────
@@ -71,51 +79,38 @@ class CharacterInfoActivity : ThemedActivity() {
     private fun renderSections(
         container: LinearLayout,
         rawJson: String,
-        effectivePrompt: EffectivePromptStore.Snapshot?,
+        mergedSystem: String,
     ) {
         container.removeAllViews()
 
-        val root = try {
-            JsonParser().parse(rawJson).asJsonObject
-        } catch (_: Exception) {
-            addSection(container, "原始 JSON（解析失败）", rawJson, monospace = true)
-            return
-        }
-
-        // 1. 角色档案
-        renderProfileSection(container, root)
-
-        // 2. 当下心境（emotion + assistantPrefill 独白）
-        renderEmotionSection(container, root)
-
-        // 3. 角色身份（identity 字段，V_NEW_LEAN 精简版）
-        renderIdentitySection(container, root)
-
-        // 4. 约束（hard / soft / avoidance / triggering）
-        renderConstraintsSection(container, root)
-
-        // 5. 关系动力学（12 维 dynamics）
-        renderDynamicsSection(container, root)
-
-        // 6. 叙事记忆（reflection / episodes / topics）
-        renderNarrativeSection(container, root)
-
-        // 7. 实际下发 system prompt（EffectivePromptStore 记录，每次发消息后更新）
-        val promptText = effectivePrompt?.systemPrompt.orEmpty()
-        val meta = buildString {
-            if (effectivePrompt != null) {
-                append("source: ${effectivePrompt.source}")
-                if (!effectivePrompt.routerSummary.isNullOrBlank())
-                    append("  |  ${effectivePrompt.routerSummary}")
+        if (rawJson.isNotBlank()) {
+            val root = try {
+                JsonParser().parse(rawJson).asJsonObject
+            } catch (_: Exception) {
+                addSection(container, "原始 JSON（解析失败）", rawJson, monospace = true)
+                null
+            }
+            if (root != null) {
+                // 1. 角色档案
+                renderProfileSection(container, root)
+                // 2. 当下心境（emotion + assistantPrefill 独白）
+                renderEmotionSection(container, root)
+                // 3. 角色身份（identity 字段，V_NEW_LEAN 精简版）
+                renderIdentitySection(container, root)
+                // 4. 约束（hard / soft / avoidance / triggering）
+                renderConstraintsSection(container, root)
+                // 5. 关系动力学（12 维 dynamics）
+                renderDynamicsSection(container, root)
+                // 6. 叙事记忆（reflection / episodes / topics）
+                renderNarrativeSection(container, root)
             }
         }
-        if (meta.isNotBlank()) {
-            addSection(container, "ℹ️ prompt 来源", meta, small = true)
-        }
+
+        // 7. chat/context mergedSystem — independent of boot cache JSON
         addSection(container,
-            "🛠 实际下发 system prompt",
-            promptText.ifBlank { "（暂无记录 — 在聊天页发一条消息后刷新此页）" },
-            monospace = promptText.isNotBlank(),
+            "🛠 完整 system prompt（chat/context）",
+            mergedSystem.ifBlank { "（暂无缓存 — 在聊天页发一条消息后刷新此页）" },
+            monospace = mergedSystem.isNotBlank(),
             small = true)
     }
 

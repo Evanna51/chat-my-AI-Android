@@ -753,7 +753,8 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         chatCtx: com.example.aichat.sync.ChatContextResponse?,
     ) {
         val routerSummary = chatCtx?.routerDecision?.let { rd ->
-            "register=${rd.register ?: "-"}  skills=[${rd.skillIds?.joinToString(",") ?: ""}]  budget=${rd.budget ?: "-"}"
+            val tags = rd.registerTags?.joinToString(",") ?: rd.register ?: "-"
+            "tags=[$tags]  stance=${rd.responseStance ?: "-"}  skills=[${rd.skillIds?.joinToString(",") ?: ""}]  budget=${rd.budget ?: "-"}"
         }
         com.example.aichat.sync.EffectivePromptStore.record(
             assistantId,

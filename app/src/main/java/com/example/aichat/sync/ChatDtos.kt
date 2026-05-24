@@ -69,11 +69,43 @@ data class ChatContextRequest(
     val topK: Int? = null,
 )
 
+/**
+ * Server registerRouter（cognition router）输出快照。所有字段可空，仅用作 debug / 监控；
+ * 客户端 chat path 不依赖任何字段——prompt 已经被 server 拼进 `mergedSystem`。
+ *
+ * 2026-05-24：升级为 cognition router schema。
+ *   - register: 兼容老字段（= register_tags[0]）
+ *   - register_tags: 多标签 (0-3 个) "反应型"/"闲聊"/"情绪倾诉"/"引用过去"/"长咨询"/"RP"
+ *   - response_stance: 角色响应意图 "empathize"/"reflect"/"probe"/"stay_silent"/...
+ *   - inner: 角色第一人称内心独白（subtext_read / my_feeling / honesty_check）
+ *   - state_delta: 本轮 mood/relationship shift（server 已落 DB）
+ */
 data class RouterDecision(
-    val register: Boolean = false,
-    val skillIds: List<String>? = null,
-    val budget: Int = 0,
+    val register: String? = null,
+    @SerializedName("register_tags") val registerTags: List<String>? = null,
+    @SerializedName("response_stance") val responseStance: String? = null,
+    val inner: ChatInnerThought? = null,
+    @SerializedName("state_delta") val stateDelta: Map<String, Any?>? = null,
+    @SerializedName("state_delta_applied") val stateDeltaApplied: Map<String, Any?>? = null,
+    @SerializedName("skill_ids") val skillIds: List<String>? = null,
+    val budget: String? = null,
+    val layers: Map<String, Int>? = null,
+    @SerializedName("server_tools") val serverTools: List<Map<String, Any?>>? = null,
+    @SerializedName("client_tools") val clientTools: List<String>? = null,
     val reason: String? = null,
+)
+
+/**
+ * Cognition router 输出的角色"内心独白"。可选 debug UI 暴露给开发者 / power user，
+ * 默认不展示给普通用户——这是创作过程的脚手架，不是产品 surface。
+ */
+data class ChatInnerThought(
+    /** ta 这句话的潜台词 / 真正在表达什么 */
+    @SerializedName("subtext_read") val subtextRead: String? = null,
+    /** 你（角色第一人称）此刻的复杂感受，允许 mixed */
+    @SerializedName("my_feeling") val myFeeling: String? = null,
+    /** 反讨好/反编造自检 */
+    @SerializedName("honesty_check") val honestyCheck: String? = null,
 )
 
 data class Attention1h(
