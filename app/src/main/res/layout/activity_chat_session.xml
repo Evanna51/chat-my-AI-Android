@@ -294,10 +294,12 @@
                 android:orientation="horizontal" />
         </HorizontalScrollView>
 
-        <FrameLayout
+        <LinearLayout
             android:id="@+id/inputPill"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="bottom"
             android:background="@drawable/bg_input_pill"
             android:elevation="3dp"
             android:paddingStart="18dp"
@@ -307,9 +309,9 @@
 
             <EditText
                 android:id="@+id/inputEdit"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="42dp"
+                android:layout_weight="1"
                 android:hint="@string/chat_hint"
                 android:inputType="textMultiLine|textCapSentences"
                 android:maxLines="6"
@@ -323,11 +325,10 @@
 
             <ImageButton
                 android:id="@+id/sendButton"
-                android:layout_width="48dp"
+                android:layout_width="36dp"
                 android:layout_height="36dp"
-                android:layout_gravity="bottom|end"
-                android:layout_marginEnd="18dp"
-                android:layout_marginBottom="9dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginBottom="3dp"
                 android:padding="6dp"
                 android:scaleType="fitCenter"
                 android:background="@drawable/bg_send_button"
@@ -336,7 +337,7 @@
                 android:src="@drawable/ic_arrow_up"
                 android:tint="?attr/colorOnPrimary"
                 android:contentDescription="@string/send" />
-        </FrameLayout>
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

@@ -524,6 +524,9 @@ class ChatSessionActivity : ThemedActivity() {
         val recyclerCurrent: RecyclerView? = findViewById(R.id.recyclerCurrent)
         val scrollMessages: NestedScrollView? = findViewById(R.id.scrollMessages)
         scrollMessagesView = scrollMessages
+        scrollMessages?.addOnLayoutChangeListener { _, _, _, _, bottom, _, _, _, oldBottom ->
+            if (bottom < oldBottom) maybeAutoScrollToBottom(true)
+        }
         val inputEdit: EditText? = findViewById(R.id.inputEdit)
         val sendButton: ImageButton? = findViewById(R.id.sendButton)
         inputEditView = inputEdit
