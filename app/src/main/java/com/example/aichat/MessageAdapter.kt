@@ -63,6 +63,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         Collections.newSetFromMap(IdentityHashMap())
     private var writerMode: Boolean = false
     private var characterMode: Boolean = false
+    private var characterAssistant: MyAssistant? = null
     private var disableAssistantCollapseToggle: Boolean = false
     private var autoFocusLatestOnSetMessages: Boolean = true
     private var affixViewportTop: Int = Int.MIN_VALUE
@@ -309,6 +310,11 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         notifyDataSetChanged()
     }
 
+    fun setCharacterAssistant(assistant: MyAssistant?) {
+        characterAssistant = assistant
+        notifyDataSetChanged()
+    }
+
     fun setAutoFocusLatestOnSetMessages(enabled: Boolean) {
         autoFocusLatestOnSetMessages = enabled
     }
@@ -546,6 +552,17 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             holder.boundMessage = m
             holder.textTimestamp.text = formatTimestamp(m.createdAt)
             holder.textContent.alpha = 1f
+            if (characterMode) {
+                holder.layoutAssistantAvatar.visibility = View.VISIBLE
+                AssistantAvatarHelper.bindAvatar(
+                    holder.imageAssistantAvatar,
+                    holder.textAssistantAvatar,
+                    characterAssistant,
+                    characterAssistant?.name
+                )
+            } else {
+                holder.layoutAssistantAvatar.visibility = View.GONE
+            }
             val isMemoryLoadingPlaceholder =
                 m.role == Message.ROLE_ASSISTANT &&
                 CHARACTER_MEMORY_LOADING_TEXT == content.trim()
@@ -711,6 +728,9 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         val textCollapseIcon: ImageView = itemView.findViewById(R.id.textCollapseIcon)
         val textCollapseLabel: TextView = itemView.findViewById(R.id.textCollapseLabel)
         val layoutAssistantBubble: View = itemView.findViewById(R.id.layoutAssistantBubble)
+        val layoutAssistantAvatar: View = itemView.findViewById(R.id.layoutAssistantAvatar)
+        val imageAssistantAvatar: ImageView = itemView.findViewById(R.id.imageAssistantAvatar)
+        val textAssistantAvatar: TextView = itemView.findViewById(R.id.textAssistantAvatar)
         val actionExpand: ImageView = itemView.findViewById(R.id.actionExpand)
         val layoutActions: View = itemView.findViewById(R.id.layoutActions)
         val layoutReasoning: View = itemView.findViewById(R.id.layoutReasoning)

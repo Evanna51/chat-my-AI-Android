@@ -50,10 +50,42 @@
             android:visibility="gone" />
     </LinearLayout>
 
+    <!-- 助手消息行：character 模式下左侧显示头像 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="top">
+
+    <!-- 头像：仅 character 模式可见，圆形 36dp，AssistantAvatarHelper 负责裁圆和回退 -->
+    <FrameLayout
+        android:id="@+id/layoutAssistantAvatar"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_marginEnd="8dp"
+        android:layout_marginTop="2dp"
+        android:visibility="gone">
+        <ImageView
+            android:id="@+id/imageAssistantAvatar"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+        <TextView
+            android:id="@+id/textAssistantAvatar"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="?attr/colorPrimaryDeep" />
+    </FrameLayout>
+
     <!-- 助手消息气泡容器 -->
     <FrameLayout
         android:id="@+id/layoutAssistantBubble"
-        android:layout_width="match_parent"
+        android:layout_width="0dp"
+        android:layout_weight="1"
         android:layout_height="wrap_content"
         android:background="@drawable/bubble_assistant_wa"
         android:clipChildren="false"
@@ -107,6 +139,7 @@
                 android:text="@string/collapse_message" />
         </LinearLayout>
     </FrameLayout>
+    </LinearLayout>
 
     <TextView
         android:id="@+id/textUsage"

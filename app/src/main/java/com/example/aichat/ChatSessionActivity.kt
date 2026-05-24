@@ -562,6 +562,10 @@ class ChatSessionActivity : ThemedActivity() {
         currentAdapter.setCharacterMode(characterAssistant)
         historyAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
         currentAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
+        val characterAssistantObj = if (characterAssistant && !assistantId.isNullOrEmpty())
+            MyAssistantStore(this).getById(assistantId!!) else null
+        historyAdapter.setCharacterAssistant(characterAssistantObj)
+        currentAdapter.setCharacterAssistant(characterAssistantObj)
         val assistantStateListener = object : MessageAdapter.OnAssistantStateChangedListener {
             override fun onAssistantStateChanged() {
                 historyAdapter.notifyDataSetChanged()
@@ -1149,6 +1153,10 @@ class ChatSessionActivity : ThemedActivity() {
         currentAdapter.setCharacterMode(characterAssistant)
         historyAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
         currentAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
+        val characterAssistantObj = if (characterAssistant && !assistantId.isNullOrEmpty())
+            MyAssistantStore(this).getById(assistantId!!) else null
+        historyAdapter.setCharacterAssistant(characterAssistantObj)
+        currentAdapter.setCharacterAssistant(characterAssistantObj)
         val btnWriterOutline: View? = findViewById(R.id.btnWriterOutline)
         btnWriterOutline?.visibility = if (writerAssistant) View.VISIBLE else View.GONE
         refreshAutoTtsButton()
