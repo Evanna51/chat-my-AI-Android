@@ -801,7 +801,21 @@ class ChatSessionActivity : ThemedActivity() {
     private fun logChatContextDebug(resp: com.example.aichat.sync.ChatContextResponse) {
         val rd = resp.routerDecision
         if (rd != null) {
-            Log.d(TAG, "chat/context router register=${rd.register} skills=${rd.skillIds?.joinToString(",") ?: "-"} budget=${rd.budget} reason=${rd.reason ?: "-"}")
+            Log.d(TAG,
+                "chat/context router tags=[${rd.registerTags?.joinToString(",") ?: rd.register ?: "-"}] " +
+                "stance=${rd.responseStance ?: "-"} " +
+                "skills=[${rd.skillIds?.joinToString(",") ?: ""}] " +
+                "budget=${rd.budget ?: "-"} " +
+                "reason=${rd.reason ?: "-"}")
+            rd.inner?.let { inner ->
+                Log.d(TAG,
+                    "chat/context inner subtext='${inner.subtextRead ?: ""}' " +
+                    "feel='${inner.myFeeling ?: ""}' " +
+                    "honesty='${inner.honestyCheck ?: ""}'")
+            }
+            rd.stateDeltaApplied?.let { applied ->
+                Log.d(TAG, "chat/context state_delta_applied=$applied")
+            }
         }
         val att = resp.attention1h
         if (att != null) {
