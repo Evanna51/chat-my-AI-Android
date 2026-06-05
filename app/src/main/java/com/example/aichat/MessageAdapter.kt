@@ -1,18 +1,16 @@
 package com.example.aichat
 
-import android.text.SpannableString
-import android.text.Spanned
 import android.text.TextUtils
-import android.text.style.ForegroundColorSpan
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.annotation.NonNull
 import androidx.recyclerview.widget.RecyclerView
+import com.example.aichat.adapter.CharacterDisplayRenderer
+import com.example.aichat.adapter.CollapseAffixController
 import com.google.gson.JsonParser
 import io.noties.markwon.Markwon
 import java.text.SimpleDateFormat
@@ -66,8 +64,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private var characterAssistant: MyAssistant? = null
     private var disableAssistantCollapseToggle: Boolean = false
     private var autoFocusLatestOnSetMessages: Boolean = true
-    private var affixViewportTop: Int = Int.MIN_VALUE
-    private var affixViewportBottom: Int = Int.MIN_VALUE
+    private val affixController = CollapseAffixController()
     private var userActionPopup: com.example.aichat.widget.MessageActionPopup? = null
 
     constructor() : this(AssistantMarkdownStateStore(), ActionPanelStateStore())
@@ -320,8 +317,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     fun setCollapseToggleAffixViewport(viewportTop: Int, viewportBottom: Int) {
-        affixViewportTop = viewportTop
-        affixViewportBottom = viewportBottom
+        affixController.setViewport(viewportTop, viewportBottom)
         updateCollapseToggleAffixForAttachedHolders()
     }
 
@@ -873,7 +869,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             h.textContent.ellipsize = null
         }
         if (characterMode) {
-            h.textContent.text = buildCharacterDisplay(h.textContent, content)
+            h.textContent.text = CharacterDisplayRenderer.render(h.textContent, content)
             return
         }
         if (markwon == null || m == null) {
@@ -901,38 +897,14 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         var expanded = m != null && assistantStateStore.isExpanded(m)
         if (disableAssistantCollapseToggle) expanded = true
         if (!expanded) {
-            h.textContent.text = if (characterMode) buildCharacterDisplay(h.textContent, content) else content
+            h.textContent.text = if (characterMode) CharacterDisplayRenderer.render(h.textContent, content) else content
             h.textContent.maxLines = 3
             h.textContent.ellipsize = TextUtils.TruncateAt.END
             return
         }
         h.textContent.maxLines = Int.MAX_VALUE
         h.textContent.ellipsize = null
-        h.textContent.text = if (characterMode) buildCharacterDisplay(h.textContent, content) else content
-    }
-
-    /**
-     * 角色模式渲染：解析协议 emoji 后隐藏，括号段落用 ios_section_label 灰色。
-     */
-    private fun buildCharacterDisplay(anchor: TextView, content: String): CharSequence {
-        if (content.isEmpty()) return content
-        val parsed = EmotionTagParser.parse(content)
-        val display = parsed.displayText
-        if (parsed.narrationRanges.isEmpty()) return display
-        val color = ContextCompat.getColor(anchor.context, R.color.ios_section_label)
-        val span = SpannableString(display)
-        for (range in parsed.narrationRanges) {
-            val end = (range.last + 1).coerceAtMost(display.length)
-            val start = range.first.coerceAtLeast(0)
-            if (start >= end) continue
-            span.setSpan(
-                ForegroundColorSpan(color),
-                start,
-                end,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
-            )
-        }
-        return span
+        h.textContent.text = if (characterMode) CharacterDisplayRenderer.render(h.textContent, content) else content
     }
 
     private fun updateCollapseToggleAffixForAttachedHolders() {
@@ -942,55 +914,12 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
     }
 
-    /**
-     * Pin the floating "expand / collapse" pill to the vertical center of the
-     * portion of the bubble that's visible inside the RecyclerView's viewport.
-     * When the bubble is fully on-screen → the pill sits in the geometric
-     * center of the bubble. When the bubble extends beyond the viewport → the
-     * pill clamps to the visible slice's center, so it never scrolls out.
-     *
-     * No-op if viewport hasn't been wired up yet (affixViewportTop sentinel).
-     */
-    /**
-     * Float the "expand / collapse" pill so it stays reachable while the
-     * user scrolls a long assistant bubble.
-     *
-     * Default anchor (handled entirely by layout, no work here): bottom|end of
-     * the bubble with 6dp margin. While the bubble's bottom is inside the
-     * viewport — including the common "streaming + auto-scroll-to-bottom"
-     * case where bubble bottom equals viewport bottom — translationY is 0 so
-     * the pill never moves and never causes invalidation.
-     *
-     * Only when the bubble's bottom has scrolled below the viewport does this
-     * lift the pill upward, just enough to keep it inside the viewport,
-     * clamped so it never escapes the bubble.
-     *
-     * Bubble fully off-screen → no-op; we leave the last translationY as-is to
-     * avoid wasted invalidations.
-     */
     private fun applyCollapseToggleAffix(h: AssistantHolder) {
-        val toggle = h.textCollapseToggle
-        if (toggle.visibility != View.VISIBLE) return
-        if (affixViewportTop == Int.MIN_VALUE || affixViewportBottom == Int.MIN_VALUE) return
-        val bubble = h.layoutAssistantBubble
-        if (bubble.height <= 0 || toggle.height <= 0) return
-        val pos = IntArray(2)
-        bubble.getLocationOnScreen(pos)
-        val bubbleTopAbs = pos[1]
-        val bubbleBottomAbs = bubbleTopAbs + bubble.height
-        if (bubbleBottomAbs <= affixViewportTop || bubbleTopAbs >= affixViewportBottom) return
-
-        val gapPx = (6f * h.itemView.resources.displayMetrics.density)
-        val newY: Float = if (bubbleBottomAbs <= affixViewportBottom) {
-            0f
-        } else {
-            // How far the bubble bottom is below the viewport bottom.
-            val pullUp = (bubbleBottomAbs - affixViewportBottom).toFloat()
-            // Don't lift past bubble top (toggle would escape upward).
-            val maxPullUp = (bubble.height - toggle.height - gapPx * 2f).coerceAtLeast(0f)
-            -minOf(pullUp, maxPullUp)
-        }
-        if (toggle.translationY != newY) toggle.translationY = newY
+        affixController.applyAffix(
+            h.textCollapseToggle,
+            h.layoutAssistantBubble,
+            h.itemView.resources.displayMetrics.density,
+        )
     }
 
     /**
