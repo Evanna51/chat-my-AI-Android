@@ -40,14 +40,19 @@ class ChatService(context: Context) {
         private const val TOOL_LOOP_MAX_ROUNDS = 3
     }
 
-    private val context: Context = context.applicationContext
+    internal val context: Context = context.applicationContext
+
+    private val titleGenerator by lazy { com.example.aichat.chat.ChatTitleGenerator(this) }
+    private val outlineService by lazy { com.example.aichat.writer.WriterOutlineService(this) }
+    private val chapterPlanService by lazy { com.example.aichat.writer.WriterChapterPlanService(this) }
+    private val volumeService by lazy { com.example.aichat.writer.WriterVolumeService(this) }
 
     /**
      * 子任务（话题命名 / 大纲生成 / 总结 / 章节计划 / 知情边界）走这条：
      * 用户在「编辑模型」里设的默认参数会覆盖调用方写死的 hardcoded 值。
      * 没设就保持调用方原值。
      */
-    private fun applyModelDefaultsToRequest(
+    internal fun applyModelDefaultsToRequest(
         request: ChatApi.ChatRequest,
         providerId: String?,
         modelId: String?,
@@ -61,7 +66,7 @@ class ChatService(context: Context) {
         params.topK?.let { request.topK = it }
     }
 
-    private fun lookupModelDefaultParams(providerId: String?, modelId: String?): ModelDefaultParams? {
+    internal fun lookupModelDefaultParams(providerId: String?, modelId: String?): ModelDefaultParams? {
         if (providerId.isNullOrEmpty() || modelId.isNullOrEmpty()) return null
         val provider = ProviderManager(context).getProvider(providerId) ?: return null
         val model = provider.models.firstOrNull { it.modelId == modelId } ?: return null
@@ -72,7 +77,7 @@ class ChatService(context: Context) {
      * 主对话路径走这条：会话已经显式写了哪些字段就保留，没写（null）的字段才回退到模型默认。
      * temperature/topP 在 SessionChatOptions 里是 primitive 一定有值，所以不在这里覆盖。
      */
-    private fun applyModelDefaultsToRequestForNullFields(
+    internal fun applyModelDefaultsToRequestForNullFields(
         request: ChatApi.ChatRequest,
         providerId: String?,
         modelId: String?,
@@ -89,7 +94,7 @@ class ChatService(context: Context) {
         fun isCancelled(): Boolean
     }
 
-    private class ChatHandleImpl : ChatHandle {
+    internal class ChatHandleImpl : ChatHandle {
         @Volatile var cancelled: Boolean = false
         @Volatile var cancelledCallbackFired: Boolean = false
         @Volatile var retrofitCall: retrofit2.Call<*>? = null
@@ -298,719 +303,25 @@ class ChatService(context: Context) {
     }
 
     fun generateThreadTitle(firstUserMessage: String?, callback: ChatCallback) {
-        val source = firstUserMessage?.trim() ?: ""
-        if (source.isEmpty()) {
-            callback.onError(context.getString(R.string.error_message_empty))
-            return
-        }
-        val config: AiModelConfig.ResolvedConfig
-        try {
-            config = AiModelConfig(context).getConfigForThreadNaming()
-        } catch (e: Exception) {
-            callback.onError(context.getString(R.string.error_config_parse_failed, ""))
-            return
-        }
-        if (config == null || !config.isValid()) {
-            callback.onError(context.getString(R.string.error_no_naming_model_selected))
-            return
-        }
-
-        var providerId = ""
-        val threadNamingPreset = ModelConfig(context).getThreadNamingPreset()
-        if (threadNamingPreset != null && threadNamingPreset.contains(":")) {
-            providerId = threadNamingPreset.substring(0, threadNamingPreset.indexOf(':'))
-        }
-        providerId = resolveProviderId(providerId, config.apiHost)
-        Log.d(TAG, "generateThreadTitle model=${config.modelId}, host=${config.apiHost}, providerId=$providerId")
-
-        var baseUrl = config.toRetrofitBaseUrl()
-        if (!baseUrl.endsWith("/")) baseUrl += "/"
-
-        val localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId)
-        val timeoutSec = if (localOpenAiCompat) 45 else 15
-
-        val logging = HttpLoggingInterceptor()
-        logging.setLevel(HttpLoggingInterceptor.Level.BASIC)
-        val client = OkHttpClient.Builder()
-            .addInterceptor(logging)
-            .connectTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .readTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .writeTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .build()
-
-        val retrofit = Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-        val api = retrofit.create(ChatApi::class.java)
-
-        val requestMessages = ArrayList<ChatApi.ChatMessage>()
-        val titlePrompt = "你是标题助手。根据输入生成一个中文短标题。\n" +
-                "仅输出一个JSON对象，不要任何额外文本。\n" +
-                "严格格式:{\"title\":\"3到12个字中文短标题\"}\n" +
-                "约束: 不要标点，不要换行，不要解释。\n" +
-                "输入:" + source
-        requestMessages.add(ChatApi.ChatMessage("user", titlePrompt))
-
-        val request = ChatApi.ChatRequest()
-        request.model = config.modelId
-        request.messages = requestMessages
-        request.stream = false
-        request.n = 1
-        request.maxTokens = 512
-        request.temperature = 0.0
-        request.topP = 0.2
-        applyModelDefaultsToRequest(request, providerId, config.modelId)
-        request.stop = null
-        request.thinking = if (localOpenAiCompat) java.lang.Boolean.FALSE else null
-        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat)
-        if (!localOpenAiCompat) {
-            val responseFormat = JsonObject()
-            responseFormat.addProperty("type", "json_object")
-            request.responseFormat = responseFormat
-        } else {
-            request.responseFormat = null
-        }
-        request.providerOptions = null
-
-        val auth = if (config.apiKey != null && config.apiKey.trim().isNotEmpty())
-            "Bearer " + config.apiKey.trim() else null
-        val chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath)
-        Log.d(TAG, "generateThreadTitle url=$chatUrl"
-                + ", promptLen=${source.length}"
-                + ", maxTokens=${request.maxTokens}"
-                + ", thinking=${request.thinking}"
-                + ", reasoning=${request.reasoning?.toString() ?: "null"}")
-        api.chatWithUrl(chatUrl, auth, "application/json", request).enqueue(object : retrofit2.Callback<ChatApi.ChatResponse> {
-            override fun onResponse(
-                call: retrofit2.Call<ChatApi.ChatResponse>,
-                response: retrofit2.Response<ChatApi.ChatResponse>
-            ) {
-                val body314 = response.body()
-                val choices314 = body314?.choices
-                if (!response.isSuccessful || body314 == null || choices314 == null
-                    || choices314.isEmpty() || choices314[0] == null
-                    || choices314[0].message == null) {
-                    var detail = ""
-                    try {
-                        if (response.errorBody() != null) {
-                            detail = response.errorBody()!!.string()
-                        }
-                    } catch (ignored: Exception) {}
-                    callback.onError(
-                        context.getString(
-                            R.string.error_naming_failed,
-                            response.code().toString()
-                        ) + if (detail.isEmpty()) "" else ("\n" + detail)
-                    )
-                    return
-                }
-                val raw = ChatTextHelpers.extractAssistantContent(body314)
-                var title = ChatTextHelpers.extractTitleFromJsonOrText(raw)
-                title = ChatTextHelpers.cleanTitleResult(title)
-                if (title.length > 12) title = title.substring(0, 12)
-                if (title.length < 3) title = if (source.length > 12) source.substring(0, 12) else source
-                callback.onSuccess(title)
-            }
-
-            override fun onFailure(call: retrofit2.Call<ChatApi.ChatResponse>, t: Throwable) {
-                callback.onError(t.message ?: "命名失败")
-            }
-        })
+        titleGenerator.generate(firstUserMessage, callback)
     }
 
     fun generateSessionOutline(history: List<Message>?, outlinePrompt: String? = null, callback: ChatCallback) {
-        val source = history ?: ArrayList()
-        if (source.isEmpty()) {
-            callback.onError("暂无可总结内容")
-            return
-        }
-        val transcript = StringBuilder()
-        val max = Math.min(10, source.size)
-        for (i in 0 until max) {
-            val m = source[i] ?: continue
-            val role = if (m.role == Message.ROLE_USER) "用户" else "助手"
-            var content = if (m.content != null) m.content.trim() else ""
-            if (content.isEmpty()) continue
-            if (content.length > 200) content = content.substring(0, 200) + "..."
-            transcript.append(role).append("：").append(content).append("\n")
-        }
-        val prompt = transcript.toString().trim()
-        if (prompt.isEmpty()) {
-            callback.onError("暂无可总结内容")
-            return
-        }
-
-        val config: AiModelConfig.ResolvedConfig
-        try {
-            config = AiModelConfig(context).getConfigForSummary()
-        } catch (e: Exception) {
-            callback.onError(context.getString(R.string.error_config_parse_failed, ""))
-            return
-        }
-        if (config == null || !config.isValid()) {
-            callback.onError(context.getString(R.string.error_no_summary_model_selected))
-            return
-        }
-
-        var providerId = ""
-        val summaryPreset = ModelConfig(context).getSummaryPreset()
-        if (summaryPreset != null && summaryPreset.contains(":")) {
-            providerId = summaryPreset.substring(0, summaryPreset.indexOf(':'))
-        }
-        providerId = resolveProviderId(providerId, config.apiHost)
-
-        var baseUrl = config.toRetrofitBaseUrl()
-        if (!baseUrl.endsWith("/")) baseUrl += "/"
-
-        val localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId)
-        val timeoutSec = if (localOpenAiCompat) 60 else 20
-
-        val client = OkHttpClient.Builder()
-            .connectTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .readTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .writeTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .build()
-        val retrofit = Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-        val api = retrofit.create(ChatApi::class.java)
-
-        val styleGuide = outlinePrompt?.trim().orEmpty()
-        val styleLine = if (styleGuide.isNotEmpty())
-            "\n8) 文风与风格指导：$styleGuide" else ""
-
-        val requestMessages = ArrayList<ChatApi.ChatMessage>()
-        requestMessages.add(ChatApi.ChatMessage("system",
-            "你是对话大纲助手。请根据输入对话生成\u201C信息保真\u201D的大纲正文（80到320字），宁可稍长也不要遗漏关键信息。\n" +
-                    "仅输出一个JSON对象，不要任何额外文本。\n" +
-                    "严格格式:{\"outline\":\"...\"}\n" +
-                    "强约束:\n" +
-                    "1) 输出必须以 { 开始、以 } 结束。\n" +
-                    "2) 只允许一个键 outline，不要额外键。\n" +
-                    "3) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。\n" +
-                    "4) outline 内容不要标题，不要列表。\n" +
-                    "5) 必须保留关键细节：人物/对象名称、核心事件、动机或目标、约束条件、结果或当前进展。\n" +
-                    "6) 若原文出现时间、地点、数字、专有名词、规则设定，优先保留，不要泛化改写。\n" +
-                    "7) 避免空泛词（如\u201C发生了一些事\u201D\u201C进行了讨论\u201D），改为具体事实。" + styleLine))
-        requestMessages.add(ChatApi.ChatMessage("user", prompt))
-
-        val request = ChatApi.ChatRequest()
-        request.model = config.modelId
-        request.messages = requestMessages
-        request.stream = false
-        request.n = 1
-        request.maxTokens = 620
-        request.temperature = 0.2
-        request.topP = 0.8
-        applyModelDefaultsToRequest(request, providerId, config.modelId)
-        request.stop = null
-        request.thinking = if (localOpenAiCompat) java.lang.Boolean.FALSE else null
-        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat)
-        if (!localOpenAiCompat) {
-            val outlineResponseFormat = JsonObject()
-            outlineResponseFormat.addProperty("type", "json_object")
-            request.responseFormat = outlineResponseFormat
-        } else {
-            request.responseFormat = null
-        }
-        request.providerOptions = null
-
-        val auth = if (config.apiKey != null && config.apiKey.trim().isNotEmpty())
-            "Bearer " + config.apiKey.trim() else null
-        val chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath)
-        api.chatWithUrl(chatUrl, auth, "application/json", request)
-            .enqueue(object : retrofit2.Callback<ChatApi.ChatResponse> {
-                override fun onResponse(
-                    call: retrofit2.Call<ChatApi.ChatResponse>,
-                    response: retrofit2.Response<ChatApi.ChatResponse>
-                ) {
-                    val body450 = response.body()
-                    val choices450 = body450?.choices
-                    if (!response.isSuccessful || body450 == null || choices450 == null
-                        || choices450.isEmpty() || choices450[0] == null
-                        || choices450[0].message == null) {
-                        var detail = ""
-                        try {
-                            if (response.errorBody() != null) {
-                                detail = response.errorBody()!!.string()
-                            }
-                        } catch (ignored: Exception) {}
-                        callback.onError("生成大纲失败: " + response.code()
-                                + if (detail.isEmpty()) "" else ("\n" + detail))
-                        return
-                    }
-                    var outline = ChatTextHelpers.extractAssistantContent(body450)
-                    outline = ChatTextHelpers.extractTextFieldFromJsonOrText(outline, "outline", "summary", "content", "result")
-                    outline = ChatTextHelpers.stripThinkTags(outline).replace("\n", " ").trim()
-                    if (outline.isEmpty()) {
-                        callback.onError("生成大纲失败")
-                        return
-                    }
-                    callback.onSuccess(outline)
-                }
-
-                override fun onFailure(call: retrofit2.Call<ChatApi.ChatResponse>, t: Throwable) {
-                    callback.onError(t.message ?: "生成大纲失败")
-                }
-            })
+        outlineService.generateSession(history, outlinePrompt, callback)
     }
-
     fun summarizeMessageForOutline(content: String?, outlinePrompt: String? = null, callback: ChatCallback) {
-        var source = content?.trim() ?: ""
-        if (source.isEmpty()) {
-            callback.onError(context.getString(R.string.error_message_empty))
-            return
-        }
-        if (source.length > 2500) {
-            source = source.substring(0, 2500)
-        }
-        val config: AiModelConfig.ResolvedConfig
-        try {
-            config = AiModelConfig(context).getConfigForSummary()
-        } catch (e: Exception) {
-            callback.onError(context.getString(R.string.error_config_parse_failed, ""))
-            return
-        }
-        if (config == null || !config.isValid()) {
-            callback.onError(context.getString(R.string.error_no_summary_model_selected))
-            return
-        }
-
-        var providerId = ""
-        val summaryPreset = ModelConfig(context).getSummaryPreset()
-        if (summaryPreset != null && summaryPreset.contains(":")) {
-            providerId = summaryPreset.substring(0, summaryPreset.indexOf(':'))
-        }
-        providerId = resolveProviderId(providerId, config.apiHost)
-
-        var baseUrl = config.toRetrofitBaseUrl()
-        if (!baseUrl.endsWith("/")) baseUrl += "/"
-
-        val localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId)
-        val timeoutSec = if (localOpenAiCompat) 60 else 20
-
-        val client = OkHttpClient.Builder()
-            .connectTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .readTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .writeTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .build()
-        val retrofit = Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-        val api = retrofit.create(ChatApi::class.java)
-
-        val requestMessages = ArrayList<ChatApi.ChatMessage>()
-        val styleGuide2 = outlinePrompt?.trim().orEmpty()
-        val styleLine2 = if (styleGuide2.isNotEmpty())
-            "\n8) 文风与风格指导：$styleGuide2" else ""
-
-        requestMessages.add(ChatApi.ChatMessage("system",
-            "你是小说写作助手。请把输入内容提炼为可放入大纲的条目正文（80到280字），要求细节充分、便于后续续写。\n" +
-                    "仅输出一个JSON对象，不要任何额外文本。\n" +
-                    "严格格式:{\"summary\":\"...\"}\n" +
-                    "强约束:\n" +
-                    "1) 输出必须以 { 开始、以 } 结束。\n" +
-                    "2) 只允许一个键 summary，不要额外键。\n" +
-                    "3) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。\n" +
-                    "4) summary 内容不要标题，不要列表。\n" +
-                    "5) 必须覆盖：关键事件经过、人物意图/冲突、重要设定或规则、任务线索与阶段结果。\n" +
-                    "6) 保留可复用细节：时间地点、名称称谓、数字阈值、道具/能力/组织名等。\n" +
-                    "7) 不要只写结论，需包含必要过程与因果关系。" + styleLine2))
-        requestMessages.add(ChatApi.ChatMessage("user", source))
-
-        val request = ChatApi.ChatRequest()
-        request.model = config.modelId
-        request.messages = requestMessages
-        request.stream = false
-        request.n = 1
-        request.maxTokens = 520
-        request.temperature = 0.2
-        request.topP = 0.8
-        applyModelDefaultsToRequest(request, providerId, config.modelId)
-        request.stop = null
-        request.thinking = if (localOpenAiCompat) java.lang.Boolean.FALSE else null
-        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat)
-        if (!localOpenAiCompat) {
-            val summaryResponseFormat = JsonObject()
-            summaryResponseFormat.addProperty("type", "json_object")
-            request.responseFormat = summaryResponseFormat
-        } else {
-            request.responseFormat = null
-        }
-        request.providerOptions = null
-
-        val auth = if (config.apiKey != null && config.apiKey.trim().isNotEmpty())
-            "Bearer " + config.apiKey.trim() else null
-        val chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath)
-        api.chatWithUrl(chatUrl, auth, "application/json", request)
-            .enqueue(object : retrofit2.Callback<ChatApi.ChatResponse> {
-                override fun onResponse(
-                    call: retrofit2.Call<ChatApi.ChatResponse>,
-                    response: retrofit2.Response<ChatApi.ChatResponse>
-                ) {
-                    val body571 = response.body()
-                    val choices571 = body571?.choices
-                    if (!response.isSuccessful || body571 == null || choices571 == null
-                        || choices571.isEmpty() || choices571[0] == null
-                        || choices571[0].message == null) {
-                        var detail = ""
-                        try {
-                            if (response.errorBody() != null) {
-                                detail = response.errorBody()!!.string()
-                            }
-                        } catch (ignored: Exception) {}
-                        callback.onError("总结失败: " + response.code()
-                                + if (detail.isEmpty()) "" else ("\n" + detail))
-                        return
-                    }
-                    var summary = ChatTextHelpers.extractAssistantContent(body571)
-                    summary = ChatTextHelpers.extractTextFieldFromJsonOrText(summary, "summary", "outline", "content", "result")
-                    summary = ChatTextHelpers.stripThinkTags(summary).replace("\n", " ").trim()
-                    if (summary.isEmpty()) {
-                        callback.onError("总结失败")
-                        return
-                    }
-                    callback.onSuccess(summary)
-                }
-
-                override fun onFailure(call: retrofit2.Call<ChatApi.ChatResponse>, t: Throwable) {
-                    callback.onError(t.message ?: "总结失败")
-                }
-            })
+        outlineService.summarize(content, outlinePrompt, callback)
     }
-
     fun generateChapterPlanJson(ctx: ChapterPlanContext, callback: ChatCallback) {
-        val targetTitle = ctx.targetTitle.trim()
-        if (targetTitle.isEmpty()) {
-            callback.onError("目标章节标题为空")
-            return
-        }
-
-        val config: AiModelConfig.ResolvedConfig
-        try {
-            config = AiModelConfig(context).getConfigForNovelSharp()
-        } catch (e: Exception) {
-            callback.onError("配置解析失败")
-            return
-        }
-        if (config == null || !config.isValid()) {
-            callback.onError(context.getString(R.string.error_no_novel_model_selected))
-            return
-        }
-
-        var providerId = ""
-        val preset = ModelConfig(context).getNovelSharpPreset()
-        if (preset != null && preset.contains(":")) {
-            providerId = preset.substring(0, preset.indexOf(':'))
-        }
-        providerId = resolveProviderId(providerId, config.apiHost)
-
-        var baseUrl = config.toRetrofitBaseUrl()
-        if (!baseUrl.endsWith("/")) baseUrl += "/"
-
-        val localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId)
-        val timeoutSec = if (localOpenAiCompat) 60 else 45
-
-        val client = OkHttpClient.Builder()
-            .connectTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .readTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .writeTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .build()
-        val retrofit = Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-        val api = retrofit.create(ChatApi::class.java)
-
-        val requestMessages = ArrayList<ChatApi.ChatMessage>()
-        requestMessages.add(ChatApi.ChatMessage("system",
-            "你是小说章节规划助手。\n" +
-                    "你将收到：(a) 一段按类型分组的大纲上下文（含章节序列、人物、世界、知情等），(b) 一个明确的【本次必须规划的章节】标题。\n" +
-                    "你的唯一任务：为【该目标章节本身】（不是它的前一章，也不是它的下一章）输出一个结构化写作计划。\n\n" +
-                    "仅输出一个 JSON 对象（绝对禁止 Markdown 代码块、解释、Thinking 文本）：\n" +
-                    "{\"chapterGoal\":\"\",\"startState\":\"\",\"endState\":\"\",\"characterDrives\":[],\"knowledgeBoundary\":[],\"eventChain\":[],\"foreshadow\":[],\"payoff\":[],\"forbidden\":[],\"styleGuide\":\"\",\"targetLength\":\"\"}\n\n" +
-                    "字段语义（务必严格匹配，前端会一一回填到对应输入框）：\n" +
-                    "- chapterGoal: 字符串，本章核心目标（≤120字）。\n" +
-                    "- startState: 字符串，本章开场时的人物/局面状态。\n" +
-                    "- endState: 字符串，本章收尾时的状态，需与 startState 形成可见对比。\n" +
-                    "- characterDrives: 对象数组 [{\"name\":\"\",\"goal\":\"\",\"misbelief\":\"\",\"emotion\":\"\"}]，每个出场关键角色一项；name 必填。\n" +
-                    "- knowledgeBoundary: 字符串数组；每条一行短陈述，形如 \"X 知道/不知道/误以为 Y\"。\n" +
-                    "- eventChain: 字符串数组（3-7 项），按时间顺序，每条形如 \"起因 → 行为 → 结果\"，不得照抄前文已发生事件。\n" +
-                    "- foreshadow: 字符串数组，本章埋下的伏笔。\n" +
-                    "- payoff: 字符串数组，本章兑现/回收的伏笔。\n" +
-                    "- forbidden: 字符串数组，本章不应写的内容（剧透、违反人设的动作、跳跃式叙述等）。\n" +
-                    "- styleGuide: 字符串，文风 / 节奏 / 视角提示。\n" +
-                    "- targetLength: 字符串（即使是数字也用引号），例如 \"3000\"。\n\n" +
-                    "强约束（违反任意一条都视为失败）：\n" +
-                    "1) 输出必须以 { 开头、以 } 结尾，必须保留全部 11 个键；空值用 \"\" 或 [] 占位。\n" +
-                    "2) 严禁把目标章节误解成「下一章 / 续写章节」——你输出的计划就是用户指定的那一章本身。\n" +
-                    "3) 若是【覆盖】模式，请基于「目标章节当前大纲」做重写或细化；不是为后续章节做规划。\n" +
-                    "4) 计划要呼应章节序列中【本次必须规划的章节】所在位置——之前章节是已发生事实，之后章节（如有）是未来约束。\n" +
-                    "5) 不得违背【知情约束】：角色只能基于其已知信息行动；让某角色得知新信息需在 eventChain 中给出获取路径。\n" +
-                    "6) 内容具体可执行；避免「角色继续推进剧情」之类的空话。"))
-        requestMessages.add(ChatApi.ChatMessage("user", buildChapterPlanUserPrompt(ctx)))
-
-        val request = ChatApi.ChatRequest()
-        request.model = config.modelId
-        request.messages = requestMessages
-        request.stream = false
-        request.n = 1
-        request.maxTokens = 800
-        request.temperature = 0.15
-        request.topP = 0.6
-        applyModelDefaultsToRequest(request, providerId, config.modelId)
-        request.stop = null
-        // Keep chapter-plan request minimal for broad compatibility and lower latency.
-        request.thinking = null
-        request.reasoning = null
-        request.responseFormat = null
-        request.providerOptions = null
-
-        val auth = if (config.apiKey != null && config.apiKey.trim().isNotEmpty())
-            "Bearer " + config.apiKey.trim() else null
-        val chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath)
-        Log.d(TAG, "generateChapterPlanJson providerId=$providerId"
-                + ", model=${config.modelId}"
-                + ", localOpenAiCompat=$localOpenAiCompat"
-                + ", thinking=${request.thinking}"
-                + ", reasoning=${request.reasoning?.toString() ?: "null"}"
-                + ", responseFormat=${request.responseFormat?.toString() ?: "null"}")
-        callback.onPartial("正在请求章节计划模型…")
-        requestChapterPlanWithFallback(api, chatUrl, auth, request, callback, true)
+        chapterPlanService.generate(ctx, callback)
     }
-
-    /**
-     * 构建 user prompt：把目标章节、章节序列、人物/世界/知情/资料、最近对话、用户提示
-     * 按结构化段落输出，让模型既知道要规划哪一章、又能锚定到大纲位置。
-     */
-    private fun buildChapterPlanUserPrompt(ctx: ChapterPlanContext): String {
-        val targetTitle = ctx.targetTitle.trim()
-        val mode = if (ctx.isExisting) "覆盖已有计划" else "新建续写章节"
-        val sb = StringBuilder()
-        // 把目标章节定为头条信息 + 醒目箭头 + 重复声明，避免模型把它误解为「下一章」。
-        sb.append("============================\n")
-        sb.append("【本次必须规划的章节】").append(targetTitle).append("\n")
-        sb.append("【模式】").append(mode).append("\n")
-        sb.append("⚠️ 你的所有输出仅围绕上面这一章；不是它的前一章，不是它的下一章。\n")
-        sb.append("============================\n")
-
-        if (ctx.isExisting && ctx.existingContent.trim().isNotEmpty()) {
-            sb.append("\n【目标章节当前大纲（你需要重写/细化的内容）】\n")
-                .append(truncate(ctx.existingContent.trim(), 800))
-                .append("\n")
-        }
-
-        if (ctx.allChapters.isNotEmpty()) {
-            sb.append("\n【章节序列上下文 — 仅供定位，不是规划目标】\n")
-            var matchedTarget = false
-            val perChapterCap = 240
-            for ((idx, item) in ctx.allChapters.withIndex()) {
-                val itemTitle = item.title?.trim().orEmpty()
-                val itemContent = item.content?.trim().orEmpty()
-                val isTarget = ctx.isExisting && itemTitle == targetTitle && !matchedTarget
-                if (isTarget) matchedTarget = true
-                sb.append(idx + 1).append(". ")
-                if (isTarget) sb.append("◆◆ 这就是目标章节 ◆◆ ")
-                sb.append(if (itemTitle.isEmpty()) "(无标题)" else itemTitle)
-                if (itemContent.isNotEmpty()) {
-                    sb.append("：").append(truncate(itemContent.replace("\n", " "), perChapterCap))
-                }
-                sb.append("\n")
-            }
-            if (!ctx.isExisting) {
-                sb.append(ctx.allChapters.size + 1).append(". ◆◆ 这就是目标章节（新建续写） ◆◆ ").append(targetTitle).append("\n")
-            }
-        } else if (!ctx.isExisting) {
-            sb.append("\n【章节序列上下文】（暂无章节，本章为开篇）\n")
-        }
-
-        appendOutlineSection(sb, "人物资料", ctx.characters, perItemCap = 320)
-        appendOutlineSection(sb, "世界背景", ctx.worlds, perItemCap = 320, hideTitle = true)
-        appendOutlineSection(sb, "知情约束", ctx.knowledgeConstraints, perItemCap = 240)
-        appendOutlineSection(sb, "其他资料", ctx.materials, perItemCap = 240, hideTitle = true)
-
-        val dlg = ctx.recentDialogue.trim()
-        if (dlg.isNotEmpty()) {
-            sb.append("\n【最近对话节选（按时间顺序）】\n").append(truncate(dlg, 1500)).append("\n")
-        }
-
-        val hint = ctx.userHint.trim()
-        if (hint.isNotEmpty()) {
-            sb.append("\n【本章用户补充指示】\n").append(truncate(hint, 600)).append("\n")
-        }
-
-        val target = ctx.targetLength.trim()
-        if (target.isNotEmpty()) {
-            sb.append("\n【期望篇幅】").append(target).append("（请将此值写入 targetLength 字段）\n")
-        }
-
-        val oprompt = ctx.outlinePrompt.trim()
-        if (oprompt.isNotEmpty()) {
-            sb.append("\n【文风与风格指导】\n").append(truncate(oprompt, 600)).append("\n")
-        }
-
-        // 末尾再强调一次目标章节，模型在长 prompt 中往往关注首尾。
-        sb.append("\n============================\n")
-        sb.append("提醒：现在请输出【").append(targetTitle).append("】这一章的写作计划 JSON。\n")
-        sb.append("============================\n")
-
-        // Soft cap to keep request reasonable; keep head + tail to preserve target+latest context.
-        return softCap(sb.toString(), 7800)
-    }
-
-    private fun appendOutlineSection(
-        sb: StringBuilder,
-        label: String,
-        items: List<SessionOutlineItem>,
-        perItemCap: Int,
-        hideTitle: Boolean = false,
-    ) {
-        if (items.isEmpty()) return
-        sb.append("\n【").append(label).append("】\n")
-        for (item in items) {
-            val title = item.title?.trim().orEmpty()
-            val content = item.content?.trim().orEmpty()
-            if (title.isEmpty() && content.isEmpty()) continue
-            sb.append("- ")
-            if (!hideTitle && title.isNotEmpty()) sb.append(title).append("：")
-            if (content.isNotEmpty()) sb.append(truncate(content.replace("\n", " "), perItemCap))
-            sb.append("\n")
-        }
-    }
-
-    private fun truncate(s: String, max: Int): String {
-        if (s.length <= max) return s
-        return s.substring(0, max) + "…"
-    }
-
-    private fun softCap(s: String, max: Int): String {
-        if (s.length <= max) return s
-        val head = s.substring(0, max - 200)
-        val tail = s.substring(s.length - 200)
-        return head + "\n…(中段省略)…\n" + tail
-    }
-
-    private fun requestChapterPlanWithFallback(
-        api: ChatApi,
-        chatUrl: String,
-        auth: String?,
-        request: ChatApi.ChatRequest,
-        callback: ChatCallback,
-        allowFallback: Boolean
-    ) {
-        api.chatWithUrl(chatUrl, auth, "application/json", request)
-            .enqueue(object : retrofit2.Callback<ChatApi.ChatResponse> {
-                override fun onResponse(
-                    call: retrofit2.Call<ChatApi.ChatResponse>,
-                    response: retrofit2.Response<ChatApi.ChatResponse>
-                ) {
-                    val body707 = response.body()
-                    val choices707 = body707?.choices
-                    if (!response.isSuccessful || body707 == null || choices707 == null
-                        || choices707.isEmpty() || choices707[0] == null
-                        || choices707[0].message == null) {
-                        var detail = ""
-                        try {
-                            if (response.errorBody() != null) {
-                                detail = response.errorBody()!!.string()
-                            }
-                        } catch (ignored: Exception) {}
-                        if (allowFallback && shouldRetryWithoutAdvancedParams(detail)) {
-                            callback.onPartial("参数兼容中，正在重试…")
-                            Log.w(TAG, "chapter plan retry without advanced params, detail=$detail")
-                            requestChapterPlanWithFallback(
-                                api,
-                                chatUrl,
-                                auth,
-                                buildChapterPlanFallbackRequest(request),
-                                callback,
-                                false
-                            )
-                            return
-                        }
-                        callback.onError("章节计划生成失败: " + response.code()
-                                + if (detail.isEmpty()) "" else ("\n" + detail))
-                        return
-                    }
-                    callback.onPartial("模型已返回，正在解析计划…")
-                    val raw = ChatTextHelpers.extractAssistantContent(body707)
-                    Log.d(TAG, "chapter plan raw length=${raw?.length ?: 0}"
-                            + ", preview=${ChatTextHelpers.previewForLog(raw, 180)}")
-                    val obj = WriterJsonHelpers.parseFirstJsonObject(raw)
-                    if (obj == null) {
-                        val preview = raw?.trim() ?: ""
-                        var head = preview
-                        var tail = ""
-                        if (head.length > 120) {
-                            head = head.substring(0, 120) + "..."
-                            val start = Math.max(0, preview.length - 120)
-                            tail = "...\n末尾片段: " + preview.substring(start)
-                        }
-                        callback.onError("章节计划解析失败" +
-                                if (preview.isEmpty()) "" else ("\n返回长度: " + preview.length
-                                        + "\n开头片段: " + head + tail))
-                        return
-                    }
-                    callback.onPartial("章节计划已生成")
-                    val normalized = WriterJsonHelpers.normalizeChapterPlanJson(obj)
-                    Log.d(TAG, "chapter plan normalized nonEmptyFields=${WriterJsonHelpers.countNonEmptyPlanFields(normalized)}"
-                            + ", payload=${ChatTextHelpers.previewForLog(normalized.toString(), 220)}")
-                    callback.onSuccess(normalized.toString())
-                }
-
-                override fun onFailure(call: retrofit2.Call<ChatApi.ChatResponse>, t: Throwable) {
-                    val reason = t.message ?: "章节计划生成失败"
-                    callback.onError("章节计划生成失败(${request.model}): $reason")
-                }
-            })
-    }
-
-    private fun buildChapterPlanFallbackRequest(source: ChatApi.ChatRequest?): ChatApi.ChatRequest {
-        val request = ChatApi.ChatRequest()
-        request.model = source?.model
-        request.messages = source?.messages
-        request.stream = false
-        request.n = null
-        request.maxTokens = source?.maxTokens
-        request.temperature = null
-        request.topP = null
-        request.stop = null
-        request.thinking = null
-        request.reasoning = null
-        request.responseFormat = null
-        request.providerOptions = null
-        return request
-    }
-
-    private fun shouldRetryWithoutAdvancedParams(detail: String?): Boolean {
-        if (detail == null || detail.trim().isEmpty()) return false
-        val lower = detail.lowercase(java.util.Locale.ROOT)
-        if (lower.contains("invalid_request_error")) return true
-        if (lower.contains("unknown parameter")) return true
-        if (lower.contains("invalid parameter")) return true
-        if (lower.contains("unsupported parameter")) return true
-        if (lower.contains("response_format")) return true
-        if (lower.contains("reasoning")) return true
-        if (lower.contains("thinking")) return true
-        if (lower.contains("temperature")) return true
-        return lower.contains("top_p")
-    }
-
-
 
     /**
      * 基于一段章节计划（含人物/世界/知情等上下文）生成一篇卷大纲。
      * 输出纯文本（不强 JSON），方便用户编辑、AI 复读时阅读。
      *
      * @param volumeTitle 卷标题，用于 prompt 中明确目标范围
-     * @param coverageRange 形如 "章节1 ~ 章节10"
+     * @param coverageRange 形如 “章节1 ~ 章节10”
      * @param promptContext OutlinePromptBuilder.buildFull 输出的上下文
      */
     fun generateVolumeOutline(
@@ -1019,238 +330,19 @@ class ChatService(context: Context) {
         promptContext: String,
         callback: ChatCallback,
     ) {
-        val context0 = promptContext.trim()
-        if (context0.isEmpty()) {
-            callback.onError("上下文为空，无法生成卷纲")
-            return
-        }
-        val config: AiModelConfig.ResolvedConfig
-        try {
-            config = AiModelConfig(context).getConfigForSummary()
-        } catch (e: Exception) {
-            callback.onError(this.context.getString(R.string.error_config_parse_failed, ""))
-            return
-        }
-        if (config == null || !config.isValid()) {
-            callback.onError(this.context.getString(R.string.error_no_summary_model_selected))
-            return
-        }
-
-        var providerId = ""
-        val summaryPreset = ModelConfig(this.context).getSummaryPreset()
-        if (summaryPreset != null && summaryPreset.contains(":")) {
-            providerId = summaryPreset.substring(0, summaryPreset.indexOf(':'))
-        }
-        providerId = resolveProviderId(providerId, config.apiHost)
-
-        var baseUrl = config.toRetrofitBaseUrl()
-        if (!baseUrl.endsWith("/")) baseUrl += "/"
-
-        val localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId)
-        val timeoutSec = if (localOpenAiCompat) 60 else 30
-
-        val client = OkHttpClient.Builder()
-            .connectTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .readTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .writeTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .build()
-        val retrofit = Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-        val api = retrofit.create(ChatApi::class.java)
-
-        val requestMessages = ArrayList<ChatApi.ChatMessage>()
-        requestMessages.add(ChatApi.ChatMessage("system",
-            "你是小说写作助手。请把以下覆盖范围内的章节计划合并成一篇“卷大纲”。\n" +
-                    "目标：替代多章细节，保留主线推进、人物状态、关键事件、伏笔/回收、知情边界关键变化。\n" +
-                    "硬约束：\n" +
-                    "1) 输出纯文本中文，不要 Markdown 代码块。\n" +
-                    "2) 控制在 600 字以内，分段使用【小标题】方式（如【主线推进】【人物状态】【关键事件】【伏笔】【知情边界变化】）。\n" +
-                    "3) 不要凭空添加未在输入中提到的事件或角色。\n" +
-                    "4) 不要 Thinking/Reasoning 文本。"))
-        requestMessages.add(ChatApi.ChatMessage("user",
-            "【目标卷标题】" + volumeTitle + "\n" +
-                    "【覆盖范围】" + coverageRange + "\n\n" +
-                    context0))
-
-        val request = ChatApi.ChatRequest()
-        request.model = config.modelId
-        request.messages = requestMessages
-        request.stream = false
-        request.n = 1
-        request.maxTokens = 1200
-        request.temperature = 0.2
-        request.topP = 0.7
-        applyModelDefaultsToRequest(request, providerId, config.modelId)
-        request.stop = null
-        request.thinking = if (localOpenAiCompat) java.lang.Boolean.FALSE else null
-        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat)
-        request.responseFormat = null
-        request.providerOptions = null
-
-        val auth = if (config.apiKey != null && config.apiKey.trim().isNotEmpty())
-            "Bearer " + config.apiKey.trim() else null
-        val chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath)
-        api.chatWithUrl(chatUrl, auth, "application/json", request)
-            .enqueue(object : retrofit2.Callback<ChatApi.ChatResponse> {
-                override fun onResponse(
-                    call: retrofit2.Call<ChatApi.ChatResponse>,
-                    response: retrofit2.Response<ChatApi.ChatResponse>
-                ) {
-                    val body = response.body()
-                    val choices = body?.choices
-                    if (!response.isSuccessful || body == null || choices == null
-                        || choices.isEmpty() || choices[0] == null
-                        || choices[0].message == null) {
-                        var detail = ""
-                        try {
-                            if (response.errorBody() != null) detail = response.errorBody()!!.string()
-                        } catch (ignored: Exception) {}
-                        callback.onError("卷纲生成失败: " + response.code()
-                                + if (detail.isEmpty()) "" else ("\n" + detail))
-                        return
-                    }
-                    var result = ChatTextHelpers.extractAssistantContent(body)
-                    result = ChatTextHelpers.stripThinkTags(result).trim()
-                    if (result.isEmpty()) { callback.onError("卷纲生成失败"); return }
-                    callback.onSuccess(result)
-                }
-
-                override fun onFailure(call: retrofit2.Call<ChatApi.ChatResponse>, t: Throwable) {
-                    callback.onError(t.message ?: "卷纲生成失败")
-                }
-            })
+        volumeService.generateVolume(volumeTitle, coverageRange, promptContext, callback)
     }
 
     /**
      * 从已有大纲（章节计划 + 人物 + 世界）提取每章的知情约束。
      * 输入是结构化大纲文本（由 OutlinePromptBuilder 构造）。
-     * 输出 JSON 数组，每条带 chapter 字段标明所属章节（"通用"=跨章节）。
+     * 输出 JSON 数组，每条带 chapter 字段标明所属章节（”通用”=跨章节）。
      */
     fun extractKnowledgeConstraints(outlineText: String?, callback: ChatCallback) {
-        val outline = outlineText?.trim() ?: ""
-        if (outline.isEmpty()) {
-            callback.onError("大纲为空，无法提取知情约束")
-            return
-        }
-
-        val config: AiModelConfig.ResolvedConfig
-        try {
-            config = AiModelConfig(context).getConfigForSummary()
-        } catch (e: Exception) {
-            callback.onError(context.getString(R.string.error_config_parse_failed, ""))
-            return
-        }
-        if (config == null || !config.isValid()) {
-            callback.onError(context.getString(R.string.error_no_summary_model_selected))
-            return
-        }
-
-        var providerId = ""
-        val summaryPreset = ModelConfig(context).getSummaryPreset()
-        if (summaryPreset != null && summaryPreset.contains(":")) {
-            providerId = summaryPreset.substring(0, summaryPreset.indexOf(':'))
-        }
-        providerId = resolveProviderId(providerId, config.apiHost)
-
-        var baseUrl = config.toRetrofitBaseUrl()
-        if (!baseUrl.endsWith("/")) baseUrl += "/"
-
-        val localOpenAiCompat = isLocalOpenAiCompatibleProvider(providerId)
-        val timeoutSec = if (localOpenAiCompat) 60 else 20
-
-        val client = OkHttpClient.Builder()
-            .connectTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .readTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .writeTimeout(timeoutSec.toLong(), TimeUnit.SECONDS)
-            .build()
-        val retrofit = Retrofit.Builder()
-            .baseUrl(baseUrl)
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-        val api = retrofit.create(ChatApi::class.java)
-
-        val requestMessages = ArrayList<ChatApi.ChatMessage>()
-        requestMessages.add(ChatApi.ChatMessage("system",
-            "你是小说写作的【知情边界提取助手】。我会给你一段按类型分组的小说大纲（章节大纲 / 人物资料 / 世界背景 / 已有知情约束）。\n" +
-                    "你的任务：基于其中事实，为大纲中实际出现的章节生成「知情边界条目」，作为主写作模型生成正文时必须严守的硬约束。\n\n" +
-                    "仅输出一个 JSON 对象（不要 Markdown、不要解释、不要 Thinking 文本）：\n" +
-                    "{\"items\":[{\"chapter\":\"章节标题或'通用'\",\"title\":\"角色名 - 信息点\",\"content\":\"陈述句\"}, ...]}\n\n" +
-                    "强约束：\n" +
-                    "1) 输出必须以 { 开头、以 } 结尾。\n" +
-                    "2) chapter 必须是大纲【章节大纲】里真实出现的标题原文；适用于多章/跨时段写「通用」。\n" +
-                    "3) title 严格形式：\"角色名 - 信息点\"。信息点为名词短语，不要带「知道/不知道」等动词。\n" +
-                    "4) content 是单句陈述，主语为 title 中的角色，结构为 \"X 知道 Y\" / \"X 不知道 Y\" / \"X 误以为 Y\"，不要解释推理过程。\n" +
-                    "5) 重点抓：秘密、伏笔、信息差、需某事件后才得知的事；忽略全员常识与无悬念的公开事件。\n" +
-                    "6) 同一 (chapter, 角色名, 信息点) 不得重复；items 总数 ≤ 15；单条 content ≤ 60 字。\n" +
-                    "7) 推不出的条目不要输出；不要捏造大纲未提到的信息。\n" +
-                    "8) 若提供了【目标章节范围】小节，items 的 chapter 字段必须取自该范围（外加可选的「通用」）。"))
-        requestMessages.add(ChatApi.ChatMessage("user", outline))
-
-        val request = ChatApi.ChatRequest()
-        request.model = config.modelId
-        request.messages = requestMessages
-        request.stream = false
-        request.n = 1
-        request.maxTokens = 1500
-        request.temperature = 0.3
-        request.topP = 0.8
-        applyModelDefaultsToRequest(request, providerId, config.modelId)
-        request.stop = null
-        request.thinking = if (localOpenAiCompat) java.lang.Boolean.FALSE else null
-        request.reasoning = buildNoThinkingReasoning(providerId, localOpenAiCompat)
-        if (!localOpenAiCompat) {
-            val fmt = JsonObject()
-            fmt.addProperty("type", "json_object")
-            request.responseFormat = fmt
-        } else {
-            request.responseFormat = null
-        }
-        request.providerOptions = null
-
-        val auth = if (config.apiKey != null && config.apiKey.trim().isNotEmpty())
-            "Bearer " + config.apiKey.trim() else null
-        val chatUrl = ApiUtils.toBaseUrl(config.apiHost, config.apiPath)
-        api.chatWithUrl(chatUrl, auth, "application/json", request)
-            .enqueue(object : retrofit2.Callback<ChatApi.ChatResponse> {
-                override fun onResponse(
-                    call: retrofit2.Call<ChatApi.ChatResponse>,
-                    response: retrofit2.Response<ChatApi.ChatResponse>
-                ) {
-                    val body = response.body()
-                    val choices = body?.choices
-                    if (!response.isSuccessful || body == null || choices == null
-                        || choices.isEmpty() || choices[0] == null
-                        || choices[0].message == null) {
-                        var detail = ""
-                        try {
-                            if (response.errorBody() != null) {
-                                detail = response.errorBody()!!.string()
-                            }
-                        } catch (ignored: Exception) {}
-                        callback.onError("提取失败: " + response.code()
-                                + if (detail.isEmpty()) "" else ("\n" + detail))
-                        return
-                    }
-                    var result = ChatTextHelpers.extractAssistantContent(body)
-                    result = ChatTextHelpers.stripThinkTags(result).trim()
-                    if (result.isEmpty()) {
-                        callback.onError("提取失败")
-                        return
-                    }
-                    callback.onSuccess(result)
-                }
-
-                override fun onFailure(call: retrofit2.Call<ChatApi.ChatResponse>, t: Throwable) {
-                    callback.onError(t.message ?: "提取失败")
-                }
-            })
+        volumeService.extractKnowledge(outlineText, callback)
     }
 
-    private fun buildMessages(
+    internal fun buildMessages(
         history: List<Message>?,
         userMessage: String?,
         using: SessionChatOptions,
@@ -1344,7 +436,7 @@ class ChatService(context: Context) {
      *   1. providerId 名字含 lmstudio / ollama / llama / koboldcpp
      *   2. apiHost 是 localhost / 127.0.0.1 / RFC1918 内网 / *.local
      */
-    private fun isStrictAlternationProvider(providerId: String?, apiHost: String?): Boolean {
+    internal fun isStrictAlternationProvider(providerId: String?, apiHost: String?): Boolean {
         val pid = (providerId ?: "").lowercase(java.util.Locale.ROOT)
         if (pid.isNotEmpty()) {
             for (hint in arrayOf("lmstudio", "lm-studio", "lm_studio", "ollama", "llama.cpp", "llamacpp", "koboldcpp", "kobold")) {
@@ -1361,7 +453,7 @@ class ChatService(context: Context) {
         return false
     }
 
-    private fun streamChat(
+    internal fun streamChat(
         client: OkHttpClient,
         config: AiModelConfig.ResolvedConfig,
         using: SessionChatOptions,
@@ -1688,7 +780,7 @@ class ChatService(context: Context) {
      *   - cleanContent 空 → LLM 啥也没输出 (上层 onError 兜底)
      * raw 前 400 字 dump 用于人工核对 LLM 实际输出 (确认 marker 是否真的出现).
      */
-    private fun logProactiveMetaDebug(
+    internal fun logProactiveMetaDebug(
         rawFinal: String,
         extract: com.example.aichat.chat.ProactiveMetaExtractResult,
     ) {
@@ -1705,13 +797,13 @@ class ChatService(context: Context) {
         Log.d(TAG, "META: split.size=$splitSize parts=[$splitPreview] followUp=${followUp?.let { "afterSec=${it.afterSec} intent=${it.intent.take(30)}" } ?: "null"} autoStop=${meta.autoStop} cleanLen=${extract.cleanContent.length} | rawHead=$rawHead")
     }
 
-    private fun fireCancelledOnce(callback: ChatCallback?, handle: ChatHandleImpl?) {
+    internal fun fireCancelledOnce(callback: ChatCallback?, handle: ChatHandleImpl?) {
         if (callback == null || handle == null) return
         if (!handle.tryFireCancelled()) return
         callback.onCancelled()
     }
 
-    private fun parseStopSequences(raw: String?): List<String>? {
+    internal fun parseStopSequences(raw: String?): List<String>? {
         if (raw == null) return null
         val text = raw.trim()
         if (text.isEmpty()) return null
@@ -1724,7 +816,7 @@ class ChatService(context: Context) {
         return if (out.isEmpty()) null else out
     }
 
-    private fun resolveProviderId(selectedProviderId: String?, apiHost: String?): String {
+    internal fun resolveProviderId(selectedProviderId: String?, apiHost: String?): String {
         val pid = selectedProviderId?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
         if (pid.isNotEmpty()) return pid
         val host = apiHost?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
@@ -1737,7 +829,7 @@ class ChatService(context: Context) {
         return ""
     }
 
-    private fun shouldShowReasoning(options: SessionChatOptions?, providerId: String?, modelId: String?): Boolean {
+    internal fun shouldShowReasoning(options: SessionChatOptions?, providerId: String?, modelId: String?): Boolean {
         // Always show reasoning when the model returns it.
         // The request-side toggle (options.thinking) controls whether we ASK
         // the model to think, not whether we display reasoning it chose to emit.
@@ -1746,7 +838,7 @@ class ChatService(context: Context) {
         return true
     }
 
-    private fun isIntrinsicReasoningModel(providerId: String?, modelId: String?): Boolean {
+    internal fun isIntrinsicReasoningModel(providerId: String?, modelId: String?): Boolean {
         val pid = providerId?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
         val mid = modelId?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
         if (mid.isEmpty()) return false
@@ -1758,14 +850,14 @@ class ChatService(context: Context) {
         return "deepseek" == pid && mid.contains("r1")
     }
 
-    private fun isLocalOpenAiCompatibleProvider(providerId: String?): Boolean {
+    internal fun isLocalOpenAiCompatibleProvider(providerId: String?): Boolean {
         val pid = providerId?.trim()?.lowercase(java.util.Locale.ROOT) ?: ""
         if ("lmstudio" == pid) return true
         if ("ollama" == pid) return true
         return isLlamaProviderId(pid)
     }
 
-    private fun isLlamaProviderId(pid: String?): Boolean {
+    internal fun isLlamaProviderId(pid: String?): Boolean {
         if (pid == null || pid.isEmpty()) return false
         return "llama" == pid
                 || "llamacpp" == pid
@@ -1773,7 +865,7 @@ class ChatService(context: Context) {
                 || "llama-cpp" == pid
     }
 
-    private fun buildNoThinkingReasoning(providerId: String, localOpenAiCompat: Boolean): JsonObject? {
+    internal fun buildNoThinkingReasoning(providerId: String, localOpenAiCompat: Boolean): JsonObject? {
         val options = SessionChatOptions()
         options.thinking = false
         options.streamOutput = true
