@@ -3,10 +3,11 @@ package com.example.aichat.chat
 import com.google.gson.JsonParser
 
 /**
- * V9: 双协议解析.
+ * V10: 双协议解析.
  *   1. 末尾 `||==FOLLOWUP==||{...}` / `||==STOP==||` / `||==SKIP==||` 元信息标记
  *      → 提取 followUp / autoStop / skip 决策, 从 raw 删除
- *   2. 剩余正文按 `|||` 切分 → messages 数组; 无 `|||` 时回退 `\n\n+`（验证中）
+ *   2. 剩余正文按 `|||` 切分 → messages 数组; 无 `|||` 时回退**空行 + 行首开括号**
+ *      —— 适配模型自然输出节奏（动作/心境描写常以括号开头）
  *   3. 多段时 cleanContent = messages[0] (主气泡), split = 完整数组 (剩余段由
  *      ProactiveChatPlanner 逐条追加渲染)
  *
@@ -22,7 +23,9 @@ object ProactiveMetaParser {
     private const val STOP_MARKER = "||==STOP==||"
     private const val SKIP_MARKER = "||==SKIP==||"
     private const val SPLIT_MARKER = "|||"           // 文字分段（兼容保留）
-    private val SPLIT_NL = Regex("""\n{3,}""")       // 两个空行 = 消息分段，与 ProactiveSplitStreamFilter 对齐
+    // 空行 + 行首开括号（英文 ( [ + 中文 （ 【）作为隐式消息分段；
+    // lookahead 保留开括号到下一段开头。与 ProactiveSplitStreamFilter 对齐。
+    private val SPLIT_NL = Regex("""\n[^\S\n]*\n[^\S\n]*(?=[(\[（【])""")
     private const val MAX_SPLIT_PARTS = 5
     private const val MIN_FOLLOWUP_SEC = 30
     private const val MAX_FOLLOWUP_SEC = 600

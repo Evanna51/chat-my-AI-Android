@@ -102,6 +102,33 @@
             android:textColor="@color/chat_assistant_text_color"
             android:textSize="16sp"
             android:textIsSelectable="true" />
+        <!-- 输入中指示器：MessageAdapter 在 loading placeholder 时把 textContent 隐掉, 显示这一层。
+             "输入中" 文字 + 3 圆点 sin 波依次跳。-->
+        <LinearLayout
+            android:id="@+id/layoutTypingIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="12dp"
+            android:paddingTop="10dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="10dp"
+            android:visibility="gone">
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/typing_indicator_label"
+                android:textColor="@color/chat_assistant_text_color"
+                android:textSize="15sp"
+                android:alpha="0.72" />
+            <com.example.aichat.widget.TypingDotsView
+                android:id="@+id/typingDots"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="6dp"
+                android:layout_marginBottom="2dp" />
+        </LinearLayout>
         <!-- 浮动消息折叠按钮：玻璃风胶囊，icon + 文案 [收起/展开]。
              由 MessageAdapter.applyCollapseToggleAffix 在滚动时把 translationY 调整为
              气泡可见区域中点，随消息滚动保持可见。 -->

@@ -2271,6 +2271,11 @@ class ChatSessionActivity : ThemedActivity() {
                 // 不 force: AI follow-up 主动消息不该抢用户阅读位置.
                 maybeAutoScrollToBottom(false)
             }
+            ChatViewModel.ProactiveMessageEvent.KIND_REMOVE -> {
+                // split 取消时清掉还没填上内容的 typing placeholder 行.
+                val removed = allMessages.removeAll { it.id == event.rowId }
+                if (removed) applyMessagesAndTitle()
+            }
         }
     }
 }

@@ -100,6 +100,11 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     val evt = ProactiveMessageEvent.append(msg)
                     pendingProactiveEvents.offer(evt)
                     proactiveMessageEvent.postValue(evt)
+                },
+                onMessageRemoved = { rowId ->
+                    val evt = ProactiveMessageEvent.remove(rowId)
+                    pendingProactiveEvents.offer(evt)
+                    proactiveMessageEvent.postValue(evt)
                 }
             ).also { planner = it }
         }
@@ -922,6 +927,13 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
             if ("correct_memory" in toolNames) {
                 append("- correct_memory: fix or delete incorrect memories found via search_memory.\n")
             }
+            if ("web_search" in toolNames) {
+                append("- web_search: look up current external facts (news, weather, today's events, ")
+                append("trending topics). Quota: ~10 calls/day per assistant. ")
+                append("Use only for real external lookup needs — never for casual chat, emotions, ")
+                append("role-play, or encyclopedia-type questions you can answer from training. ")
+                append("Rephrase results in character voice, don't recite titles.\n")
+            }
             append("Call tools when relevant; do not fabricate information you could look up. ")
             append("If a search returns count=0, tell the user honestly that no record was found.")
         }
@@ -1035,6 +1047,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         companion object {
             const val KIND_REPLACE = 1
             const val KIND_APPEND = 2
+            const val KIND_REMOVE = 3
 
             @JvmStatic
             fun replace(rowId: Long, newContent: String): ProactiveMessageEvent =
@@ -1043,6 +1056,10 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
             @JvmStatic
             fun append(msg: Message): ProactiveMessageEvent =
                 ProactiveMessageEvent(KIND_APPEND, msg.id, msg.content, msg)
+
+            @JvmStatic
+            fun remove(rowId: Long): ProactiveMessageEvent =
+                ProactiveMessageEvent(KIND_REMOVE, rowId, "", null)
         }
     }
 }

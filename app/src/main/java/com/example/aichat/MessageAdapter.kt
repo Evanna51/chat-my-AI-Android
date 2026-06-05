@@ -563,15 +563,22 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             } else {
                 holder.layoutAssistantAvatar.visibility = View.GONE
             }
-            val isMemoryLoadingPlaceholder =
-                m.role == Message.ROLE_ASSISTANT &&
-                CHARACTER_MEMORY_LOADING_TEXT == content.trim()
-            if (isMemoryLoadingPlaceholder) {
-                holder.textContent.visibility = View.VISIBLE
-                holder.textContent.text = CHARACTER_MEMORY_LOADING_TEXT
-                holder.textContent.maxLines = 1
-                holder.textContent.ellipsize = TextUtils.TruncateAt.END
-                holder.textContent.alpha = 0.72f
+            val trimmedContent = content.trim()
+            // 三类需要显示 typing indicator 的状态:
+            //  1. 显式 placeholder 文本 ([...正在输入中])
+            //  2. 当前 streaming message 但 content 还是空 (placeholder 刚清掉、首个 delta 未到)
+            //     —— 避免 placeholder 隐藏 → 首字打字之间气泡空白闪烁
+            //  reasoning 已在流的不算 (用户已看到 thinking 内容)
+            val isStreamingEmpty = m === streamingAssistantMessage &&
+                trimmedContent.isEmpty() &&
+                m.reasoning.isEmpty()
+            val showTypingIndicator = m.role == Message.ROLE_ASSISTANT && (
+                CHARACTER_MEMORY_LOADING_TEXT == trimmedContent || isStreamingEmpty
+            )
+            if (showTypingIndicator) {
+                holder.layoutAssistantBubble.visibility = View.VISIBLE
+                holder.textContent.visibility = View.GONE
+                holder.layoutTypingIndicator.visibility = View.VISIBLE
                 holder.layoutReasoning.visibility = View.GONE
                 holder.textUsage.visibility = View.GONE
                 holder.actionExpand.visibility = View.GONE
@@ -580,6 +587,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 if (fullBind) holder.itemView.setOnClickListener(null)
                 return
             }
+            holder.layoutTypingIndicator.visibility = View.GONE
             // 把"最新一条 AI 消息"扩展成"最新一段连续 AI 消息" — 自动对话 split /
             // follow-up 会产生 ≥2 条相邻 assistant 行, 它们都应当各自展开工具栏.
             val isLatest = isInLatestAssistantRun(m)
@@ -728,6 +736,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         val textCollapseIcon: ImageView = itemView.findViewById(R.id.textCollapseIcon)
         val textCollapseLabel: TextView = itemView.findViewById(R.id.textCollapseLabel)
         val layoutAssistantBubble: View = itemView.findViewById(R.id.layoutAssistantBubble)
+        val layoutTypingIndicator: View = itemView.findViewById(R.id.layoutTypingIndicator)
         val layoutAssistantAvatar: View = itemView.findViewById(R.id.layoutAssistantAvatar)
         val imageAssistantAvatar: ImageView = itemView.findViewById(R.id.imageAssistantAvatar)
         val textAssistantAvatar: TextView = itemView.findViewById(R.id.textAssistantAvatar)

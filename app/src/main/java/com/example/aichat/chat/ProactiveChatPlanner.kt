@@ -36,10 +36,13 @@ class ProactiveChatPlanner(
     private val context: Context,
     private val executor: ExecutorService,
     private val db: AppDatabase,
-    /** Called when a message row was rewritten (split[0] in-place rewrite). */
+    /** Called when a message row was rewritten (split[0] in-place rewrite, or
+     *  split[i] placeholder → final content). */
     private val onMessageReplaced: (rowId: Long, newContent: String) -> Unit,
-    /** Called when a fresh row was inserted (split[1..N] or follow-up). */
+    /** Called when a fresh row was inserted (split[1..N] placeholder, or follow-up). */
     private val onMessageAppended: (msg: Message) -> Unit,
+    /** Called when a row should be removed (cancelled split placeholder). */
+    private val onMessageRemoved: (rowId: Long) -> Unit = {},
 ) {
 
     companion object {
@@ -53,29 +56,28 @@ class ProactiveChatPlanner(
 
         /** 每个字符模拟打字时长. 中文 ~80ms 接近真人. */
         private const val SPLIT_PER_CHAR_MS = 80L
+
+        /** Split 间隔时插入的 typing placeholder 文本; 与 MessageAdapter/ChatSessionActivity
+         *  里的常量保持一致, MessageAdapter 据此识别并显示 typing 动画. */
+        private const val LOADING_PLACEHOLDER_TEXT = "[...正在输入中]"
     }
 
     /**
-     * 第 i 段 (i ≥ 1) 应该在 split[0] 渲染完之后多久出现.
-     * 累积逻辑: split[1] 等 split[0] 长度 * perChar; split[2] 等 split[0] + split[1].
-     * 每段都被 clamp 到 [MIN, MAX], 保证既不太快也不太长.
+     * 单段间隔: 基于前一段长度模拟"对方在读 + 重新打字"时长.
+     * 链式调度时, 这就是当前 placeholder 显示 typing 动画的时长.
      */
-    private fun computeSplitDelayMs(parts: List<String>, idx: Int): Long {
-        if (idx <= 0) return 0L
-        var cumulative = 0L
-        for (i in 0 until idx) {
-            val len = parts.getOrNull(i)?.length ?: 0
-            val one = (SPLIT_MIN_INTERVAL_MS + SPLIT_PER_CHAR_MS * len)
-                .coerceAtMost(SPLIT_MAX_INTERVAL_MS)
-            cumulative += one
-        }
-        return cumulative
+    private fun computeSplitGapMs(prevPartLen: Int): Long {
+        return (SPLIT_MIN_INTERVAL_MS + SPLIT_PER_CHAR_MS * prevPartLen)
+            .coerceAtMost(SPLIT_MAX_INTERVAL_MS)
     }
 
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /** Per-session split scheduling state — for cleanup on cancel. */
     private val pendingSplitRunnables = ConcurrentHashMap<String, MutableList<Runnable>>()
+    /** Per-session 已插入但 content 还是 LOADING_PLACEHOLDER_TEXT 的 placeholder row id.
+     *  cancel 时这些 row 要从 DB + in-memory 一并清掉. */
+    private val pendingSplitPlaceholderIds = ConcurrentHashMap<String, MutableList<Long>>()
 
     /**
      * Called by ChatViewModel after it inserts a consolidated Message for the assistant turn.
@@ -152,8 +154,23 @@ class ProactiveChatPlanner(
     }
 
     fun cancelPendingSplits(sessionId: String) {
-        val list = pendingSplitRunnables.remove(sessionId) ?: return
-        for (r in list) mainHandler.removeCallbacks(r)
+        val list = pendingSplitRunnables.remove(sessionId)
+        if (list != null) for (r in list) mainHandler.removeCallbacks(r)
+        // 清掉已插入的 typing placeholder (DB + 通知 UI 移除 in-memory).
+        val ids = pendingSplitPlaceholderIds.remove(sessionId)
+        if (!ids.isNullOrEmpty()) {
+            val snapshot = ids.toList()
+            com.example.aichat.IngestExecutor.execute {
+                for (id in snapshot) {
+                    try {
+                        db.messageDao().deleteById(id)
+                    } catch (_: Exception) {}
+                    try {
+                        onMessageRemoved(id)
+                    } catch (_: Exception) {}
+                }
+            }
+        }
     }
 
     /**
@@ -169,6 +186,7 @@ class ProactiveChatPlanner(
     fun shutdown() {
         // Drop our session-keyed bookkeeping; runnables themselves keep firing.
         pendingSplitRunnables.clear()
+        pendingSplitPlaceholderIds.clear()
     }
 
     // ─────────────────────────── Split handling ───────────────────────────
@@ -199,32 +217,70 @@ class ProactiveChatPlanner(
 
         val list = mutableListOf<Runnable>()
         pendingSplitRunnables[sessionId] = list
+        val placeholderIds = mutableListOf<Long>()
+        pendingSplitPlaceholderIds[sessionId] = placeholderIds
 
-        for (i in 1 until split.size) {
-            val part = split[i]
-            val delay = computeSplitDelayMs(split, i)
-            val r = Runnable {
-                com.example.aichat.IngestExecutor.execute {
-                    try {
-                        // split 是对同一条回复的拆分显示, 不消耗 follow-up 每日预算.
-                        val msg = Message(sessionId, Message.ROLE_ASSISTANT, part)
-                        msg.assistantId = assistantId
-                        msg.proactiveKind = 1
-                        // 共用 split[0] 的 turnId: 删除时可通过 turnId 一次性清掉整组孤儿行.
-                        // synced=1: server 不收 split 副本, drainer 不推; 但共享 turnId
-                        //   不影响 drainer — drainer 只选 synced=0 行.
-                        msg.turnId = splitGroupTurnId
-                        msg.synced = 1
-                        val newId = db.messageDao().insert(msg)
-                        msg.id = newId
-                        onMessageAppended(msg)
-                    } catch (e: Exception) {
-                        Log.w(TAG, "split[$i] insert failed", e)
+        // 链式调度: 立即为 split[1] 插 typing placeholder, 显示间隔结束后改写为正文,
+        // 同时为 split[2] 插下一个 placeholder ... 保证同一时刻最多 1 个 typing bubble.
+        scheduleNextSplitPart(
+            sessionId, assistantId, splitGroupTurnId, split, 1,
+            list, placeholderIds,
+        )
+    }
+
+    /**
+     * 链式调度 split[idx]: 立刻 insert 一个 typing placeholder 行, 等
+     * computeSplitGapMs(prev) 时长后把它的 content 改成 split[idx], 然后递归调度
+     * split[idx+1]. 任一步失败/取消都不会破坏整体: cancel 会从 pendingSplitPlaceholderIds
+     * 清掉未填充的 placeholder.
+     */
+    private fun scheduleNextSplitPart(
+        sessionId: String,
+        assistantId: String,
+        splitGroupTurnId: String,
+        split: List<String>,
+        idx: Int,
+        list: MutableList<Runnable>,
+        placeholderIds: MutableList<Long>,
+    ) {
+        if (idx >= split.size) return
+        val prevLen = split.getOrNull(idx - 1)?.length ?: 0
+        val gapMs = computeSplitGapMs(prevLen)
+
+        com.example.aichat.IngestExecutor.execute {
+            try {
+                val placeholder = Message(sessionId, Message.ROLE_ASSISTANT, LOADING_PLACEHOLDER_TEXT)
+                placeholder.assistantId = assistantId
+                placeholder.proactiveKind = 1
+                // 共用 split[0] 的 turnId: 删除时可通过 turnId 一次性清掉整组孤儿行.
+                // synced=1: server 不收 split 副本, drainer 不推.
+                placeholder.turnId = splitGroupTurnId
+                placeholder.synced = 1
+                val pid = db.messageDao().insert(placeholder)
+                placeholder.id = pid
+                synchronized(placeholderIds) { placeholderIds.add(pid) }
+                onMessageAppended(placeholder)
+
+                val r = Runnable {
+                    com.example.aichat.IngestExecutor.execute {
+                        try {
+                            db.messageDao().updateContentAndProactiveKind(pid, split[idx], 1)
+                            synchronized(placeholderIds) { placeholderIds.remove(pid) }
+                            onMessageReplaced(pid, split[idx])
+                            scheduleNextSplitPart(
+                                sessionId, assistantId, splitGroupTurnId, split,
+                                idx + 1, list, placeholderIds,
+                            )
+                        } catch (e: Exception) {
+                            Log.w(TAG, "split[$idx] content fill failed", e)
+                        }
                     }
                 }
+                list.add(r)
+                mainHandler.postDelayed(r, gapMs)
+            } catch (e: Exception) {
+                Log.w(TAG, "split[$idx] placeholder insert failed", e)
             }
-            list.add(r)
-            mainHandler.postDelayed(r, delay)
         }
     }
 

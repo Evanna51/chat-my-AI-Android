@@ -2,6 +2,7 @@
 <resources>
     <string name="app_name">WiChat</string>
     <string name="chat_hint">输入消息…</string>
+    <string name="typing_indicator_label">输入中</string>
     <string name="send">发送</string>
     <string name="stop">Stop</string>
     <string name="new_chat">新对话</string>

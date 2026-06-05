@@ -11,6 +11,7 @@ import com.google.gson.JsonParser
  * server-side handlers:
  *   - `search_memory`  → POST /api/tool/memory-recall
  *   - `correct_memory` → POST /api/tool/memory-correct
+ *   - `web_search`     → POST /api/tool/web-search（Tavily 后端，每角色每日 3 次配额）
  *
  * The bridge is constructed per chat dispatch with the session's bound
  * assistantId/sessionId so the LLM stays agnostic of those — tool schemas
@@ -29,6 +30,7 @@ class ToolBridge(
     fun toolsJson(): JsonArray = JsonArray().apply {
         add(SEARCH_MEMORY_TOOL_SCHEMA)
         add(CORRECT_MEMORY_TOOL_SCHEMA)
+        add(WEB_SEARCH_TOOL_SCHEMA)
     }
 
     /**
@@ -41,6 +43,7 @@ class ToolBridge(
             when (toolName) {
                 TOOL_SEARCH_MEMORY -> invokeSearchMemory(argumentsJson)
                 TOOL_CORRECT_MEMORY -> invokeCorrectMemory(argumentsJson)
+                TOOL_WEB_SEARCH -> invokeWebSearch(argumentsJson)
                 else -> errorJson("unknown_tool", "tool '$toolName' is not registered")
             }
         } catch (e: Exception) {
@@ -65,6 +68,14 @@ class ToolBridge(
         return MemoryToolApi(baseUrl, apiKey).memoryCorrect(assistantId, args)
     }
 
+    private fun invokeWebSearch(argumentsJson: String): String {
+        val args = parseArgs(argumentsJson) ?: return errorJson("bad_arguments", "invalid JSON")
+        val queryEl = args.get("query")
+        val query = if (queryEl == null || queryEl.isJsonNull) "" else queryEl.asString
+        if (query.trim().isEmpty()) return errorJson("bad_arguments", "missing 'query'")
+        return MemoryToolApi(baseUrl, apiKey).webSearch(assistantId, args)
+    }
+
     private fun parseArgs(json: String): JsonObject? = try {
         JsonParser().parse(json).asJsonObject
     } catch (_: Exception) {
@@ -82,6 +93,7 @@ class ToolBridge(
         private const val TAG = "ToolBridge"
         const val TOOL_SEARCH_MEMORY = "search_memory"
         const val TOOL_CORRECT_MEMORY = "correct_memory"
+        const val TOOL_WEB_SEARCH = "web_search"
 
         private val CATEGORY_VALUES = listOf(
             "chitchat", "personal_experience", "relationship_info", "knowledge",
@@ -143,6 +155,44 @@ class ToolBridge(
                             })
                             add("withinDays", intProp("Last N days, only if user names a range", min = 1))
                             add("includeFacts", boolProp("Return memory facts, default false"))
+                        })
+                    })
+                })
+            }
+        }
+
+        /**
+         * OpenAI tool schema for web-search（Tavily 后端，每角色每日 3 次配额）。
+         *
+         * 用例：用户问当前事实 / 新闻 / 天气 / 热点；LLM 想分享一条外部信息。
+         * 不要为闲聊 / 情绪 / RP / 一般百科类调用 —— 浪费配额。
+         */
+        val WEB_SEARCH_TOOL_SCHEMA: JsonObject by lazy {
+            JsonObject().apply {
+                addProperty("type", "function")
+                add("function", JsonObject().apply {
+                    addProperty("name", TOOL_WEB_SEARCH)
+                    addProperty(
+                        "description",
+                        "Search the web for current external facts: news, weather, market data, " +
+                            "trending topics, or any info too recent / external to be in memory. " +
+                            "Backed by Tavily; quota ~10 calls/day per assistant. " +
+                            "Use when user asks about today/recent events, current data, or asks " +
+                            "you to look up / recommend recent content. " +
+                            "Do NOT use for casual chat, emotions, role-play, or encyclopedia-type " +
+                            "questions you can answer from training — it wastes quota. " +
+                            "Returns results[] with title/url/content; rephrase in character voice, " +
+                            "don't recite titles. If ok=false with reason=daily_cap_exceeded, tell " +
+                            "user gently you've already searched too much today."
+                    )
+                    add("parameters", JsonObject().apply {
+                        addProperty("type", "object")
+                        add("required", JsonArray().apply { add("query") })
+                        add("properties", JsonObject().apply {
+                            add("query", strProp("Search keywords (1-200 chars), Chinese or English"))
+                            add("topic", enumProp(listOf("news", "general"),
+                                "news (default, recent events) / general (broader, less time-sensitive)"))
+                            add("maxResults", intProp("Number of results, 1-10, default 5", min = 1, max = 10))
                         })
                     })
                 })

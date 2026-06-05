@@ -1,34 +1,33 @@
 package com.example.aichat.chat
 
 /**
- * V9 stream filter: 流式阶段**只显示第一段** + 元信息标记不显示.
+ * V10 stream filter: 流式阶段**只显示第一段** + 元信息标记不显示.
  *
- * 核心逻辑: 一旦在 stream 里看到下面任意一种边界, 就进入 swallow 模式 — 后续 chunk
+ * 一旦在 stream 里看到下面任意一种边界, 就进入 swallow 模式 — 后续 chunk
  * 全部吞掉不再 emit:
- *   - `|||` 段间分隔 (V9 协议, 替代 V8 的 `\n\n`, 消除自然段落歧义)
- *   - `||==` 元信息前缀 (FOLLOWUP / STOP / SKIP)
+ *   - `|||` 段间分隔（显式协议, prompt 教模型用）
+ *   - `||==` 元信息前缀（FOLLOWUP / STOP / SKIP）
+ *   - 空行 + 行首开括号（隐式自然分段, V10 新增）
+ *     括号集: ( [ （ 【  (英文圆/方 + 中文圆/方); 适配模型用括号
+ *     开启新动作/心境段的输出习惯
  *
- * 为啥这么设计:
- *   流式阶段只显示第一段, 用户看到的就是 messages[0] —— 跟 onSuccess 后 planner
- *   重写到第一条气泡的内容完全一致, 视觉上 0 跳变. 后续段 [messages[1..N]] 由
- *   ProactiveChatPlanner.applySplit 在 onSuccess 后通过 typewriter 逐条追加, 体验
- *   跟"真人发短信" 一致 — 第一段流完 → 停顿 → 第二段打字冒出来 → 第三段打字冒出来.
+ * 流式 hold 策略 (computeSafeEmit):
+ *   - 末尾保留 ≥3 字符防 `|||` / `||==` 跨 chunk 切断
+ *   - 末尾连续空白(含 \n)序列暂留, 等待下一非空白字符判定是否为开括号；
+ *     MAX_HOLD_BLANK 兜底防 buffer 无界增长
  *
- * fullContent 在外面累加是含完整 `|||Nms|||` + 元信息标记的 raw, 由
- * [ProactiveMetaParser] 在 onSuccess 时按 `|||` 切成 messages 数组 + 提元信息.
- *
- * 边界处理:
- *   - chunk 可能在 `|||` / `||==` 中间断, 缓冲最后 3 字符 (max prefix - 1)
- *   - 单段输出 (LLM 不输出 `|||` 也无元信息) 不会触发 swallow, 完整 emit
+ * fullContent 在外面累加完整 raw, [ProactiveMetaParser] 在 onSuccess 时
+ * 按相同规则切成 messages 数组 + 提元信息.
  */
 class ProactiveSplitStreamFilter {
 
     companion object {
-        private const val META_PREFIX = "||=="          // len 4
-        private const val SPLIT_MARKER = "|||"          // len 3
-        private const val SPLIT_NL = "\n\n\n"           // len 3 — 两个空行 = 消息分段
-        // max(4, 3, 3) - 1 = 3
-        private const val MAX_HOLD = 3
+        private const val META_PREFIX = "||=="
+        private const val SPLIT_MARKER = "|||"
+        // 空行 + 行首开括号 — 与 ProactiveMetaParser.SPLIT_NL 对齐
+        private val BLANK_BRACKET = Regex("""\n[^\S\n]*\n[^\S\n]*[(\[（【]""")
+        private const val MAX_HOLD_MARKER = 3
+        private const val MAX_HOLD_BLANK = 64
     }
 
     private var inSwallow: Boolean = false
@@ -40,27 +39,25 @@ class ProactiveSplitStreamFilter {
         if (s.isEmpty() && heldTail.isEmpty()) return ""
         val combined = heldTail + s
 
-        val firstBoundary = listOf(
+        val explicitIdx = listOf(
             combined.indexOf(META_PREFIX),
             combined.indexOf(SPLIT_MARKER),
-            combined.indexOf(SPLIT_NL),
         ).filter { it >= 0 }.minOrNull() ?: -1
+        val implicitIdx = BLANK_BRACKET.find(combined)?.range?.first ?: -1
 
-        if (firstBoundary >= 0) {
+        val boundary = listOf(explicitIdx, implicitIdx).filter { it >= 0 }.minOrNull() ?: -1
+        if (boundary >= 0) {
             inSwallow = true
             heldTail = ""
-            return combined.substring(0, firstBoundary)
+            return combined.substring(0, boundary)
         }
-        if (combined.length <= MAX_HOLD) {
-            heldTail = combined
-            return ""
-        }
-        val cut = combined.length - MAX_HOLD
-        heldTail = combined.substring(cut)
-        return combined.substring(0, cut)
+
+        val safeEmit = computeSafeEmit(combined)
+        heldTail = combined.substring(safeEmit)
+        return combined.substring(0, safeEmit)
     }
 
-    /** 流结束: 没遇到任何边界就把 heldTail 输出 (普通文本). */
+    /** 流结束: 没遇到任何边界就把 heldTail 输出. */
     fun flushTail(): String {
         if (inSwallow) {
             heldTail = ""
@@ -69,5 +66,30 @@ class ProactiveSplitStreamFilter {
         val out = heldTail
         heldTail = ""
         return out
+    }
+
+    /**
+     * 返回 combined 中"可安全 emit"的截止位置（右开区间）.
+     * hold 末尾两类不确定区:
+     *   1. 末 3 字符: 防止 `|||` / `||==` 被跨 chunk 切断
+     *   2. 末尾连续空白序列(必须含 \n): 防止"空行 + 开括号"边界被错过
+     *      —— 等下次 chunk 来非空白字符再判定; MAX_HOLD_BLANK 兜底
+     */
+    private fun computeSafeEmit(s: String): Int {
+        var hold = MAX_HOLD_MARKER.coerceAtMost(s.length)
+
+        var i = s.length
+        while (i > 0) {
+            val c = s[i - 1]
+            if (c == ' ' || c == '\t' || c == '\n' || c == '\r') i-- else break
+        }
+        if (i < s.length && s.substring(i).contains('\n')) {
+            val blankHold = s.length - i
+            if (blankHold <= MAX_HOLD_BLANK) {
+                hold = maxOf(hold, blankHold)
+            }
+        }
+
+        return (s.length - hold).coerceAtLeast(0)
     }
 }
