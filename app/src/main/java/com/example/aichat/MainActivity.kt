@@ -26,6 +26,7 @@ import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import com.example.aichat.session.SessionMode
 
 class MainActivity : ThemedActivity() {
 
@@ -422,7 +423,7 @@ class MainActivity : ThemedActivity() {
                         }
                     }
                     val type = assistantTypeById[assistantId] ?: ""
-                    val isWriter = type == "writer"
+                    val isWriter = SessionMode.from(type) == SessionMode.WRITER
 
                     val keep = when (tab) {
                         HomeTab.RECENT -> !isWriter

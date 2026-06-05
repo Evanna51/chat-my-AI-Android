@@ -11,6 +11,8 @@ import com.example.aichat.chat.ChatTimeContext
 import com.example.aichat.chat.ProactiveChatPlanner
 import com.example.aichat.chat.ProactiveMeta
 import com.example.aichat.chat.ProactivePromptBuilder
+import com.example.aichat.session.SessionMode
+import com.example.aichat.session.mode
 import java.util.Collections
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ExecutorService
@@ -720,7 +722,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         if (aid.isEmpty()) return false
         return try {
             val a = MyAssistantStore(getApplication()).getById(aid) ?: return false
-            "character" == (a.type ?: "").lowercase()
+            a.mode() == SessionMode.CHARACTER
         } catch (_: Exception) { false }
     }
 

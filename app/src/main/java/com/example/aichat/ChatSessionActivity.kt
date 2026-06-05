@@ -57,6 +57,8 @@ import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
+import com.example.aichat.session.SessionMode
+import com.example.aichat.session.mode
 
 class ChatSessionActivity : ThemedActivity() {
 
@@ -1704,13 +1706,13 @@ class ChatSessionActivity : ThemedActivity() {
     private fun resolveWriterAssistant(): Boolean {
         if (assistantId.isNullOrEmpty()) return false
         val assistant = MyAssistantStore(this).getById(assistantId!!)
-        return assistant != null && "writer" == assistant.type
+        return assistant != null && assistant.mode() == SessionMode.WRITER
     }
 
     private fun resolveCharacterAssistant(): Boolean {
         if (assistantId.isNullOrEmpty()) return false
         val assistant = MyAssistantStore(this).getById(assistantId!!)
-        return assistant != null && "character" == assistant.type
+        return assistant != null && assistant.mode() == SessionMode.CHARACTER
     }
 
     /**

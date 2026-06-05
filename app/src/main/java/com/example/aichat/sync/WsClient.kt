@@ -9,6 +9,8 @@ import com.example.aichat.Message
 import com.example.aichat.MyAssistantStore
 import com.example.aichat.ProactiveMessageNotifier
 import com.example.aichat.SessionAssistantBindingStore
+import com.example.aichat.session.SessionMode
+import com.example.aichat.session.mode
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import okhttp3.OkHttpClient
@@ -363,7 +365,7 @@ object WsClient {
         if (body.isEmpty()) return
 
         val assistant = if (assistantId.isNotEmpty()) MyAssistantStore(ctx).getById(assistantId) else null
-        val isCharacter = assistant != null && "character" == assistant.type && assistant.allowProactiveMessage
+        val isCharacter = assistant != null && assistant.mode() == SessionMode.CHARACTER && assistant.allowProactiveMessage
 
         if (isCharacter) {
             if (sessionId.isEmpty()) {

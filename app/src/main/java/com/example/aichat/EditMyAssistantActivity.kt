@@ -27,6 +27,8 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import android.content.pm.ResolveInfo
+import com.example.aichat.session.SessionMode
+import com.example.aichat.session.mode
 
 class EditMyAssistantActivity : ThemedActivity() {
 
@@ -98,8 +100,8 @@ class EditMyAssistantActivity : ThemedActivity() {
         }
         editFirstDialogue?.setText(assistant.firstDialogue)
         when {
-            "writer" == assistant.type -> radioType.check(R.id.typeWriter)
-            "character" == assistant.type -> radioType.check(R.id.typeCharacter)
+            assistant.mode() == SessionMode.WRITER -> radioType.check(R.id.typeWriter)
+            assistant.mode() == SessionMode.CHARACTER -> radioType.check(R.id.typeCharacter)
             else -> radioType.check(R.id.typeDefault)
         }
         checkCharacterAutoLife?.isChecked = assistant.allowAutoLife
@@ -164,17 +166,17 @@ class EditMyAssistantActivity : ThemedActivity() {
             if (savedOptions != null) {
                 savedOptions.systemPrompt = editSystemPrompt?.text?.toString()?.trim() ?: ""
                 savedOptions.outlinePrompt = editOutlinePrompt?.text?.toString()?.trim() ?: ""
-                savedOptions.autoChapterPlan = "writer" == assistant.type
+                savedOptions.autoChapterPlan = assistant.mode() == SessionMode.WRITER
                         && switchAutoChapterPlanWriter != null
                         && switchAutoChapterPlanWriter.isChecked
-                if ("writer" != assistant.type) {
+                if (assistant.mode() != SessionMode.WRITER) {
                     savedOptions.autoChapterPlan = false
                     savedOptions.outlinePrompt = ""
                 }
             }
             assistant.updatedAt = System.currentTimeMillis()
             store.save(assistant)
-            if ("character" == assistant.type) {
+            if (assistant.mode() == SessionMode.CHARACTER) {
                 reportCharacterProfileAsync(assistant)
             }
             finish()

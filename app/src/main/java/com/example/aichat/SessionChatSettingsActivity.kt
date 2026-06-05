@@ -13,6 +13,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
+import com.example.aichat.session.SessionMode
+import com.example.aichat.session.mode
 
 class SessionChatSettingsActivity : ThemedActivity() {
 
@@ -63,7 +65,7 @@ class SessionChatSettingsActivity : ThemedActivity() {
         boundAssistant = if (assistantId.isNotEmpty()) MyAssistantStore(this).getById(assistantId) else null
 
         // writer 类型的会话显示大纲提示词区域
-        val isWriter = boundAssistant?.type == "writer"
+        val isWriter = boundAssistant.mode() == SessionMode.WRITER
         formModule.setOutlinePromptVisible(isWriter)
 
         imageAvatarPreview = findViewById(R.id.imageSessionAvatarPreview)
