@@ -13,6 +13,7 @@ import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.example.aichat.AppDatabase
 import com.example.aichat.ChatService
+import com.example.aichat.chat.ChatCallback
 import com.example.aichat.Message
 import com.example.aichat.MyAssistantStore
 import com.example.aichat.ProactiveMessageNotifier
@@ -250,7 +251,7 @@ class ProactiveFollowUpWorker(
         // would always yield meta=null).
         var capturedMeta: com.example.aichat.chat.ProactiveMeta? = null
 
-        chatService.chat(historyAsc, instruction, effective, object : ChatService.ChatCallback {
+        chatService.chat(historyAsc, instruction, effective, object : ChatCallback {
             override fun onProactiveMeta(meta: com.example.aichat.chat.ProactiveMeta?) {
                 capturedMeta = meta
             }

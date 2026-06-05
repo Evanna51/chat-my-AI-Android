@@ -7,10 +7,13 @@ import android.util.Log
 import androidx.annotation.NonNull
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
+import com.example.aichat.chat.ChatCallback
+import com.example.aichat.chat.ChatHandle
 import com.example.aichat.chat.ChatTimeContext
 import com.example.aichat.chat.ProactiveChatPlanner
 import com.example.aichat.chat.ProactiveMeta
 import com.example.aichat.chat.ProactivePromptBuilder
+import com.example.aichat.chat.ToolMessageRecord
 import com.example.aichat.session.SessionMode
 import com.example.aichat.session.mode
 import java.util.Collections
@@ -55,7 +58,9 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     // --- Internal state ---
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val db: AppDatabase = AppDatabase.getInstance(application)
-    private val chatService: ChatService = ChatService(application)
+    // 字段类型用 ChatGenerator 接口而非具体 ChatService，方便 R7 接入 inkos 时
+    // 按 SessionMode 切到 InkosGenerator。当前唯一实现就是 ChatService。
+    private val chatService: com.example.aichat.chat.ChatGenerator = ChatService(application)
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /**
@@ -79,7 +84,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     private var sessionId: String? = null
 
     @Volatile private var activeResponseToken: Long = 0
-    @Volatile private var activeChatHandle: ChatService.ChatHandle? = null
+    @Volatile private var activeChatHandle: ChatHandle? = null
     @Volatile private var loadingOlderMessages: Boolean = false
     private var oldestLoadedCreatedAt: Long = Long.MAX_VALUE
     private var oldestLoadedMessageId: Long = Long.MAX_VALUE
@@ -460,7 +465,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         responseToken: Long,
         assistantId: String?,
         chatCtx: com.example.aichat.sync.ChatContextResponse?,
-    ): ChatService.ChatHandle {
+    ): ChatHandle {
         val sid = sessionId ?: ""
         activeResponseToken = responseToken
         responseInProgress.postValue(true)
@@ -521,7 +526,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         val autoChatActive = effectiveAutoChat
 
         val handle = chatService.chat(historyForApi, apiUserMessage, effectiveOptions,
-            object : ChatService.ChatCallback {
+            object : ChatCallback {
 
                 private fun isStale(): Boolean = responseToken != activeResponseToken
 
@@ -636,7 +641,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     postStreamEvent(event)
                 }
 
-                override fun onToolMessageRecorded(record: ChatService.ToolMessageRecord) {
+                override fun onToolMessageRecorded(record: ToolMessageRecord) {
                     if (isStale()) return
                     // App-scoped executor: tool-round messages may arrive after the
                     // user has left the chat page (Activity finished). See [IngestExecutor].
@@ -661,7 +666,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     // ─────────────────────────── Thread Title ───────────────────────────
 
     fun generateThreadTitle(firstUserMessage: String?, fallbackTitle: String?) {
-        chatService.generateThreadTitle(firstUserMessage, object : ChatService.ChatCallback {
+        chatService.generateThreadTitle(firstUserMessage, object : ChatCallback {
             override fun onSuccess(content: String) {
                 val generated = content.trim()
                 if (generated.isEmpty()) return
@@ -684,7 +689,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
 
     fun getActiveResponseToken(): Long = activeResponseToken
 
-    fun getActiveChatHandle(): ChatService.ChatHandle? = activeChatHandle
+    fun getActiveChatHandle(): ChatHandle? = activeChatHandle
 
     fun clearActiveChatHandle() {
         activeChatHandle = null

@@ -3,6 +3,7 @@ package com.example.aichat
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
+import com.example.aichat.chat.ChatCallback
 import android.os.Looper
 import android.widget.EditText
 import android.widget.Toast
@@ -81,7 +82,7 @@ class AllConversationsActivity : ThemedActivity() {
                         }
                     }
                     val oprompt = resolveOutlinePrompt(session.sessionId)
-                    ChatService(this@AllConversationsActivity).generateSessionOutline(firstTen, oprompt, object : ChatService.ChatCallback {
+                    ChatService(this@AllConversationsActivity).generateSessionOutline(firstTen, oprompt, object : ChatCallback {
                         override fun onSuccess(content: String) {
                             val outline = content?.trim() ?: ""
                             if (outline.isEmpty()) {

@@ -4,6 +4,7 @@ import com.example.aichat.AiModelConfig
 import com.example.aichat.ApiUtils
 import com.example.aichat.ChatApi
 import com.example.aichat.ChatService
+import com.example.aichat.chat.ChatCallback
 import com.example.aichat.Message
 import com.example.aichat.ModelConfig
 import com.example.aichat.R
@@ -24,7 +25,7 @@ class WriterOutlineService(private val service: ChatService) {
         private const val TAG = "WriterOutlineService"
     }
 
-    fun generateSession(history: List<Message>?, outlinePrompt: String? = null, callback: ChatService.ChatCallback) {
+    fun generateSession(history: List<Message>?, outlinePrompt: String? = null, callback: ChatCallback) {
         val source = history ?: ArrayList()
         if (source.isEmpty()) {
             callback.onError("暂无可总结内容")
@@ -163,7 +164,7 @@ class WriterOutlineService(private val service: ChatService) {
             })
     }
 
-    fun summarize(content: String?, outlinePrompt: String? = null, callback: ChatService.ChatCallback) {
+    fun summarize(content: String?, outlinePrompt: String? = null, callback: ChatCallback) {
         var source = content?.trim() ?: ""
         if (source.isEmpty()) {
             callback.onError(service.context.getString(R.string.error_message_empty))

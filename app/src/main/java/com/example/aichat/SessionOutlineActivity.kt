@@ -28,6 +28,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.util.LinkedHashSet
 import java.util.UUID
 import java.util.concurrent.Executors
+import com.example.aichat.chat.ChatCallback
 
 class SessionOutlineActivity : ThemedActivity() {
 
@@ -767,7 +768,7 @@ class SessionOutlineActivity : ThemedActivity() {
             Toast.makeText(this, "正在生成卷纲…", Toast.LENGTH_SHORT).show()
             ChatService(this).generateVolumeOutline(
                 volumeTitle, coverageLabel, promptCtx,
-                object : ChatService.ChatCallback {
+                object : ChatCallback {
                     override fun onSuccess(content: String) {
                         runOnUiThread {
                             val item = outlineStore.add(sessionId, "volume", volumeTitle, content)
@@ -984,7 +985,7 @@ class SessionOutlineActivity : ThemedActivity() {
         val positive = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
         positive?.isEnabled = false
 
-        ChatService(this).extractKnowledgeConstraints(outlineText, object : ChatService.ChatCallback {
+        ChatService(this).extractKnowledgeConstraints(outlineText, object : ChatCallback {
             override fun onSuccess(content: String) {
                 runOnUiThread {
                     val parsed = parseKnowledgeCandidates(content)
@@ -1274,7 +1275,7 @@ class SessionOutlineActivity : ThemedActivity() {
             runOnUiThread {
                 if (resolved) return@runOnUiThread
                 if (!backgroundMode) controller.setStatus("正在请求章节计划模型…")
-                ChatService(this).generateChapterPlanJson(ctx, object : ChatService.ChatCallback {
+                ChatService(this).generateChapterPlanJson(ctx, object : ChatCallback {
                     override fun onPartial(delta: String) {
                         runOnUiThread {
                             if (!resolved && !backgroundMode && delta.trim().isNotEmpty()) {

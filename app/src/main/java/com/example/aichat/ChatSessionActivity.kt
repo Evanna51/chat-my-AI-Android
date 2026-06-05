@@ -59,6 +59,8 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
 import com.example.aichat.session.SessionMode
 import com.example.aichat.session.mode
+import com.example.aichat.chat.ChatCallback
+import com.example.aichat.chat.ChatHandle
 
 class ChatSessionActivity : ThemedActivity() {
 
@@ -351,7 +353,7 @@ class ChatSessionActivity : ThemedActivity() {
     private var assistantResponseInProgress = false
     private var streamRenderPending = false
     private var lastStreamRenderAt = 0L
-    private var activeChatHandle: ChatService.ChatHandle? = null
+    private var activeChatHandle: ChatHandle? = null
     private var activeStreamingMessage: Message? = null
         set(value) {
             field = value
@@ -1607,7 +1609,7 @@ class ChatSessionActivity : ThemedActivity() {
         }
         Toast.makeText(this, "正在提取到大纲…", Toast.LENGTH_SHORT).show()
         val oprompt = resolveOutlinePrompt()
-        chatService.summarizeMessageForOutline(source, oprompt, object : ChatService.ChatCallback {
+        chatService.summarizeMessageForOutline(source, oprompt, object : ChatCallback {
             override fun onSuccess(content: String) {
                 mainHandler.post {
                     val summary = content.trim()

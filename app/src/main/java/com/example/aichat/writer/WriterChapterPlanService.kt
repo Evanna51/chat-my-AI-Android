@@ -5,6 +5,7 @@ import com.example.aichat.AiModelConfig
 import com.example.aichat.ApiUtils
 import com.example.aichat.ChatApi
 import com.example.aichat.ChatService
+import com.example.aichat.chat.ChatCallback
 import com.example.aichat.ChapterPlanContext
 import com.example.aichat.ModelConfig
 import com.example.aichat.SessionOutlineItem
@@ -24,7 +25,7 @@ class WriterChapterPlanService(private val service: ChatService) {
         private const val TAG = "WriterChapterPlanService"
     }
 
-    fun generate(ctx: ChapterPlanContext, callback: ChatService.ChatCallback) {
+    fun generate(ctx: ChapterPlanContext, callback: ChatCallback) {
         val targetTitle = ctx.targetTitle.trim()
         if (targetTitle.isEmpty()) {
             callback.onError("目标章节标题为空")
@@ -241,7 +242,7 @@ class WriterChapterPlanService(private val service: ChatService) {
         chatUrl: String,
         auth: String?,
         request: ChatApi.ChatRequest,
-        callback: ChatService.ChatCallback,
+        callback: ChatCallback,
         allowFallback: Boolean
     ) {
         api.chatWithUrl(chatUrl, auth, "application/json", request)

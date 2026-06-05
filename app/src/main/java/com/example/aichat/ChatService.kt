@@ -2,12 +2,16 @@ package com.example.aichat
 
 import android.content.Context
 import android.util.Log
+import com.example.aichat.chat.ChatCallback
+import com.example.aichat.chat.ChatGenerator
+import com.example.aichat.chat.ChatHandle
 import com.example.aichat.chat.ChatJsonHelpers.firstNonEmpty
 import com.example.aichat.chat.ChatJsonHelpers.getInt
 import com.example.aichat.chat.ChatJsonHelpers.getString
 import com.example.aichat.chat.ChatJsonHelpers.getStringFlexible
 import com.example.aichat.chat.ChatReasoningExtractor
 import com.example.aichat.chat.ChatTextHelpers
+import com.example.aichat.chat.ToolMessageRecord
 import com.example.aichat.writer.WriterJsonHelpers
 import com.example.aichat.chat.ChatToolCallAccumulator
 import com.example.aichat.chat.InlineThinkProcessor
@@ -32,7 +36,7 @@ import java.util.concurrent.TimeUnit
 /**
  * 聊天服务，从 AiModelConfig 读取当前配置进行请求。
  */
-class ChatService(context: Context) {
+class ChatService(context: Context) : ChatGenerator {
 
     companion object {
         private const val TAG = "ChatService"
@@ -89,11 +93,6 @@ class ChatService(context: Context) {
         if (request.topK == null) request.topK = params.topK
     }
 
-    interface ChatHandle {
-        fun cancel()
-        fun isCancelled(): Boolean
-    }
-
     internal class ChatHandleImpl : ChatHandle {
         @Volatile var cancelled: Boolean = false
         @Volatile var cancelledCallbackFired: Boolean = false
@@ -136,12 +135,12 @@ class ChatService(context: Context) {
     }
 
     @JvmOverloads
-    fun chat(
+    override fun chat(
         history: List<Message>,
         userMessage: String,
-        options: SessionChatOptions? = null,
+        options: SessionChatOptions?,
         callback: ChatCallback,
-        toolBridge: com.example.aichat.sync.ToolBridge? = null,
+        toolBridge: com.example.aichat.sync.ToolBridge?,
     ): ChatHandle {
         val handle = ChatHandleImpl()
         val config: AiModelConfig.ResolvedConfig
@@ -302,7 +301,7 @@ class ChatService(context: Context) {
         return handle
     }
 
-    fun generateThreadTitle(firstUserMessage: String?, callback: ChatCallback) {
+    override fun generateThreadTitle(firstUserMessage: String?, callback: ChatCallback) {
         titleGenerator.generate(firstUserMessage, callback)
     }
 
@@ -878,55 +877,4 @@ class ChatService(context: Context) {
         return fallback
     }
 
-    interface ChatCallback {
-        fun onSuccess(content: String)
-        fun onError(message: String)
-        fun onCancelled() {}
-        fun onPartial(delta: String) {}
-        fun onReasoning(reasoning: String) {}
-        fun onUsage(promptTokens: Int, completionTokens: Int, totalTokens: Int, elapsedMs: Long) {}
-        /**
-         * Fired when the model emits a tool_call and the client is about to
-         * invoke it. UI can show a "calling tool" indicator. Followed by either
-         * onPartial/onReasoning (next round) or onError (tool loop aborted).
-         */
-        fun onToolCallStart(toolName: String) {}
-        /**
-         * Fired once for each persistable tool round message: first the
-         * assistant(tool_calls) wrapper (role=ROLE_TOOL_CALL), then one row per
-         * executed tool (role=ROLE_TOOL_RESULT). Consumers should write these
-         * to the local message log so chat history is a faithful audit trail
-         * of every LLM round.
-         *
-         * Contract: rows persisted via this callback MUST NOT be pushed to
-         * the remote sync server — they're a local-only audit trail.
-         * (Server schema since 2026-Q1 *does* accept role=tool_call /
-         * tool_result, but we intentionally keep tool rounds local to limit
-         * upload volume.) Implementations should leave `assistantId` empty
-         * so SyncQueueDrainer's `assistantId != ''` filter skips them.
-         * `turnId` is auto-assigned a non-empty UuidV7 by Message's
-         * constructor — leave it alone; future cross-end delete sync may
-         * rely on it.
-         */
-        fun onToolMessageRecorded(record: ToolMessageRecord) {}
-        /**
-         * Fired once per streaming chat turn, immediately before [onSuccess], when
-         * 自动对话 META 协议在模型回复尾部被识别 (或缺席). [meta] 为 null 表示模型没发或解析失败,
-         * 上层应回退到普通显示. 回调和 onSuccess 在同一线程顺序触发.
-         */
-        fun onProactiveMeta(meta: com.example.aichat.chat.ProactiveMeta?) {}
-    }
-
-    /**
-     * Snapshot of a single tool-round message ready to be persisted.
-     * See [ChatCallback.onToolMessageRecorded] for the contract.
-     */
-    data class ToolMessageRecord(
-        @JvmField val role: Int,
-        @JvmField val content: String,
-        @JvmField val toolCallsJson: String,
-        @JvmField val toolCallId: String,
-        @JvmField val toolName: String,
-        @JvmField val createdAt: Long,
-    )
 }

@@ -4,6 +4,7 @@ import com.example.aichat.AiModelConfig
 import com.example.aichat.ApiUtils
 import com.example.aichat.ChatApi
 import com.example.aichat.ChatService
+import com.example.aichat.chat.ChatCallback
 import com.example.aichat.ModelConfig
 import com.example.aichat.chat.ChatTextHelpers
 import com.google.gson.JsonObject
@@ -26,7 +27,7 @@ class WriterVolumeService(private val service: ChatService) {
         volumeTitle: String,
         coverageRange: String,
         promptContext: String,
-        callback: ChatService.ChatCallback,
+        callback: ChatCallback,
     ) {
         val context0 = promptContext.trim()
         if (context0.isEmpty()) {
@@ -133,7 +134,7 @@ class WriterVolumeService(private val service: ChatService) {
             })
     }
 
-    fun extractKnowledge(outlineText: String?, callback: ChatService.ChatCallback) {
+    fun extractKnowledge(outlineText: String?, callback: ChatCallback) {
         val outline = outlineText?.trim() ?: ""
         if (outline.isEmpty()) {
             callback.onError("大纲为空，无法提取知情约束")

@@ -30,7 +30,7 @@ class ChatTitleGenerator(private val service: ChatService) {
         private const val TAG = "ChatTitleGenerator"
     }
 
-    fun generate(firstUserMessage: String?, callback: ChatService.ChatCallback) {
+    fun generate(firstUserMessage: String?, callback: ChatCallback) {
         val context = service.context
         val source = firstUserMessage?.trim() ?: ""
         if (source.isEmpty()) {
