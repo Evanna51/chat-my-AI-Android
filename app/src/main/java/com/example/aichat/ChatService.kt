@@ -7,6 +7,8 @@ import com.example.aichat.chat.ChatJsonHelpers.getInt
 import com.example.aichat.chat.ChatJsonHelpers.getString
 import com.example.aichat.chat.ChatJsonHelpers.getStringFlexible
 import com.example.aichat.chat.ChatReasoningExtractor
+import com.example.aichat.chat.ChatTextHelpers
+import com.example.aichat.writer.WriterJsonHelpers
 import com.example.aichat.chat.ChatToolCallAccumulator
 import com.example.aichat.chat.InlineThinkProcessor
 import com.example.aichat.chat.InlineThinkState
@@ -263,7 +265,7 @@ class ChatService(context: Context) {
                         if (choices != null && choices.isNotEmpty()) {
                             val choice = choices[0]
                             if (choice != null && choice.message != null) {
-                                val content = extractAssistantContent(body)
+                                val content = ChatTextHelpers.extractAssistantContent(body)
                                 callback.onUsage(0, 0, 0, System.currentTimeMillis() - start)
                                 callback.onSuccess(content ?: "")
                                 return
@@ -404,9 +406,9 @@ class ChatService(context: Context) {
                     )
                     return
                 }
-                val raw = extractAssistantContent(body314)
-                var title = extractTitleFromJsonOrText(raw)
-                title = cleanTitleResult(title)
+                val raw = ChatTextHelpers.extractAssistantContent(body314)
+                var title = ChatTextHelpers.extractTitleFromJsonOrText(raw)
+                title = ChatTextHelpers.cleanTitleResult(title)
                 if (title.length > 12) title = title.substring(0, 12)
                 if (title.length < 3) title = if (source.length > 12) source.substring(0, 12) else source
                 callback.onSuccess(title)
@@ -541,9 +543,9 @@ class ChatService(context: Context) {
                                 + if (detail.isEmpty()) "" else ("\n" + detail))
                         return
                     }
-                    var outline = extractAssistantContent(body450)
-                    outline = extractTextFieldFromJsonOrText(outline, "outline", "summary", "content", "result")
-                    outline = stripThinkTags(outline).replace("\n", " ").trim()
+                    var outline = ChatTextHelpers.extractAssistantContent(body450)
+                    outline = ChatTextHelpers.extractTextFieldFromJsonOrText(outline, "outline", "summary", "content", "result")
+                    outline = ChatTextHelpers.stripThinkTags(outline).replace("\n", " ").trim()
                     if (outline.isEmpty()) {
                         callback.onError("生成大纲失败")
                         return
@@ -667,9 +669,9 @@ class ChatService(context: Context) {
                                 + if (detail.isEmpty()) "" else ("\n" + detail))
                         return
                     }
-                    var summary = extractAssistantContent(body571)
-                    summary = extractTextFieldFromJsonOrText(summary, "summary", "outline", "content", "result")
-                    summary = stripThinkTags(summary).replace("\n", " ").trim()
+                    var summary = ChatTextHelpers.extractAssistantContent(body571)
+                    summary = ChatTextHelpers.extractTextFieldFromJsonOrText(summary, "summary", "outline", "content", "result")
+                    summary = ChatTextHelpers.stripThinkTags(summary).replace("\n", " ").trim()
                     if (summary.isEmpty()) {
                         callback.onError("总结失败")
                         return
@@ -938,10 +940,10 @@ class ChatService(context: Context) {
                         return
                     }
                     callback.onPartial("模型已返回，正在解析计划…")
-                    val raw = extractAssistantContent(body707)
+                    val raw = ChatTextHelpers.extractAssistantContent(body707)
                     Log.d(TAG, "chapter plan raw length=${raw?.length ?: 0}"
-                            + ", preview=${previewForLog(raw, 180)}")
-                    val obj = parseFirstJsonObject(raw)
+                            + ", preview=${ChatTextHelpers.previewForLog(raw, 180)}")
+                    val obj = WriterJsonHelpers.parseFirstJsonObject(raw)
                     if (obj == null) {
                         val preview = raw?.trim() ?: ""
                         var head = preview
@@ -957,9 +959,9 @@ class ChatService(context: Context) {
                         return
                     }
                     callback.onPartial("章节计划已生成")
-                    val normalized = normalizeChapterPlanJson(obj)
-                    Log.d(TAG, "chapter plan normalized nonEmptyFields=${countNonEmptyPlanFields(normalized)}"
-                            + ", payload=${previewForLog(normalized.toString(), 220)}")
+                    val normalized = WriterJsonHelpers.normalizeChapterPlanJson(obj)
+                    Log.d(TAG, "chapter plan normalized nonEmptyFields=${WriterJsonHelpers.countNonEmptyPlanFields(normalized)}"
+                            + ", payload=${ChatTextHelpers.previewForLog(normalized.toString(), 220)}")
                     callback.onSuccess(normalized.toString())
                 }
 
@@ -1001,235 +1003,6 @@ class ChatService(context: Context) {
         return lower.contains("top_p")
     }
 
-    private fun parseFirstJsonObject(raw: String?): JsonObject? {
-        val text = sanitizeJsonLikeText(stripThinkTags(raw))
-        if (text.isEmpty()) return null
-        // 1) Full parse first: parse the whole payload as a JSON object.
-        val direct = tryParseObject(text)
-        if (direct != null) return direct
-
-        // 2) Full-slice parse: from first '{' to last '}' as one complete object.
-        val fullSlice = extractJsonObjectSlice(text)
-        val fullObj = tryParseObject(fullSlice)
-        if (fullObj != null) return fullObj
-
-        // 3) Only if likely truncated/non-normal ending, run fallback extraction.
-        if (looksLikeTruncatedJson(text)) {
-            val repaired = repairTruncatedJsonObject(text)
-            val repairedObj = tryParseObject(repaired)
-            if (repairedObj != null) return repairedObj
-            val keywordObj = extractChapterPlanByKeywords(text)
-            if (keywordObj != null) return keywordObj
-        }
-        return null
-    }
-
-    private fun tryParseObject(text: String?): JsonObject? {
-        if (text == null || text.trim().isEmpty()) return null
-        return try {
-            JsonParser().parse(text).asJsonObject
-        } catch (ignored: Exception) {
-            null
-        }
-    }
-
-    private fun looksLikeTruncatedJson(text: String?): Boolean {
-        if (text == null || text.isEmpty()) return false
-        val first = text.indexOf('{')
-        if (first < 0) return false
-        var objDepth = 0
-        var arrDepth = 0
-        var inString = false
-        var escaped = false
-        for (i in first until text.length) {
-            val c = text[i]
-            if (escaped) {
-                escaped = false
-                continue
-            }
-            if (c == '\\') {
-                escaped = true
-                continue
-            }
-            if (c == '"') {
-                inString = !inString
-                continue
-            }
-            if (inString) continue
-            when (c) {
-                '{' -> objDepth++
-                '}' -> objDepth = Math.max(0, objDepth - 1)
-                '[' -> arrDepth++
-                ']' -> arrDepth = Math.max(0, arrDepth - 1)
-            }
-        }
-        return inString || objDepth > 0 || arrDepth > 0
-    }
-
-    private fun extractChapterPlanByKeywords(text: String?): JsonObject? {
-        if (text == null || text.isEmpty()) return null
-        val out = JsonObject()
-
-        putIfNotEmpty(out, "chapterGoal", extractStringByKeys(text,
-            "chapterGoal", "chapter_goal", "goal", "章节目标", "本章目标", "目标"))
-        putIfNotEmpty(out, "startState", extractStringByKeys(text,
-            "startState", "start_state", "起始状态", "开场状态", "开局状态"))
-        putIfNotEmpty(out, "endState", extractStringByKeys(text,
-            "endState", "end_state", "结束状态", "结尾状态", "收束状态"))
-        putIfNotEmpty(out, "styleGuide", extractStringByKeys(text,
-            "styleGuide", "style_guide", "style", "writingStyle", "文风", "文风与节奏"))
-
-        putArrayIfNotEmpty(out, "knowledgeBoundary", extractArrayByKeys(text,
-            "knowledgeBoundary", "knowledge_boundary", "knowledge", "知情边界", "知情约束"))
-        putArrayIfNotEmpty(out, "eventChain", extractArrayByKeys(text,
-            "eventChain", "event_chain", "events", "事件链", "关键事件"))
-        putArrayIfNotEmpty(out, "foreshadow", extractArrayByKeys(text,
-            "foreshadow", "foreshadows", "伏笔"))
-        putArrayIfNotEmpty(out, "payoff", extractArrayByKeys(text,
-            "payoff", "payoffs", "回收"))
-        putArrayIfNotEmpty(out, "forbidden", extractArrayByKeys(text,
-            "forbidden", "forbiddenList", "禁写清单", "禁写", "禁忌"))
-        putCharacterDrivesIfNotEmpty(out, extractArrayByKeys(text,
-            "characterDrives", "character_drives", "characters", "角色驱动", "角色动机"))
-
-        return if (out.entrySet().isEmpty()) null else out
-    }
-
-    private fun putIfNotEmpty(obj: JsonObject?, key: String?, value: String?) {
-        if (obj == null || key == null) return
-        if (value == null || value.trim().isEmpty()) return
-        obj.addProperty(key, value.trim())
-    }
-
-    private fun putArrayIfNotEmpty(obj: JsonObject?, key: String?, values: List<String>?) {
-        if (obj == null || key == null || values == null || values.isEmpty()) return
-        val arr = JsonArray()
-        for (v in values) {
-            if (v == null || v.trim().isEmpty()) continue
-            arr.add(v.trim())
-        }
-        if (arr.size() > 0) obj.add(key, arr)
-    }
-
-    private fun putCharacterDrivesIfNotEmpty(obj: JsonObject?, drives: List<String>?) {
-        if (obj == null || drives == null || drives.isEmpty()) return
-        val arr = JsonArray()
-        for (v in drives) {
-            if (v == null || v.trim().isEmpty()) continue
-            val one = JsonObject()
-            one.addProperty("name", "")
-            one.addProperty("goal", v.trim())
-            one.addProperty("misbelief", "")
-            one.addProperty("emotion", "")
-            arr.add(one)
-        }
-        if (arr.size() > 0) obj.add("characterDrives", arr)
-    }
-
-    private fun extractStringByKeys(text: String?, vararg keys: String): String {
-        if (text == null) return ""
-        for (key in keys) {
-            if (key.isEmpty()) continue
-            val p = java.util.regex.Pattern.compile(
-                "\"" + java.util.regex.Pattern.quote(key) + "\"\\s*:\\s*\"([^\"]*)\"",
-                java.util.regex.Pattern.CASE_INSENSITIVE or java.util.regex.Pattern.DOTALL
-            )
-            val m = p.matcher(text)
-            if (m.find()) {
-                val v = m.group(1)
-                if (v != null && v.trim().isNotEmpty()) return v.trim()
-            }
-        }
-        return ""
-    }
-
-    private fun extractArrayByKeys(text: String?, vararg keys: String): List<String> {
-        val out = ArrayList<String>()
-        if (text == null) return out
-        for (key in keys) {
-            if (key.isEmpty()) continue
-            val p = java.util.regex.Pattern.compile(
-                "\"" + java.util.regex.Pattern.quote(key) + "\"\\s*:\\s*\\[(.*?)\\]",
-                java.util.regex.Pattern.CASE_INSENSITIVE or java.util.regex.Pattern.DOTALL
-            )
-            val m = p.matcher(text)
-            if (!m.find()) continue
-            val body = m.group(1)
-            if (body == null || body.trim().isEmpty()) continue
-            val item = java.util.regex.Pattern
-                .compile("\"([^\"]*)\"")
-                .matcher(body)
-            while (item.find()) {
-                val v = item.group(1)
-                if (v != null && v.trim().isNotEmpty()) out.add(v.trim())
-            }
-            if (out.isNotEmpty()) return out
-        }
-        return out
-    }
-
-    private fun sanitizeJsonLikeText(text: String?): String {
-        var out = text?.trim() ?: ""
-        if (out.isEmpty()) return ""
-        // Remove fenced code markers.
-        out = out.replace(Regex("(?is)^```(?:json)?\\s*"), "")
-        out = out.replace(Regex("(?is)\\s*```$"), "")
-        // Normalize full-width punctuation often seen in CJK outputs.
-        out = out.replace('\u201C', '"').replace('\u201D', '"')
-            .replace('\u2018', '\'').replace('\u2019', '\'')
-            .replace('：', ':')
-            .replace('，', ',')
-        return out.trim()
-    }
-
-    private fun repairJsonCandidate(candidate: String?): String {
-        var out = sanitizeJsonLikeText(candidate)
-        if (out.isEmpty()) return ""
-        // Try converting single-quoted JSON-like text to valid double-quoted JSON.
-        out = out.replace(Regex("(?<!\\\\)'"), "\"")
-        // Remove trailing commas before closing braces/brackets.
-        out = out.replace(Regex(",\\s*([}\\]])"), "$1")
-        return out
-    }
-
-    private fun repairTruncatedJsonObject(raw: String?): String {
-        if (raw == null || raw.isEmpty()) return ""
-        val start = raw.indexOf('{')
-        if (start < 0) return ""
-        val text = raw.substring(start)
-        val out = StringBuilder(text)
-        val closers = java.util.ArrayDeque<Char>()
-        var inString = false
-        var escaped = false
-        for (i in text.indices) {
-            val c = text[i]
-            if (escaped) {
-                escaped = false
-                continue
-            }
-            if (c == '\\') {
-                escaped = true
-                continue
-            }
-            if (c == '"') {
-                inString = !inString
-                continue
-            }
-            if (inString) continue
-            when (c) {
-                '{' -> closers.push('}')
-                '[' -> closers.push(']')
-                '}', ']' -> {
-                    if (closers.isNotEmpty() && closers.peek() == c) closers.pop()
-                    else return ""
-                }
-            }
-        }
-        if (inString) return ""
-        while (closers.isNotEmpty()) out.append(closers.pop())
-        val fixed = out.toString().replace(Regex(",\\s*([}\\]])"), "$1")
-        return fixed
-    }
 
 
     /**
@@ -1339,8 +1112,8 @@ class ChatService(context: Context) {
                                 + if (detail.isEmpty()) "" else ("\n" + detail))
                         return
                     }
-                    var result = extractAssistantContent(body)
-                    result = stripThinkTags(result).trim()
+                    var result = ChatTextHelpers.extractAssistantContent(body)
+                    result = ChatTextHelpers.stripThinkTags(result).trim()
                     if (result.isEmpty()) { callback.onError("卷纲生成失败"); return }
                     callback.onSuccess(result)
                 }
@@ -1462,8 +1235,8 @@ class ChatService(context: Context) {
                                 + if (detail.isEmpty()) "" else ("\n" + detail))
                         return
                     }
-                    var result = extractAssistantContent(body)
-                    result = stripThinkTags(result).trim()
+                    var result = ChatTextHelpers.extractAssistantContent(body)
+                    result = ChatTextHelpers.stripThinkTags(result).trim()
                     if (result.isEmpty()) {
                         callback.onError("提取失败")
                         return
@@ -1998,248 +1771,6 @@ class ChatService(context: Context) {
                 || "llamacpp" == pid
                 || "llama.cpp" == pid
                 || "llama-cpp" == pid
-    }
-
-    private fun extractAssistantContent(body: ChatApi.ChatResponse): String {
-        val choices = body.choices
-        if (choices == null || choices.isEmpty()) return ""
-        val first = choices[0] ?: return ""
-        val message = first.message ?: return ""
-        val content: JsonElement = message.content ?: return ""
-        if (content.isJsonNull) return ""
-        try {
-            if (content.isJsonPrimitive) return content.asString
-            if (content.isJsonArray) {
-                val out = StringBuilder()
-                val arr = content.asJsonArray
-                for (one in arr) {
-                    if (one == null || one.isJsonNull) continue
-                    if (one.isJsonPrimitive) {
-                        out.append(one.asString)
-                        continue
-                    }
-                    if (!one.isJsonObject) continue
-                    val obj = one.asJsonObject
-                    val txt = firstNonEmpty(
-                        getStringFlexible(obj, "text"),
-                        getStringFlexible(obj, "content"),
-                        getStringFlexible(obj, "value")
-                    )
-                    if (txt.isNotEmpty()) out.append(txt)
-                }
-                return out.toString()
-            }
-            if (content.isJsonObject) {
-                val obj = content.asJsonObject
-                return firstNonEmpty(
-                    getStringFlexible(obj, "text"),
-                    getStringFlexible(obj, "content"),
-                    getStringFlexible(obj, "value")
-                )
-            }
-        } catch (ignored: Exception) {}
-        return ""
-    }
-
-    private fun stripThinkTags(text: String?): String {
-        if (text == null || text.isEmpty()) return ""
-        return text.replace(Regex("(?is)<think>.*?</think>"), "").trim()
-    }
-
-    private fun cleanTitleResult(raw: String?): String {
-        var text = stripThinkTags(raw)
-        text = text.replace("\r", "\n").trim()
-
-        // Remove common verbose reasoning prefixes from uncensored/local models.
-        text = text.replace(Regex("(?is)^\\s*(thinking\\s*process|reasoning|analysis|思考过程|分析过程)\\s*[:：].*$"), "")
-        if (text.isEmpty()) return ""
-
-        // Prefer first non-empty line that looks like a short Chinese title.
-        val lines = text.split(Regex("\\n+"))
-        var best = ""
-        for (line in lines) {
-            var one = line.trim()
-            if (one.isEmpty()) continue
-            one = one.replace(Regex("^[\\-\\*\\d\\.\\)\\(\\[\\]【】\\s]+"), "").trim()
-            one = one.replace(Regex("[。！？，,.!?:：;；\"'\\u201C\\u201D\\u2018\\u2019（）()\\[\\]{}]"), "").trim()
-            if (one.isEmpty()) continue
-            if (one.matches(Regex(".*[\\u4e00-\\u9fa5].*")) && one.length >= 3 && one.length <= 12) {
-                return one
-            }
-            if (best.isEmpty()) best = one
-        }
-
-        if (best.isNotEmpty()) {
-            best = best.replace(Regex("[。！？，,.!?:：;；\"'\\u201C\\u201D\\u2018\\u2019（）()\\[\\]{}]"), "").trim()
-            return best
-        }
-        return text.replace("\n", " ").replace(Regex("[。！？，,.!?:：;；\"'\\u201C\\u201D\\u2018\\u2019（）()\\[\\]{}]"), "").trim()
-    }
-
-    private fun extractTitleFromJsonOrText(raw: String?): String {
-        val text = raw?.trim() ?: ""
-        if (text.isEmpty()) return ""
-        try {
-            val jsonSlice = extractJsonObjectSlice(text)
-            if (jsonSlice.isNotEmpty()) {
-                val obj = JsonParser().parse(jsonSlice).asJsonObject
-                val title = firstNonEmpty(
-                    getStringFlexible(obj, "title"),
-                    getStringFlexible(obj, "name"),
-                    getStringFlexible(obj, "result")
-                )
-                if (title.trim().isNotEmpty()) return title.trim()
-            }
-        } catch (ignored: Exception) {}
-        return text
-    }
-
-    private fun extractTextFieldFromJsonOrText(raw: String?, vararg preferredKeys: String): String {
-        val text = raw?.trim() ?: ""
-        if (text.isEmpty()) return ""
-        try {
-            val jsonSlice = extractJsonObjectSlice(text)
-            if (jsonSlice.isNotEmpty()) {
-                val obj = JsonParser().parse(jsonSlice).asJsonObject
-                for (key in preferredKeys) {
-                    val value = getStringFlexible(obj, key)
-                    if (value.trim().isNotEmpty()) return value.trim()
-                }
-                val fallback = firstNonEmpty(
-                    getStringFlexible(obj, "text"),
-                    getStringFlexible(obj, "message"),
-                    getStringFlexible(obj, "data")
-                )
-                if (fallback.trim().isNotEmpty()) return fallback.trim()
-            }
-        } catch (ignored: Exception) {}
-        return text
-    }
-
-    private fun normalizeChapterPlanJson(source: JsonObject): JsonObject {
-        val out = JsonObject()
-        out.addProperty("chapterGoal", pickString(source, "chapterGoal", "chapter_goal", "goal", "章节目标", "本章目标", "目标"))
-        out.addProperty("startState", pickString(source, "startState", "start_state", "起始状态", "开场状态", "开局状态"))
-        out.addProperty("endState", pickString(source, "endState", "end_state", "结束状态", "结尾状态", "收束状态"))
-        out.add("characterDrives", normalizeCharacterDrives(pickElement(source,
-            "characterDrives", "character_drives", "characters", "角色驱动", "角色动机")))
-        out.add("knowledgeBoundary", normalizeStringArray(pickElement(source,
-            "knowledgeBoundary", "knowledge_boundary", "knowledge", "知情边界", "知情约束")))
-        out.add("eventChain", normalizeStringArray(pickElement(source,
-            "eventChain", "event_chain", "events", "事件链", "关键事件")))
-        out.add("foreshadow", normalizeStringArray(pickElement(source,
-            "foreshadow", "foreshadows", "伏笔")))
-        out.add("payoff", normalizeStringArray(pickElement(source,
-            "payoff", "payoffs", "回收")))
-        out.add("forbidden", normalizeStringArray(pickElement(source,
-            "forbidden", "forbiddenList", "禁写清单", "禁写", "禁忌")))
-        out.addProperty("styleGuide", pickString(source, "styleGuide", "style_guide", "style", "writingStyle", "文风", "文风与节奏"))
-        // Keep target length blank so user can decide it manually in dialog.
-        out.addProperty("targetLength", "")
-        return out
-    }
-
-    private fun pickElement(source: JsonObject?, vararg keys: String): JsonElement? {
-        if (source == null) return null
-        for (key in keys) {
-            if (key.isEmpty()) continue
-            val e = source.get(key)
-            if (e != null && !e.isJsonNull) return e
-        }
-        return null
-    }
-
-    private fun pickString(source: JsonObject?, vararg keys: String): String {
-        if (source == null) return ""
-        for (key in keys) {
-            val v = getStringFlexible(source, key)
-            if (v.trim().isNotEmpty()) return v.trim()
-        }
-        return ""
-    }
-
-    private fun countNonEmptyPlanFields(plan: JsonObject?): Int {
-        if (plan == null) return 0
-        var count = 0
-        if (getStringFlexible(plan, "chapterGoal").trim().isNotEmpty()) count++
-        if (getStringFlexible(plan, "startState").trim().isNotEmpty()) count++
-        if (getStringFlexible(plan, "endState").trim().isNotEmpty()) count++
-        if (getStringFlexible(plan, "styleGuide").trim().isNotEmpty()) count++
-        if (plan.has("characterDrives") && plan.get("characterDrives").isJsonArray
-            && plan.getAsJsonArray("characterDrives").size() > 0) count++
-        if (plan.has("knowledgeBoundary") && plan.get("knowledgeBoundary").isJsonArray
-            && plan.getAsJsonArray("knowledgeBoundary").size() > 0) count++
-        if (plan.has("eventChain") && plan.get("eventChain").isJsonArray
-            && plan.getAsJsonArray("eventChain").size() > 0) count++
-        if (plan.has("foreshadow") && plan.get("foreshadow").isJsonArray
-            && plan.getAsJsonArray("foreshadow").size() > 0) count++
-        if (plan.has("payoff") && plan.get("payoff").isJsonArray
-            && plan.getAsJsonArray("payoff").size() > 0) count++
-        if (plan.has("forbidden") && plan.get("forbidden").isJsonArray
-            && plan.getAsJsonArray("forbidden").size() > 0) count++
-        return count
-    }
-
-    private fun previewForLog(text: String?, maxLen: Int): String {
-        val v = text?.replace("\n", "\\n")?.trim() ?: ""
-        if (v.length <= Math.max(32, maxLen)) return v
-        return v.substring(0, Math.max(32, maxLen)) + "..."
-    }
-
-    private fun normalizeStringArray(element: JsonElement?): JsonArray {
-        val out = JsonArray()
-        if (element == null || element.isJsonNull || !element.isJsonArray) return out
-        val arr = element.asJsonArray
-        for (i in 0 until arr.size()) {
-            val one = arr.get(i)
-            if (one == null || one.isJsonNull) continue
-            if (one.isJsonPrimitive) out.add(one.asString)
-            else if (one.isJsonObject) {
-                val text = firstNonEmpty(
-                    getStringFlexible(one.asJsonObject, "text"),
-                    getStringFlexible(one.asJsonObject, "value"),
-                    one.toString()
-                )
-                if (text.trim().isNotEmpty()) out.add(text.trim())
-            } else {
-                out.add(one.toString())
-            }
-        }
-        return out
-    }
-
-    private fun normalizeCharacterDrives(element: JsonElement?): JsonArray {
-        val out = JsonArray()
-        if (element == null || element.isJsonNull || !element.isJsonArray) return out
-        val arr = element.asJsonArray
-        for (i in 0 until arr.size()) {
-            val one = arr.get(i)
-            if (one == null || one.isJsonNull) continue
-            val item = JsonObject()
-            if (one.isJsonObject) {
-                val src = one.asJsonObject
-                item.addProperty("name", getStringFlexible(src, "name"))
-                item.addProperty("goal", getStringFlexible(src, "goal"))
-                item.addProperty("misbelief", getStringFlexible(src, "misbelief"))
-                item.addProperty("emotion", getStringFlexible(src, "emotion"))
-            } else {
-                val text = if (one.isJsonPrimitive) one.asString else one.toString()
-                item.addProperty("name", "")
-                item.addProperty("goal", text)
-                item.addProperty("misbelief", "")
-                item.addProperty("emotion", "")
-            }
-            out.add(item)
-        }
-        return out
-    }
-
-    private fun extractJsonObjectSlice(text: String?): String {
-        if (text == null || text.isEmpty()) return ""
-        val start = text.indexOf('{')
-        val end = text.lastIndexOf('}')
-        if (start < 0 || end <= start) return ""
-        return text.substring(start, end + 1)
     }
 
     private fun buildNoThinkingReasoning(providerId: String, localOpenAiCompat: Boolean): JsonObject? {
