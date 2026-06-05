@@ -62,10 +62,12 @@ import com.example.aichat.session.mode
 import com.example.aichat.session.SessionModeStrategy
 import com.example.aichat.session.SessionUiHost
 import com.example.aichat.session.SessionContext
+import com.example.aichat.session.ChatAttachmentController
+import com.example.aichat.session.ChapterJumpController
 import com.example.aichat.chat.ChatCallback
 import com.example.aichat.chat.ChatHandle
 
-class ChatSessionActivity : ThemedActivity(), SessionUiHost {
+class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentController.Host, ChapterJumpController.Host {
 
     companion object {
         private const val TAG = "ChatSessionActivity"
@@ -103,15 +105,9 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost {
     private val assistantMarkdownStateStore = MessageAdapter.AssistantMarkdownStateStore()
     private var sendButtonView: ImageButton? = null
     private var inputEditView: EditText? = null
-    private var attachmentsScrollView: HorizontalScrollView? = null
-    private var attachmentsContainerView: LinearLayout? = null
-    private val pendingAttachments: MutableList<PendingAttachment> = ArrayList()
-
-    private data class PendingAttachment(
-        val displayName: String,
-        val content: String,
-        val truncated: Boolean
-    )
+    // R8: 附件 chip 栏 + pendingAttachments 列表抽到 ChatAttachmentController
+    private lateinit var attachmentController: ChatAttachmentController
+    private lateinit var chapterJumpController: ChapterJumpController
     /** 流式开始时间 (elapsedRealtime). 用于 [STOP_GUARD_MS] 防误触检查. */
     private var streamStartedAtMs: Long = 0L
     private lateinit var chatService: ChatService
@@ -123,42 +119,8 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost {
     private val filePickerLauncher: ActivityResultLauncher<Array<String>> =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
             if (uri == null) return@registerForActivityResult
-            handleFilePicked(uri)
+            attachmentController.onFilePicked(uri)
         }
-
-    private fun handleFilePicked(uri: Uri) {
-        Toast.makeText(this, R.string.attachment_reading_file, Toast.LENGTH_SHORT).show()
-        executor.execute {
-            val result = AttachmentFileReader.read(this, uri)
-            mainHandler.post {
-                if (isFinishing || isDestroyed) return@post
-                when (result) {
-                    is AttachmentFileReader.Result.Text -> {
-                        addPendingAttachment(
-                            PendingAttachment(result.displayName, result.content, result.truncated)
-                        )
-                    }
-                    is AttachmentFileReader.Result.Unsupported -> {
-                        addPendingAttachment(
-                            PendingAttachment(result.displayName, "", false)
-                        )
-                        Toast.makeText(
-                            this,
-                            getString(R.string.attachment_unsupported_format, result.reason),
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                    is AttachmentFileReader.Result.Failure -> {
-                        Toast.makeText(
-                            this,
-                            getString(R.string.attachment_read_failed, result.reason),
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
-            }
-        }
-    }
 
     private val photoPickerLauncher: ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> =
         registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
@@ -213,69 +175,9 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost {
         updateSendButtonState()
     }
 
-    private fun addPendingAttachment(attachment: PendingAttachment) {
-        pendingAttachments.add(attachment)
-        refreshAttachmentBar()
-        updateSendButtonState()
-    }
-
-    private fun removePendingAttachment(attachment: PendingAttachment) {
-        if (pendingAttachments.remove(attachment)) {
-            refreshAttachmentBar()
-            updateSendButtonState()
-        }
-    }
-
-    private fun clearPendingAttachments() {
-        if (pendingAttachments.isEmpty()) return
-        pendingAttachments.clear()
-        refreshAttachmentBar()
-        updateSendButtonState()
-    }
-
-    private fun refreshAttachmentBar() {
-        val container = attachmentsContainerView ?: return
-        val scroll = attachmentsScrollView ?: return
-        container.removeAllViews()
-        if (pendingAttachments.isEmpty()) {
-            scroll.visibility = View.GONE
-            return
-        }
-        scroll.visibility = View.VISIBLE
-        val inflater = LayoutInflater.from(this)
-        for (att in pendingAttachments) {
-            val chip = inflater.inflate(R.layout.item_attachment_chip, container, false)
-            val nameView = chip.findViewById<TextView>(R.id.textAttachmentName)
-            val removeBtn = chip.findViewById<ImageButton>(R.id.btnAttachmentRemove)
-            val suffix = if (att.truncated) getString(R.string.attachment_truncated_suffix) else ""
-            nameView.text = att.displayName + suffix
-            removeBtn.setOnClickListener { removePendingAttachment(att) }
-            container.addView(chip)
-        }
-    }
-
-    private fun composeMessageWithPendingAttachments(text: String): String {
-        if (pendingAttachments.isEmpty()) return text
-        val sb = StringBuilder()
-        if (text.isNotEmpty()) sb.append(text)
-        for (att in pendingAttachments) {
-            if (sb.isNotEmpty() && !sb.endsWith("\n")) sb.append('\n')
-            val suffix = if (att.truncated) getString(R.string.attachment_truncated_suffix) else ""
-            sb.append("\n[文件: ").append(att.displayName).append(suffix).append("]\n")
-            if (att.content.isNotEmpty()) {
-                sb.append("```\n").append(att.content).append("\n```\n")
-            }
-        }
-        return sb.toString().trim()
-    }
-
-    private fun queryDisplayName(uri: Uri): String? {
-        return try {
-            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-                if (c.moveToFirst()) c.getString(0) else null
-            }
-        } catch (e: Exception) { null }
-    }
+    // R8: ChatAttachmentController.Host 实现
+    override fun isFinishingOrDestroyed(): Boolean = isFinishing || isDestroyed
+    override fun onAttachmentsChanged() = updateSendButtonState()
 
     private val thinkingTicker = object : Runnable {
         override fun run() {
@@ -332,7 +234,9 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost {
         })
     }
 
-    private var historyExpanded = false
+    // R8: 重命名 historyExpanded → historyExpandedState，避开 ChapterJumpController.Host
+    // 接口里的 `val historyExpanded` 同名冲突。语义不变。
+    private var historyExpandedState = false
     private var addActionsExpanded = false
     private var allMessages: MutableList<Message> = ArrayList()
     private var scrollMessagesView: NestedScrollView? = null
@@ -538,9 +442,17 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost {
         val sendButton: ImageButton? = findViewById(R.id.sendButton)
         inputEditView = inputEdit
         sendButtonView = sendButton
-        attachmentsScrollView = findViewById(R.id.scrollAttachments)
-        attachmentsContainerView = findViewById(R.id.layoutAttachments)
-        refreshAttachmentBar()
+        val attachmentsScroll: HorizontalScrollView = findViewById(R.id.scrollAttachments)
+        val attachmentsContainer: LinearLayout = findViewById(R.id.layoutAttachments)
+        attachmentController = ChatAttachmentController(
+            context = this,
+            scrollView = attachmentsScroll,
+            container = attachmentsContainer,
+            executor = executor,
+            mainHandler = mainHandler,
+            host = this,
+        )
+        attachmentController.refresh()
         inputEdit?.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(s: android.text.Editable?) { updateSendButtonState() }
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -562,6 +474,19 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost {
         historyAdapter = MessageAdapter(assistantMarkdownStateStore)
         currentAdapter = MessageAdapter(assistantMarkdownStateStore)
         applyModeToAdapters()
+        // R8: ChapterJumpController 需要的几个 view 引用都已就绪
+        if (recyclerHistory != null && recyclerCurrent != null && scrollMessages != null) {
+            chapterJumpController = ChapterJumpController(
+                activity = this,
+                scrollMessagesView = scrollMessages,
+                recyclerHistory = recyclerHistory,
+                recyclerCurrent = recyclerCurrent,
+                historyAdapter = historyAdapter,
+                currentAdapter = currentAdapter,
+                mainHandler = mainHandler,
+                host = this,
+            )
+        }
         val assistantStateListener = object : MessageAdapter.OnAssistantStateChangedListener {
             override fun onAssistantStateChanged() {
                 historyAdapter.notifyDataSetChanged()
@@ -587,7 +512,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost {
         setupAutoCollapseActions(recyclerHistory, recyclerCurrent, scrollMessages)
 
         if (headerHistory != null && expandHistoryView != null && historyExpandIconView != null) {
-            headerHistory.setOnClickListener { setHistoryExpanded(!historyExpanded) }
+            headerHistory.setOnClickListener { setHistoryExpanded(!historyExpandedState) }
         }
 
         if (btnAdd != null && layoutAddActions != null) {
@@ -617,10 +542,10 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost {
                 return@setOnClickListener
             }
             val rawText = inputEditView?.text?.toString()?.trim() ?: ""
-            val composed = composeMessageWithPendingAttachments(rawText)
+            val composed = attachmentController.composeMessageWith(rawText)
             if (composed.isEmpty()) return@setOnClickListener
             inputEditView?.setText("")
-            clearPendingAttachments()
+            attachmentController.clear()
             sendMessageFromText(composed)
         }
         inputEdit?.setOnFocusChangeListener { _, hasFocus ->
@@ -1234,7 +1159,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost {
         popup.setOnItemClickListener { _, _, position, _ ->
             popup.dismiss()
             when (position) {
-                0 -> showChapterJumpDialog()
+                0 -> chapterJumpController.show()
                 1 -> openToolCallLog()
                 2 -> openCharacterInfo()
             }
@@ -1252,152 +1177,13 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost {
             .putExtra(CharacterInfoActivity.EXTRA_SESSION_ID, sessionId))
     }
 
-    private fun showChapterJumpDialog() {
-        val items = buildChapterJumpItems()
-        if (items.isEmpty()) {
-            Toast.makeText(this, R.string.no_assistant_chapters, Toast.LENGTH_SHORT).show()
-            return
-        }
-        val labels = Array<CharSequence>(items.size) { i ->
-            val one = items[i]
-            val prefix = "章节${one.index}："   // 黑体部分
-            val text = prefix + one.preview
-            SpannableString(text).also { s ->
-                // 序号前缀：黑体
-                s.setSpan(StyleSpan(Typeface.BOLD), 0, prefix.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                // 整行：字号缩小一档（约 87.5%）
-                s.setSpan(RelativeSizeSpan(0.875f), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            }
-        }
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.quick_jump_chapters)
-            .setItems(labels) { _, which ->
-                if (which < 0 || which >= items.size) return@setItems
-                val target = items[which]
-                scrollToChapterMessage(target.createdAt, target.messageId)
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
+    // R8: 章节跳转的 9 个方法 + ChapterJumpItem 已搬到 ChapterJumpController。
+    // 入口在 menu 选择"章节跳转"时调 chapterJumpController.show()。
 
-    private fun buildChapterJumpItems(): List<ChapterJumpItem> {
-        val out = ArrayList<ChapterJumpItem>()
-        var chapterIndex = 1
-        for (m in allMessages) {
-            if (m == null || m.role != Message.ROLE_ASSISTANT) continue
-            val content = m.content?.trim() ?: ""
-            if (content.isEmpty()) continue
-            val item = ChapterJumpItem()
-            item.index = chapterIndex++
-            item.messageId = m.id
-            item.createdAt = m.createdAt
-            item.preview = buildChapterPreview(content)
-            out.add(item)
-        }
-        return out
-    }
-
-    private fun buildChapterPreview(content: String): String {
-        // 只取第一个非空行，截断到 40 字
-        for (line in content.split(Regex("\\r?\\n"))) {
-            val trimmed = line.trim()
-            if (trimmed.isEmpty()) continue
-            return if (trimmed.length > 40) trimmed.substring(0, 40) + "…" else trimmed
-        }
-        val fallback = content.trim()
-        return if (fallback.length > 40) fallback.substring(0, 40) + "…" else fallback
-    }
-
-    private fun scrollToChapterMessage(createdAt: Long, messageId: Long) {
-        if (scrollMessagesView == null) return
-        if (containsMessage(historyAdapter, createdAt, messageId) && !historyExpanded) {
-            setHistoryExpanded(true)
-        }
-        attemptScrollToChapterMessage(createdAt, messageId, 0)
-    }
-
-    private fun attemptScrollToChapterMessage(createdAt: Long, messageId: Long, attempt: Int) {
-        if (scrollMessagesView == null) return
-        var moved = scrollToMessageTopInRecycler(
-            findViewById(R.id.recyclerHistory), historyAdapter, createdAt, messageId)
-        if (!moved) {
-            moved = scrollToMessageTopInRecycler(
-                findViewById(R.id.recyclerCurrent), currentAdapter, createdAt, messageId)
-        }
-        if (moved) return
-        if (attempt >= 12) {
-            Toast.makeText(this, R.string.chapter_jump_failed, Toast.LENGTH_SHORT).show()
-            return
-        }
-        mainHandler.postDelayed({ attemptScrollToChapterMessage(createdAt, messageId, attempt + 1) }, 60L)
-    }
-
-    private fun scrollToMessageTopInRecycler(
-        recyclerView: RecyclerView?,
-        adapter: MessageAdapter?,
-        createdAt: Long,
-        messageId: Long
-    ): Boolean {
-        if (recyclerView == null || adapter == null || scrollMessagesView == null) return false
-        val list = adapter.getMessages()
-        var pos = -1
-        for (i in list.indices) {
-            if (matchesJumpTarget(list[i], createdAt, messageId)) {
-                pos = i
-                break
-            }
-        }
-        if (pos < 0) return false
-        val layoutManager = recyclerView.layoutManager
-        if (layoutManager is LinearLayoutManager) {
-            layoutManager.scrollToPositionWithOffset(pos, 0)
-        } else {
-            recyclerView.scrollToPosition(pos)
-        }
-        val vh = recyclerView.findViewHolderForAdapterPosition(pos)
-        var itemView: View? = vh?.itemView
-        if (itemView == null) {
-            itemView = layoutManager?.findViewByPosition(pos)
-        }
-        if (itemView == null) return false
-        val timestampView: View? = itemView.findViewById(R.id.textTimestamp)
-        val targetY = computeScrollYInContainer(timestampView ?: itemView)
-        if (targetY < 0) return false
-        val margin = (8f * resources.displayMetrics.density).toInt()
-        scrollMessagesView?.smoothScrollTo(0, maxOf(0, targetY - margin))
-        return true
-    }
-
-    private fun containsMessage(adapter: MessageAdapter?, createdAt: Long, messageId: Long): Boolean {
-        if (adapter == null) return false
-        for (one in adapter.getMessages()) {
-            if (matchesJumpTarget(one, createdAt, messageId)) return true
-        }
-        return false
-    }
-
-    private fun matchesJumpTarget(one: Message?, createdAt: Long, messageId: Long): Boolean {
-        if (one == null) return false
-        if (messageId > 0 && one.id > 0) return one.id == messageId
-        return createdAt > 0 && one.createdAt == createdAt
-    }
-
-    private fun computeScrollYInContainer(targetView: View?): Int {
-        if (targetView == null || scrollMessagesView == null) return -1
-        val child = scrollMessagesView!!.getChildAt(0) ?: return -1
-        var y = 0
-        var cursor: View? = targetView
-        while (cursor != null && cursor != child) {
-            y += cursor.top - cursor.scrollY
-            val parent: ViewParent = cursor.parent
-            if (parent !is View) return -1
-            cursor = parent
-        }
-        return if (cursor == child) y else -1
-    }
-
-    private fun setHistoryExpanded(expanded: Boolean) {
-        historyExpanded = expanded
+    override fun currentMessages(): List<Message> = allMessages
+    override val historyExpanded: Boolean get() = historyExpandedState
+    override fun setHistoryExpanded(expanded: Boolean) {
+        historyExpandedState = expanded
         expandHistoryView?.visibility = if (expanded) View.VISIBLE else View.GONE
         historyExpandIconView?.rotation = if (expanded) 90f else 0f
     }
@@ -1998,7 +1784,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost {
         } else {
             btn.setImageResource(R.drawable.ic_arrow_up)
             val hasText = !inputEditView?.text?.toString()?.trim().isNullOrEmpty()
-            btn.isEnabled = hasText || pendingAttachments.isNotEmpty()
+            btn.isEnabled = hasText || attachmentController.hasAttachments
         }
     }
 
