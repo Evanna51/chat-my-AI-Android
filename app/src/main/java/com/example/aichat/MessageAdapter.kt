@@ -11,7 +11,7 @@ import androidx.annotation.NonNull
 import androidx.recyclerview.widget.RecyclerView
 import com.example.aichat.adapter.CharacterDisplayRenderer
 import com.example.aichat.adapter.CollapseAffixController
-import com.google.gson.JsonParser
+import com.example.aichat.adapter.ToolCallMessageBinder
 import io.noties.markwon.Markwon
 import java.text.SimpleDateFormat
 import java.util.ArrayDeque
@@ -334,7 +334,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     Message.ROLE_TOOL_CALL, Message.ROLE_TOOL_RESULT -> pendingTools.add(m)
                     Message.ROLE_ASSISTANT -> {
                         if (pendingTools.isNotEmpty() && m.proactiveKind == 0) {
-                            toolPrefixByMessage[m] = formatToolBuffer(pendingTools)
+                            toolPrefixByMessage[m] = ToolCallMessageBinder.formatBuffer(pendingTools)
                         }
                         pendingTools.clear()
                         messages.add(m)
@@ -355,51 +355,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         notifyDataSetChanged()
     }
 
-    /** 把 role=3/4 行序列拼成 reasoning 区可读的简短摘要. */
-    private fun formatToolBuffer(buffer: List<Message>): String {
-        val sb = StringBuilder()
-        for (m in buffer) {
-            when (m.role) {
-                Message.ROLE_TOOL_CALL -> {
-                    val (name, args) = parseFirstToolCall(m.toolCallsJson)
-                    if (name.isNotEmpty()) {
-                        sb.append("🔧 调用 ").append(name)
-                        if (args.isNotEmpty()) {
-                            val shown = args.take(120).replace('\n', ' ')
-                            sb.append("(").append(shown)
-                            if (args.length > 120) sb.append("…")
-                            sb.append(")")
-                        }
-                        sb.append('\n')
-                    }
-                }
-                Message.ROLE_TOOL_RESULT -> {
-                    val tn = m.toolName
-                    if (tn.isNotEmpty()) sb.append("→ ").append(tn).append(" 返回:\n")
-                    val content = m.content ?: ""
-                    val truncated = content.take(400)
-                    sb.append(truncated)
-                    if (content.length > 400) sb.append("\n…(已截断, 完整结果见工具调用日志)")
-                    sb.append('\n')
-                }
-            }
-        }
-        return sb.toString().trimEnd()
-    }
-
-    private fun parseFirstToolCall(json: String): Pair<String, String> {
-        if (json.isBlank()) return "" to ""
-        return try {
-            val arr = JsonParser().parse(json).asJsonArray
-            if (arr.size() == 0) return "" to ""
-            val fn = arr[0].asJsonObject?.getAsJsonObject("function") ?: return "" to ""
-            val name = fn.get("name")?.takeIf { !it.isJsonNull }?.asString ?: ""
-            val args = fn.get("arguments")?.takeIf { !it.isJsonNull }?.asString ?: ""
-            name to args
-        } catch (_: Exception) {
-            "" to ""
-        }
-    }
+    // R10: formatToolBuffer / parseFirstToolCall 搬到 adapter/ToolCallMessageBinder.kt
 
     fun addMessage(msg: Message) {
         messages.add(msg)
