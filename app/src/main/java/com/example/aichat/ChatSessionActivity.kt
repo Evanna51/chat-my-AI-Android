@@ -64,25 +64,24 @@ import com.example.aichat.session.SessionUiHost
 import com.example.aichat.session.SessionContext
 import com.example.aichat.session.ChatAttachmentController
 import com.example.aichat.session.ChapterJumpController
+import com.example.aichat.session.StreamTypewriter
 import com.example.aichat.chat.ChatCallback
 import com.example.aichat.chat.ChatHandle
 
-class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentController.Host, ChapterJumpController.Host {
+class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentController.Host, ChapterJumpController.Host, StreamTypewriter.Host {
 
     companion object {
         private const val TAG = "ChatSessionActivity"
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_INITIAL_MESSAGE = "initial_message"
         const val EXTRA_ASSISTANT_ID = "assistant_id"
-        private const val STREAM_RENDER_THROTTLE_MS = 24L
-        private const val STREAM_RENDER_THROTTLE_BUSY_MS = 48L
-        private const val STREAM_RENDER_BUSY_PENDING_CHARS = 80
-        private const val STREAM_TYPEWRITER_FRAME_MS = 16L
-        private const val STREAM_TYPEWRITER_CHARS_PER_FRAME = 4
         private const val STREAM_AUTO_SCROLL_THROTTLE_MS = 300L
         private const val AUTO_SCROLL_BOTTOM_GAP_DP = 32
         // R6: WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS / WRITER_ASSISTANT_LAST_SEGMENT_CHARS
         // 已搬到 SessionContext 默认值（500 / 1000），由 WriterModeStrategy 使用。
+        // R9: STREAM_RENDER_THROTTLE_MS / STREAM_RENDER_THROTTLE_BUSY_MS /
+        //     STREAM_RENDER_BUSY_PENDING_CHARS / STREAM_TYPEWRITER_FRAME_MS /
+        //     STREAM_TYPEWRITER_CHARS_PER_FRAME 已搬到 StreamTypewriter 内部。
         private const val LOADING_PLACEHOLDER_TEXT = "[...正在输入中]"
         // 微信式分页：默认只渲染最近 60 条，上拉加载更多。降低长会话打开时的卡顿。
         // 注意：此处和 ChatViewModel 共享同名常量；分页逻辑在 ViewModel，Activity
@@ -108,6 +107,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     // R8: 附件 chip 栏 + pendingAttachments 列表抽到 ChatAttachmentController
     private lateinit var attachmentController: ChatAttachmentController
     private lateinit var chapterJumpController: ChapterJumpController
+    private lateinit var streamTypewriter: StreamTypewriter
     /** 流式开始时间 (elapsedRealtime). 用于 [STOP_GUARD_MS] 防误触检查. */
     private var streamStartedAtMs: Long = 0L
     private lateinit var chatService: ChatService
@@ -175,9 +175,13 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         updateSendButtonState()
     }
 
-    // R8: ChatAttachmentController.Host 实现
+    // R8: ChatAttachmentController.Host 实现（isFinishingOrDestroyed 顺带满足 StreamTypewriter.Host）
     override fun isFinishingOrDestroyed(): Boolean = isFinishing || isDestroyed
     override fun onAttachmentsChanged() = updateSendButtonState()
+
+    // R9: StreamTypewriter.Host 实现
+    override fun onTickRendered() = maybeAutoScrollOnStreamTick()
+    override fun applyMessagesFully() = applyMessagesAndTitle()
 
     private val thinkingTicker = object : Runnable {
         override fun run() {
@@ -259,8 +263,6 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     private var sessionOptions: SessionChatOptions = SessionChatOptions()
     @Volatile private var autoNamingInFlight = false
     private var assistantResponseInProgress = false
-    private var streamRenderPending = false
-    private var lastStreamRenderAt = 0L
     private var activeChatHandle: ChatHandle? = null
     private var activeStreamingMessage: Message? = null
         set(value) {
@@ -268,12 +270,13 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
             // 同步给 adapter，让流式消息底部工具栏在生成期间隐藏。
             if (::historyAdapter.isInitialized) historyAdapter.setStreamingAssistantMessage(value)
             if (::currentAdapter.isInitialized) currentAdapter.setStreamingAssistantMessage(value)
+            // 同步给 typewriter，使后续 enqueueDelta 知道往哪条消息追加。
+            if (::streamTypewriter.isInitialized) streamTypewriter.setTarget(value)
         }
     private var activeResponseToken = 0L
     private var lastStreamAutoScrollAt = 0L
-    private var streamingTargetMessage: Message? = null
-    private val pendingStreamChars = StringBuilder()
-    private var streamTypewriterRunning = false
+    // R9: streamingTargetMessage / pendingStreamChars / streamTypewriterRunning /
+    //     streamRenderPending / lastStreamRenderAt / 两个 Runnable 全部搬到 StreamTypewriter
     private var loadingPlaceholderMessage: Message? = null
     private var loadEarlierMessagesView: TextView? = null
     private var quickModelSwitchView: TextView? = null
@@ -287,47 +290,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     private var oldestLoadedCreatedAt = Long.MAX_VALUE
     private var oldestLoadedMessageId = Long.MAX_VALUE
 
-    private val streamRenderRunnable = Runnable {
-        streamRenderPending = false
-        lastStreamRenderAt = System.currentTimeMillis()
-        renderStreamingMessageTick(streamingTargetMessage)
-    }
-
-    private val streamTypewriterRunnable = object : Runnable {
-        override fun run() {
-            if (isFinishing || isDestroyed) {
-                streamTypewriterRunning = false
-                return
-            }
-            if (streamingTargetMessage == null) {
-                streamTypewriterRunning = false
-                pendingStreamChars.setLength(0)
-                return
-            }
-            if (pendingStreamChars.isEmpty()) {
-                streamTypewriterRunning = false
-                return
-            }
-            val take = minOf(STREAM_TYPEWRITER_CHARS_PER_FRAME, pendingStreamChars.length)
-            val delta = pendingStreamChars.substring(0, take)
-            pendingStreamChars.delete(0, take)
-            val targetMsg = streamingTargetMessage
-            val old = targetMsg?.content ?: ""
-            targetMsg?.content = old + delta
-            var rendered = historyAdapter.renderStreamingMessageIfVisible(targetMsg)
-            rendered = rendered or currentAdapter.renderStreamingMessageIfVisible(targetMsg)
-            if (!rendered) {
-                scheduleStreamRender()
-            } else {
-                maybeAutoScrollOnStreamTick()
-            }
-            if (pendingStreamChars.isNotEmpty()) {
-                mainHandler.postDelayed(this, STREAM_TYPEWRITER_FRAME_MS)
-            } else {
-                streamTypewriterRunning = false
-            }
-        }
-    }
+    // R9: 两个 Runnable + 帧循环全部在 StreamTypewriter 内部
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -487,6 +450,13 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
                 host = this,
             )
         }
+        // R9: StreamTypewriter 帧循环 + render throttle
+        streamTypewriter = StreamTypewriter(
+            mainHandler = mainHandler,
+            historyAdapter = historyAdapter,
+            currentAdapter = currentAdapter,
+            host = this,
+        )
         val assistantStateListener = object : MessageAdapter.OnAssistantStateChangedListener {
             override fun onAssistantStateChanged() {
                 historyAdapter.notifyDataSetChanged()
@@ -779,9 +749,8 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
             // 不 force: 用户在底部就跟着, 在中间看历史就别强拽回底.
             maybeAutoScrollToBottom(false)
         }
-        activeStreamingMessage = streamingAssistant
-        streamingTargetMessage = streamingAssistant
-        stopStreamTypewriter(true)
+        activeStreamingMessage = streamingAssistant  // setter 同步 typewriter.setTarget
+        streamTypewriter.stop(true)
         try {
             activeChatHandle = viewModel.doChatRequest(
                 historyForApi, apiUserMessage, options, responseToken,
@@ -800,7 +769,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
             // is in flight; the next stream round's first onPartial will clear it.
             val streamingMsg = activeStreamingMessage
             if (streamingMsg != null) {
-                stopStreamTypewriter(true)
+                streamTypewriter.stop(true)
                 streamingMsg.content = LOADING_PLACEHOLDER_TEXT
                 streamingMsg.reasoning = ""
                 streamingMsg.thinkingRunning = false
@@ -817,7 +786,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
                 removeLoadingPlaceholder()
             }
             finishThinking(activeStreamingMessage)
-            enqueueStreamDelta(activeStreamingMessage, event.delta)
+            streamTypewriter.enqueueDelta(activeStreamingMessage, event.delta)
         } else if (event.reasoning != null) {
             // onReasoning
             val streamingMsg = activeStreamingMessage
@@ -827,7 +796,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
             }
             beginThinking(activeStreamingMessage)
             activeStreamingMessage?.reasoning = event.reasoning ?: ""
-            scheduleStreamRender()
+            streamTypewriter.schedule()
         } else if (event.isUsage) {
             // onUsage
             activeStreamingMessage?.let { msg ->
@@ -835,7 +804,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
                 msg.completionTokens = event.completionTokens
                 msg.totalTokens = event.totalTokens
                 msg.elapsedMs = event.elapsedMs
-                scheduleStreamRender()
+                streamTypewriter.schedule()
             }
         } else if (event.isSuccess) {
             // onSuccess
@@ -848,7 +817,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
             removeLoadingPlaceholder()
             if (streaming != null) {
                 finishThinking(streaming)
-                stopStreamTypewriter(true)
+                streamTypewriter.stop(true)
                 streaming.content = safeContent
                 // ViewModel.onSuccess 已 insert 这条 assistant 行, 把真实 id / sync 字段
                 // 同步回 streaming, 让后续 persistSessionMessagesAsync 走增量 upsert 时
@@ -868,7 +837,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
                 }
                 allMessages.add(assistantMsg)
             }
-            flushStreamRenderNow()
+            streamTypewriter.flushNow()
             maybeAutoScrollToBottom(shouldStick)
             maybeAutoReadAssistantMessage(streaming, safeContent)
         } else if (event.isError) {
@@ -881,10 +850,10 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
             if (streaming != null) {
                 finishThinking(streaming)
             }
-            stopStreamTypewriter(true)
+            streamTypewriter.stop(true)
             if (streaming != null) {
                 allMessages.remove(streaming)
-                flushStreamRenderNow()
+                streamTypewriter.flushNow()
             }
             val errMsg = viewModel.errorEvent.value
             Toast.makeText(
@@ -1052,10 +1021,8 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         // It can still finish in background and be persisted to DB.
         activeChatHandle = null
         activeStreamingMessage = null
-        stopStreamTypewriter(true)
-        streamingTargetMessage = null
-        mainHandler.removeCallbacks(streamRenderRunnable)
-        streamRenderPending = false
+        streamTypewriter.stop(true)
+        streamTypewriter.resetTarget()
         mainHandler.removeCallbacks(thinkingTicker)
         scrollMessagesView?.removeCallbacks(autoScrollRunnable)
         activeThinkingMessage = null
@@ -1806,7 +1773,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         setAssistantResponseInProgress(false)
         if (streamingMessage != null) {
             finishThinking(streamingMessage)
-            drainPendingStreamCharsTo(streamingMessage)
+            streamTypewriter.drainPendingTo(streamingMessage)
             val hasContent = !streamingMessage.content.isNullOrEmpty()
             val hasReasoning = !streamingMessage.reasoning.isNullOrEmpty()
             if (!hasContent && !hasReasoning) {
@@ -1815,61 +1782,22 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
                 persistSessionMessagesAsync()
             }
         } else {
-            stopStreamTypewriter(true)
+            streamTypewriter.stop(true)
         }
-        flushStreamRenderNow()
+        streamTypewriter.flushNow()
         maybeAutoScrollToBottom(shouldStickBottomAfterDone)
     }
 
-    private fun scheduleStreamRender() {
-        val throttle = if (pendingStreamChars.length >= STREAM_RENDER_BUSY_PENDING_CHARS)
-            STREAM_RENDER_THROTTLE_BUSY_MS else STREAM_RENDER_THROTTLE_MS
-        val now = System.currentTimeMillis()
-        val wait = maxOf(0L, throttle - (now - lastStreamRenderAt))
-        if (streamRenderPending) return
-        streamRenderPending = true
-        mainHandler.postDelayed(streamRenderRunnable, wait)
-    }
+    // R9: scheduleStreamRender / flushStreamRenderNow / enqueueStreamDelta /
+    //     stopStreamTypewriter / drainPendingStreamCharsTo 全部搬到 StreamTypewriter。
+    //     下面的 renderStreamingMessageTick 保留，被 thinkingTicker 复用（不只
+    //     是流式打字机用，是一个"通知某条消息变了请重绘"的通用 helper）。
 
-    private fun flushStreamRenderNow() {
-        mainHandler.removeCallbacks(streamRenderRunnable)
-        streamRenderPending = false
-        lastStreamRenderAt = System.currentTimeMillis()
-        applyMessagesAndTitle()
-    }
-
-    private fun enqueueStreamDelta(message: Message?, delta: String?) {
-        if (message == null || delta.isNullOrEmpty()) return
-        if (streamingTargetMessage !== message) {
-            streamingTargetMessage = message
-            pendingStreamChars.setLength(0)
-        }
-        pendingStreamChars.append(delta)
-        if (streamTypewriterRunning) return
-        streamTypewriterRunning = true
-        mainHandler.post(streamTypewriterRunnable)
-    }
-
-    private fun stopStreamTypewriter(clearPending: Boolean) {
-        mainHandler.removeCallbacks(streamTypewriterRunnable)
-        streamTypewriterRunning = false
-        if (clearPending) pendingStreamChars.setLength(0)
-    }
-
-    private fun drainPendingStreamCharsTo(message: Message?) {
-        if (message == null) {
-            stopStreamTypewriter(true)
-            return
-        }
-        mainHandler.removeCallbacks(streamTypewriterRunnable)
-        streamTypewriterRunning = false
-        if (pendingStreamChars.isNotEmpty()) {
-            val old = message.content ?: ""
-            message.content = old + pendingStreamChars.toString()
-            pendingStreamChars.setLength(0)
-        }
-    }
-
+    /**
+     * 通用「单条消息内容变化时请尝试 partial 重绘，否则 fallback 全量装配」。
+     * thinkingTicker 用它每 500ms 刷新一次 "思考耗时" 计时显示。
+     * StreamTypewriter 内部有自己的同义 renderTick（私有），不调这里。
+     */
     private fun renderStreamingMessageTick(message: Message?) {
         if (isFinishing || isDestroyed) return
         var updated = false
