@@ -59,10 +59,13 @@ import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
 import com.example.aichat.session.SessionMode
 import com.example.aichat.session.mode
+import com.example.aichat.session.SessionModeStrategy
+import com.example.aichat.session.SessionUiHost
+import com.example.aichat.session.SessionContext
 import com.example.aichat.chat.ChatCallback
 import com.example.aichat.chat.ChatHandle
 
-class ChatSessionActivity : ThemedActivity() {
+class ChatSessionActivity : ThemedActivity(), SessionUiHost {
 
     companion object {
         private const val TAG = "ChatSessionActivity"
@@ -76,8 +79,8 @@ class ChatSessionActivity : ThemedActivity() {
         private const val STREAM_TYPEWRITER_CHARS_PER_FRAME = 4
         private const val STREAM_AUTO_SCROLL_THROTTLE_MS = 300L
         private const val AUTO_SCROLL_BOTTOM_GAP_DP = 32
-        private const val WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS = 500
-        private const val WRITER_ASSISTANT_LAST_SEGMENT_CHARS = 1000
+        // R6: WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS / WRITER_ASSISTANT_LAST_SEGMENT_CHARS
+        // 已搬到 SessionContext 默认值（500 / 1000），由 WriterModeStrategy 使用。
         private const val LOADING_PLACEHOLDER_TEXT = "[...正在输入中]"
         // 微信式分页：默认只渲染最近 60 条，上拉加载更多。降低长会话打开时的卡顿。
         // 注意：此处和 ChatViewModel 共享同名常量；分页逻辑在 ViewModel，Activity
@@ -341,9 +344,10 @@ class ChatSessionActivity : ThemedActivity() {
     /** maybeAutoScrollToBottom(force=true) 时置位，runnable 看到后忽略 flag/手势限制并把 flag 重置为 true。 */
     @Volatile private var pendingAutoScrollForce = false
     private var pendingInitialMessage: String? = null
-    private var assistantId: String? = null
-    private var writerAssistant = false
-    private var characterAssistant = false
+    override var assistantId: String? = null
+    // R6: 替代 writerAssistant / characterAssistant 两个布尔字段。
+    // 在 onCreate 与 onResume 里根据当前助手刷新（用户可能在 SessionSettings 里切换助手）。
+    private lateinit var mode: SessionModeStrategy
     private var autoTtsEnabled = false
     private var btnAutoTtsView: ImageButton? = null
     private val autoReadStore by lazy { AutoReadStore(this) }
@@ -436,8 +440,7 @@ class ChatSessionActivity : ThemedActivity() {
         } else {
             assistantId = SessionAssistantBindingStore(this).getAssistantId(sessionId)
         }
-        writerAssistant = resolveWriterAssistant()
-        characterAssistant = resolveCharacterAssistant()
+        mode = resolveSessionMode()
         outlineStore = SessionOutlineStore(this)
 
         chatService = ChatService(this)
@@ -513,9 +516,9 @@ class ChatSessionActivity : ThemedActivity() {
         btnSessionMore?.setOnClickListener { v -> showSessionMoreMenu(v) }
         val btnWriterOutline: View? = findViewById(R.id.btnWriterOutline)
         if (btnWriterOutline != null) {
-            btnWriterOutline.visibility = if (writerAssistant) View.VISIBLE else View.GONE
+            btnWriterOutline.visibility = if (mode.showsWriterOutlineButton) View.VISIBLE else View.GONE
             btnWriterOutline.setOnClickListener {
-                if (!writerAssistant) return@setOnClickListener
+                if (!mode.showsWriterOutlineButton) return@setOnClickListener
                 startActivity(Intent(this, SessionOutlineActivity::class.java)
                     .putExtra(SessionOutlineActivity.EXTRA_SESSION_ID, sessionId))
             }
@@ -558,18 +561,7 @@ class ChatSessionActivity : ThemedActivity() {
 
         historyAdapter = MessageAdapter(assistantMarkdownStateStore)
         currentAdapter = MessageAdapter(assistantMarkdownStateStore)
-        historyAdapter.setWriterMode(writerAssistant)
-        currentAdapter.setWriterMode(writerAssistant)
-        historyAdapter.setDisableAssistantCollapseToggle(characterAssistant)
-        currentAdapter.setDisableAssistantCollapseToggle(characterAssistant)
-        historyAdapter.setCharacterMode(characterAssistant)
-        currentAdapter.setCharacterMode(characterAssistant)
-        historyAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
-        currentAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
-        val characterAssistantObj = if (characterAssistant && !assistantId.isNullOrEmpty())
-            MyAssistantStore(this).getById(assistantId!!) else null
-        historyAdapter.setCharacterAssistant(characterAssistantObj)
-        currentAdapter.setCharacterAssistant(characterAssistantObj)
+        applyModeToAdapters()
         val assistantStateListener = object : MessageAdapter.OnAssistantStateChangedListener {
             override fun onAssistantStateChanged() {
                 historyAdapter.notifyDataSetChanged()
@@ -677,7 +669,7 @@ class ChatSessionActivity : ThemedActivity() {
         val textHistoryTitle: View? = findViewById(R.id.textHistoryTitle)
         val latestUser = findLatestByRole(Message.ROLE_USER)
         val latestAssistant = findLatestByRole(Message.ROLE_ASSISTANT)
-        if (characterAssistant) {
+        if (mode.hidesPinnedActions) {
             historyAdapter.setPinnedActionMessages(null, null, assistantResponseInProgress)
             currentAdapter.setPinnedActionMessages(null, null, assistantResponseInProgress)
         } else {
@@ -1147,22 +1139,10 @@ class ChatSessionActivity : ThemedActivity() {
 
     override fun onResume() {
         super.onResume()
-        writerAssistant = resolveWriterAssistant()
-        characterAssistant = resolveCharacterAssistant()
-        historyAdapter.setWriterMode(writerAssistant)
-        currentAdapter.setWriterMode(writerAssistant)
-        historyAdapter.setDisableAssistantCollapseToggle(characterAssistant)
-        currentAdapter.setDisableAssistantCollapseToggle(characterAssistant)
-        historyAdapter.setCharacterMode(characterAssistant)
-        currentAdapter.setCharacterMode(characterAssistant)
-        historyAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
-        currentAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
-        val characterAssistantObj = if (characterAssistant && !assistantId.isNullOrEmpty())
-            MyAssistantStore(this).getById(assistantId!!) else null
-        historyAdapter.setCharacterAssistant(characterAssistantObj)
-        currentAdapter.setCharacterAssistant(characterAssistantObj)
+        mode = resolveSessionMode()
+        applyModeToAdapters()
         val btnWriterOutline: View? = findViewById(R.id.btnWriterOutline)
-        btnWriterOutline?.visibility = if (writerAssistant) View.VISIBLE else View.GONE
+        btnWriterOutline?.visibility = if (mode.showsWriterOutlineButton) View.VISIBLE else View.GONE
         refreshAutoTtsButton()
         sessionOptions = resolveChatOptions()
         applyMessagesAndTitle()
@@ -1490,8 +1470,7 @@ class ChatSessionActivity : ThemedActivity() {
             }
 
             override fun onOutline(message: Message) {
-                if (!writerAssistant) return
-                summarizeMessageToOutline(message)
+                mode.onOutlineAction(message, this@ChatSessionActivity)
             }
 
             override fun onDelete(message: Message) {
@@ -1520,14 +1499,14 @@ class ChatSessionActivity : ThemedActivity() {
     }
 
     private fun maybeAutoReadAssistantMessage(message: Message?, content: String) {
-        if (!autoTtsEnabled || !characterAssistant) return
+        if (!autoTtsEnabled || !mode.supportsAutoTts) return
         if (message == null || content.isBlank()) return
         handleVoicePlay(message)
     }
 
     private fun toggleAutoTts() {
         val id = assistantId
-        if (id.isNullOrEmpty() || !characterAssistant) return
+        if (id.isNullOrEmpty() || !mode.supportsAutoTts) return
         autoTtsEnabled = !autoTtsEnabled
         autoReadStore.setEnabled(id, autoTtsEnabled)
         btnAutoTtsView?.alpha = if (autoTtsEnabled) 1.0f else 0.4f
@@ -1541,7 +1520,7 @@ class ChatSessionActivity : ThemedActivity() {
 
     private fun refreshAutoTtsButton() {
         val btn = btnAutoTtsView ?: return
-        val visible = characterAssistant && !writerAssistant && !assistantId.isNullOrEmpty()
+        val visible = mode.supportsAutoTts && !assistantId.isNullOrEmpty()
         btn.visibility = if (visible) View.VISIBLE else View.GONE
         if (!visible) {
             autoTtsEnabled = false
@@ -1560,25 +1539,9 @@ class ChatSessionActivity : ThemedActivity() {
             return
         }
         val raw = message.content?.trim() ?: ""
-        val text: String
-        val speechParams: VolcEngineHttpTTS.SpeechParams?
-        if (characterAssistant) {
-            val parsed = EmotionTagParser.parse(raw)
-            text = parsed.ttsText
-            val profile = parsed.profile
-            speechParams = if (profile != null && profile.hasAnyParam()) {
-                VolcEngineHttpTTS.SpeechParams(
-                    emotion = profile.emotion,
-                    emotionScale = profile.emotionScale,
-                    speechRate = profile.speechRate,
-                    loudnessRate = profile.loudnessRate,
-                    pitchRate = profile.pitchRate,
-                )
-            } else null
-        } else {
-            text = raw
-            speechParams = null
-        }
+        val payload = mode.resolveVoicePlay(message, raw)
+        val text: String = payload?.text ?: raw
+        val speechParams: VolcEngineHttpTTS.SpeechParams? = payload?.speechParams
         if (text.isEmpty()) {
             Toast.makeText(this, "消息为空，无法朗读", Toast.LENGTH_SHORT).show()
             return
@@ -1601,7 +1564,7 @@ class ChatSessionActivity : ThemedActivity() {
         tts.speak(text, message.id, callback, speechParams)
     }
 
-    private fun summarizeMessageToOutline(message: Message) {
+    override fun summarizeMessageToOutline(message: Message) {
         val source = message.content?.trim() ?: ""
         if (source.isEmpty()) {
             Toast.makeText(this, "消息为空，无法提取", Toast.LENGTH_SHORT).show()
@@ -1648,73 +1611,59 @@ class ChatSessionActivity : ThemedActivity() {
     }
 
     private fun buildUserMessageForApi(text: String): String {
-        val source = text.trim()
-        if (!writerAssistant || source.isEmpty()) return source
-        val outlines = outlineStore?.getAll(sessionId).orEmpty()
-        val outlineBlock = OutlinePromptBuilder.build(outlines, includeKnowledgeEnforcement = true)
-        if (outlineBlock.isEmpty()) return source
-        return buildString {
-            append(source).append("\n\n")
-            append("【写作大纲与资料】\n")
-            append(outlineBlock).append("\n\n")
-            append("请严格参考以上内容，保持情节、设定、任务线索的一致性与准确性。")
-        }.trim()
+        return mode.buildUserMessageForApi(text, buildSessionContext())
     }
 
     private fun buildHistoryForApi(sourceHistory: List<Message>): List<Message> {
-        val source = sourceHistory.ifEmpty { return emptyList() }
-        if (!writerAssistant) return source
-        var lastAssistantIndex = -1
-        for (i in source.indices.reversed()) {
-            val one = source[i]
-            if (one != null && one.role == Message.ROLE_ASSISTANT) {
-                lastAssistantIndex = i
-                break
-            }
-        }
-        val out = ArrayList<Message>(source.size)
-        for (i in source.indices) {
-            val m = source[i] ?: continue
-            var content = m.content ?: ""
-            if (m.role == Message.ROLE_ASSISTANT) {
-                content = if (i == lastAssistantIndex) {
-                    buildLastAssistantExcerpt(content)
-                } else if (content.length > WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS) {
-                    val excerpt = content.substring(0, WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS)
-                    "【节选说明】以下内容为较早助手回复的前${WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS}字节选，用于保留关键语气与事实锚点；完整情节请以写作大纲与资料为准。\n$excerpt"
-                } else content
-            }
-            out.add(Message(sessionId, m.role, content))
-        }
-        return out
+        return mode.buildHistoryForApi(sourceHistory, buildSessionContext())
     }
 
-    private fun buildLastAssistantExcerpt(content: String): String {
-        val source = content
-        val total = source.length
-        val segment = WRITER_ASSISTANT_LAST_SEGMENT_CHARS
-        if (total <= segment * 3) {
-            return source
-        }
-        val start = source.substring(0, segment)
-        val middleStart = maxOf(0, (total - segment) / 2)
-        val middle = source.substring(middleStart, middleStart + segment)
-        val end = source.substring(total - segment)
-        return "【节选说明】以下内容为最近一条助手回复的分段节选（前${segment}字 / 中间${segment}字 / 后${segment}字），用于保留上下文细节与风格连续性；完整情节请以写作大纲与资料为准。\n" +
-                "【前段】\n$start\n【中段】\n$middle\n【后段】\n$end"
+    /**
+     * R6: 根据当前 assistantId 选 strategy。SessionMode.from 内部把 type 字符串
+     * 映射成 enum，再 strategy companion 选具体实现。
+     */
+    private fun resolveSessionMode(): SessionModeStrategy {
+        val id = assistantId
+        val assistant = if (id.isNullOrEmpty()) null else MyAssistantStore(this).getById(id)
+        return SessionModeStrategy.from(assistant)
     }
 
-
-    private fun resolveWriterAssistant(): Boolean {
-        if (assistantId.isNullOrEmpty()) return false
-        val assistant = MyAssistantStore(this).getById(assistantId!!)
-        return assistant != null && assistant.mode() == SessionMode.WRITER
+    /**
+     * R6: 把当前 mode 的 UI 属性应用到两个 adapter 上。onCreate 与 onResume 共用。
+     */
+    private fun applyModeToAdapters() {
+        historyAdapter.setWriterMode(mode.usesWriterAdapter)
+        currentAdapter.setWriterMode(mode.usesWriterAdapter)
+        historyAdapter.setDisableAssistantCollapseToggle(mode.disablesAssistantCollapseToggle)
+        currentAdapter.setDisableAssistantCollapseToggle(mode.disablesAssistantCollapseToggle)
+        historyAdapter.setCharacterMode(mode.usesCharacterAdapter)
+        currentAdapter.setCharacterMode(mode.usesCharacterAdapter)
+        historyAdapter.setAutoFocusLatestOnSetMessages(mode.autoFocusLatestOnSetMessages)
+        currentAdapter.setAutoFocusLatestOnSetMessages(mode.autoFocusLatestOnSetMessages)
+        val characterAssistantObj = if (mode.usesCharacterAdapter && !assistantId.isNullOrEmpty())
+            MyAssistantStore(this).getById(assistantId!!) else null
+        historyAdapter.setCharacterAssistant(characterAssistantObj)
+        currentAdapter.setCharacterAssistant(characterAssistantObj)
     }
 
-    private fun resolveCharacterAssistant(): Boolean {
-        if (assistantId.isNullOrEmpty()) return false
-        val assistant = MyAssistantStore(this).getById(assistantId!!)
-        return assistant != null && assistant.mode() == SessionMode.CHARACTER
+    /**
+     * R6: 构造一份当前请求所需的会话上下文快照传给 strategy。
+     * Writer 模式才计算 outlineBlock，避免其他模式做无用功。
+     */
+    private fun buildSessionContext(): SessionContext {
+        val outlineBlock = if (mode.usesWriterAdapter) {
+            val outlines = outlineStore?.getAll(sessionId).orEmpty()
+            OutlinePromptBuilder.build(outlines, includeKnowledgeEnforcement = true)
+        } else ""
+        val id = assistantId
+        val assistant = if (id.isNullOrEmpty()) null else MyAssistantStore(this).getById(id)
+        return SessionContext(
+            sessionId = sessionId,
+            assistantId = id,
+            assistant = assistant,
+            options = sessionOptions,
+            writerOutlineBlock = outlineBlock,
+        )
     }
 
     /**
