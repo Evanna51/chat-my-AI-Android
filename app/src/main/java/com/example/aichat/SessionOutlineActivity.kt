@@ -76,7 +76,14 @@ class SessionOutlineActivity : ThemedActivity() {
         adapter = SessionOutlineAdapter(this, sessionId)
         adapter.setOnItemActionListener(object : SessionOutlineAdapter.OnItemActionListener {
             override fun onEdit(item: SessionOutlineItem) {
-                showEditDialog(item)
+                // 新 type (roles / relation / status / subplot / emotion / foreshadow / rules)
+                // 走结构化编辑器; 老 type (chapter / volume / world / knowledge) 走原 dialog。
+                if (isStructuredType(item.type)) {
+                    com.example.aichat.story.StoryEditDialogs.open(
+                        this@SessionOutlineActivity, sessionId, item.type, item, ::refreshList)
+                } else {
+                    showEditDialog(item)
+                }
             }
 
             override fun onDelete(item: SessionOutlineItem) {
@@ -156,29 +163,67 @@ class SessionOutlineActivity : ThemedActivity() {
         textEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
     }
 
+    private fun isStructuredType(type: String?): Boolean = when (com.example.aichat.story.StoryTypes.migrateLegacy(type)) {
+        com.example.aichat.story.StoryTypes.ROLES,
+        com.example.aichat.story.StoryTypes.RELATION,
+        com.example.aichat.story.StoryTypes.STATUS,
+        com.example.aichat.story.StoryTypes.SUBPLOT,
+        com.example.aichat.story.StoryTypes.EMOTION,
+        com.example.aichat.story.StoryTypes.FORESHADOW,
+        com.example.aichat.story.StoryTypes.RULES -> true
+        else -> false
+    }
+
     private fun showCreateDialog() {
+        // 先弹类型选择菜单 — 新类型走 StoryEditDialogs, 老类型 (chapter/volume/world/knowledge) 走旧 dialog。
+        val options = listOf(
+            com.example.aichat.story.StoryTypes.CHAPTER to "章节",
+            com.example.aichat.story.StoryTypes.ROLES to "角色",
+            com.example.aichat.story.StoryTypes.RELATION to "角色关系",
+            com.example.aichat.story.StoryTypes.STATUS to "状态卡",
+            com.example.aichat.story.StoryTypes.SUBPLOT to "支线",
+            com.example.aichat.story.StoryTypes.EMOTION to "感情线",
+            com.example.aichat.story.StoryTypes.FORESHADOW to "伏笔",
+            com.example.aichat.story.StoryTypes.WORLD to "世界观",
+            com.example.aichat.story.StoryTypes.KNOWLEDGE to "知情约束",
+            com.example.aichat.story.StoryTypes.RULES to "叙事规则",
+        )
+        val labels = options.map { it.second }.toTypedArray()
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+            .setTitle("新建 outline 条目")
+            .setItems(labels) { d, which ->
+                d.dismiss()
+                val type = options[which].first
+                if (isStructuredType(type)) {
+                    com.example.aichat.story.StoryEditDialogs.open(
+                        this, sessionId, type, null, ::refreshList)
+                } else {
+                    showLegacyCreateDialog(type)
+                }
+            }
+            .show()
+    }
+
+    /** 老 type (chapter / world / knowledge) 用原 dialog_edit_outline 走 title+content。 */
+    private fun showLegacyCreateDialog(forcedType: String) {
         val view = layoutInflater.inflate(R.layout.dialog_edit_outline, null)
         val editTitle = view.findViewById<EditText>(R.id.editOutlineTitle)
         val editContent = view.findViewById<EditText>(R.id.editOutlineContent)
         val chipGroupType = view.findViewById<ChipGroup>(R.id.chipGroupOutlineType)
-        val typeValues = arrayOf("chapter", "task", "world", "knowledge", "material")
-        val selected = intArrayOf(0)
+        val typeValues = arrayOf("chapter", "roles", "world", "knowledge", "foreshadow")
+        // forcedType 锁定到对应 chip index, 类型选择器隐藏
+        val forcedIdx = typeValues.indexOf(forcedType).coerceAtLeast(0)
+        val selected = intArrayOf(forcedIdx)
         val prevSelected = intArrayOf(-1)
         val savedChapterTitle = arrayOf(getString(R.string.outline_chapter_default_title,
             outlineStore.nextChapterIndex(sessionId)))
 
         FormInputScrollHelper.enableFor(editContent)
-        applyTitleMode(view, 0, prevType = -1, isCreate = true,
+        applyTitleMode(view, forcedIdx, prevType = -1, isCreate = true,
             chapterTitle = savedChapterTitle[0], knowledgePreTitle = null)
 
-        bindTypeChipSelection(view, selected, null) { newTypeIndex ->
-            val prev = prevSelected[0]
-            if (prev == 0) savedChapterTitle[0] = editTitle.text?.toString()?.trim() ?: ""
-            prevSelected[0] = newTypeIndex
-            applyTitleMode(view, newTypeIndex, prevType = prev, isCreate = true,
-                chapterTitle = savedChapterTitle[0], knowledgePreTitle = null)
-        }
-        chipGroupType.check(R.id.chipTypeChapter)
+        // 类型已锁定, 隐藏 chip 选择器
+        chipGroupType.visibility = View.GONE
 
         val dialog = android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_NoActionBar)
             .setView(view)
