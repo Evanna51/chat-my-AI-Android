@@ -22,15 +22,26 @@ class ToolBridge(
     private val sessionId: String,
     private val baseUrl: String,
     private val apiKey: String,
+    /** writer 模式才把 Story Tools 注入 — 由 build() 工厂决定。 */
+    private val storyToolsEnabled: Boolean = false,
+    /** Story Tools 需要 Context 操作本地 SessionOutlineStore; 仅 storyToolsEnabled 时必须非空。 */
+    private val appContext: android.content.Context? = null,
 ) {
 
-    fun isReady(): Boolean = assistantId.isNotEmpty() && baseUrl.isNotEmpty()
+    fun isReady(): Boolean {
+        if (assistantId.isEmpty()) return false
+        // story-only 场景 (writer + 远程关) 也算 ready, 让 LLM 能调本地 story tools
+        return baseUrl.isNotEmpty() || storyToolsEnabled
+    }
 
     /** OpenAI-style tool descriptors injected into the chat request. */
     fun toolsJson(): JsonArray = JsonArray().apply {
         add(SEARCH_MEMORY_TOOL_SCHEMA)
         add(CORRECT_MEMORY_TOOL_SCHEMA)
         add(WEB_SEARCH_TOOL_SCHEMA)
+        if (storyToolsEnabled) {
+            for (schema in com.example.aichat.story.StoryToolSchemas.ALL) add(schema)
+        }
     }
 
     /**
@@ -40,10 +51,18 @@ class ToolBridge(
      */
     fun invoke(toolName: String, argumentsJson: String): String {
         return try {
-            when (toolName) {
-                TOOL_SEARCH_MEMORY -> invokeSearchMemory(argumentsJson)
-                TOOL_CORRECT_MEMORY -> invokeCorrectMemory(argumentsJson)
-                TOOL_WEB_SEARCH -> invokeWebSearch(argumentsJson)
+            when {
+                toolName == TOOL_SEARCH_MEMORY -> invokeSearchMemory(argumentsJson)
+                toolName == TOOL_CORRECT_MEMORY -> invokeCorrectMemory(argumentsJson)
+                toolName == TOOL_WEB_SEARCH -> invokeWebSearch(argumentsJson)
+                com.example.aichat.story.StoryToolHandler.isStoryTool(toolName) -> {
+                    if (!storyToolsEnabled || appContext == null) {
+                        errorJson("disabled", "story tools not enabled for this session")
+                    } else {
+                        com.example.aichat.story.StoryToolHandler
+                            .invoke(appContext, sessionId, toolName, argumentsJson)
+                    }
+                }
                 else -> errorJson("unknown_tool", "tool '$toolName' is not registered")
             }
         } catch (e: Exception) {
@@ -272,15 +291,37 @@ class ToolBridge(
 
         fun build(context: Context, assistantId: String?, sessionId: String?): ToolBridge? {
             val cfg = RemoteSyncConfigStore(context)
-            if (!cfg.isSearchMemoryToolEnabled()) return null
+            // Story tools 与 memory tools 各自可启用; 即使 memory 关了, writer session 也要能用 story tools
+            val storyEnabled = isWriterSession(context, assistantId)
+            val memoryEnabled = cfg.isSearchMemoryToolEnabled()
+            if (!memoryEnabled && !storyEnabled) return null
             val baseUrl = cfg.getBaseUrl()
             val apiKey = cfg.getApiKey()
             val aid = assistantId?.trim().orEmpty()
             val sid = sessionId?.trim().orEmpty()
-            // apiKey 允许为空 (与 RemoteSyncConfigStore.isReady() 策略一致):
-            // 不强制 apiKey 非空, server 端可决定是否要鉴权.
-            if (aid.isEmpty() || baseUrl.isEmpty()) return null
-            return ToolBridge(aid, sid, baseUrl, apiKey)
+            // memory tools 需要 server 可达; story tools 完全本地不需要 baseUrl。
+            // 但 isReady() 也只检查 assistantId / baseUrl — story-only 场景下 baseUrl 可能为空。
+            // 简化策略: 只要 storyEnabled 或 memoryEnabled 至少一个 ready 就构造 bridge。
+            if (aid.isEmpty()) return null
+            if (!storyEnabled && baseUrl.isEmpty()) return null
+            return ToolBridge(
+                assistantId = aid,
+                sessionId = sid,
+                baseUrl = baseUrl,
+                apiKey = apiKey,
+                storyToolsEnabled = storyEnabled,
+                appContext = if (storyEnabled) context.applicationContext else null,
+            )
+        }
+
+        /** 判断当前 session 是不是 writer 模式 — 决定要不要注入 Story Tools。 */
+        private fun isWriterSession(context: Context, assistantId: String?): Boolean {
+            val aid = assistantId?.trim().orEmpty()
+            if (aid.isEmpty()) return false
+            return try {
+                val assistant = com.example.aichat.MyAssistantStore(context).getById(aid) ?: return false
+                assistant.type == "writer"
+            } catch (_: Throwable) { false }
         }
     }
 }
