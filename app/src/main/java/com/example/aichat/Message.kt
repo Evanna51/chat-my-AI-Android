@@ -50,10 +50,18 @@ class Message {
     @ColumnInfo(defaultValue = "''")
     var embedding: String = ""
 
-    /** UUID v7, client-generated for sync. Empty = legacy / not eligible for remote sync. */
+    /**
+     * UUID v7 — 跨端稳定 id, 构造时即生成, 永不为空.
+     * - 客户端发起的消息: 用这个 id 推给 server, server 用它存 / 索引
+     * - WS push 收到的消息: 默认值会被 server 给的 frame.id 覆盖, 保持双方一致
+     * - 历史老数据 (DB 里仍是 ''): 由 HistoryBackfiller 补 stamp; 没补的当 legacy 处理
+     *
+     * 这个字段是 message_update / message_delete 同步的唯一索引依据,
+     * 任何 insert 都必须保证非空 — 否则跨端同步会丢消息.
+     */
     @JvmField
     @ColumnInfo(defaultValue = "''")
-    var turnId: String = ""
+    var turnId: String = com.example.aichat.sync.UuidV7.next()
 
     /** Snapshot of bound assistantId at insert time. Empty = no assistant bound. */
     @JvmField

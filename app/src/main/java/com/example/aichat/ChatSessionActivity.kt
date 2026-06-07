@@ -1,6 +1,7 @@
 package com.example.aichat
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -15,11 +16,15 @@ import android.os.Handler
 import android.os.Looper
 import android.provider.OpenableColumns
 import android.util.Log
+import android.view.LayoutInflater
 import android.view.View
 import android.view.MotionEvent
 import android.view.ViewParent
 import android.widget.EditText
+import android.widget.HorizontalScrollView
 import android.widget.ImageButton
+import android.widget.ImageView
+import android.widget.LinearLayout
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import android.graphics.Typeface
@@ -53,27 +58,46 @@ import java.io.FileOutputStream
 import java.nio.charset.StandardCharsets
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModelProvider
+import com.example.aichat.session.SessionMode
+import com.example.aichat.session.mode
+import com.example.aichat.session.SessionModeStrategy
+import com.example.aichat.session.SessionUiHost
+import com.example.aichat.session.SessionContext
+import com.example.aichat.session.ChatAttachmentController
+import com.example.aichat.session.ChapterJumpController
+import com.example.aichat.session.StreamTypewriter
+import com.example.aichat.session.SessionExporter
+import com.example.aichat.chat.ChatCallback
+import com.example.aichat.chat.ChatHandle
 
-class ChatSessionActivity : ThemedActivity() {
+class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentController.Host, ChapterJumpController.Host, StreamTypewriter.Host {
 
     companion object {
         private const val TAG = "ChatSessionActivity"
         const val EXTRA_SESSION_ID = "session_id"
         const val EXTRA_INITIAL_MESSAGE = "initial_message"
         const val EXTRA_ASSISTANT_ID = "assistant_id"
-        private const val STREAM_RENDER_THROTTLE_MS = 24L
-        private const val STREAM_RENDER_THROTTLE_BUSY_MS = 48L
-        private const val STREAM_RENDER_BUSY_PENDING_CHARS = 80
-        private const val STREAM_TYPEWRITER_FRAME_MS = 16L
-        private const val STREAM_TYPEWRITER_CHARS_PER_FRAME = 4
         private const val STREAM_AUTO_SCROLL_THROTTLE_MS = 300L
         private const val AUTO_SCROLL_BOTTOM_GAP_DP = 32
-        private const val WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS = 500
-        private const val WRITER_ASSISTANT_LAST_SEGMENT_CHARS = 1000
-        private const val CHARACTER_MEMORY_LOADING_TEXT = "[...正在输入中]"
-        private const val INITIAL_RENDER_MESSAGE_LIMIT = 200
-        private const val LOAD_MORE_BATCH_SIZE = 50
+        // R6: WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS / WRITER_ASSISTANT_LAST_SEGMENT_CHARS
+        // 已搬到 SessionContext 默认值（500 / 1000），由 WriterModeStrategy 使用。
+        // R9: STREAM_RENDER_THROTTLE_MS / STREAM_RENDER_THROTTLE_BUSY_MS /
+        //     STREAM_RENDER_BUSY_PENDING_CHARS / STREAM_TYPEWRITER_FRAME_MS /
+        //     STREAM_TYPEWRITER_CHARS_PER_FRAME 已搬到 StreamTypewriter 内部。
+        private const val LOADING_PLACEHOLDER_TEXT = "[...正在输入中]"
+        // 微信式分页：默认只渲染最近 60 条，上拉加载更多。降低长会话打开时的卡顿。
+        // 注意：此处和 ChatViewModel 共享同名常量；分页逻辑在 ViewModel，Activity
+        // 这里仅用于"是否需要 history/current 双 RecyclerView"判定。
+        private const val INITIAL_RENDER_MESSAGE_LIMIT = 60
+        private const val LOAD_MORE_BATCH_SIZE = 30
         private const val TOP_LOAD_TRIGGER_GAP_DP = 8
+        /** 发送后这段时间内点击 [sendButton] 不会触发 stop, 防误触刚发出去的消息. */
+        private const val STOP_GUARD_MS = 1000L
+        /**
+         * 手指离开屏幕后还要延迟多久才解除 userGesturing — 覆盖 fling 惯性飞行期.
+         * 这段时间内流式 chunk 不会触发 auto scroll, 避免在用户 fling 翻历史时被强行拉回底.
+         */
+        private const val GESTURE_END_DELAY_MS = 600L
     }
 
     private var sessionId: String = ""
@@ -82,6 +106,13 @@ class ChatSessionActivity : ThemedActivity() {
     private val assistantMarkdownStateStore = MessageAdapter.AssistantMarkdownStateStore()
     private var sendButtonView: ImageButton? = null
     private var inputEditView: EditText? = null
+    // R8: 附件 chip 栏 + pendingAttachments 列表抽到 ChatAttachmentController
+    private lateinit var attachmentController: ChatAttachmentController
+    private lateinit var chapterJumpController: ChapterJumpController
+    private lateinit var streamTypewriter: StreamTypewriter
+    private lateinit var sessionExporter: SessionExporter
+    /** 流式开始时间 (elapsedRealtime). 用于 [STOP_GUARD_MS] 防误触检查. */
+    private var streamStartedAtMs: Long = 0L
     private lateinit var chatService: ChatService
     private lateinit var viewModel: ChatViewModel
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
@@ -91,40 +122,20 @@ class ChatSessionActivity : ThemedActivity() {
     private val filePickerLauncher: ActivityResultLauncher<Array<String>> =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
             if (uri == null) return@registerForActivityResult
-            handleFilePicked(uri)
+            attachmentController.onFilePicked(uri)
         }
 
-    private fun handleFilePicked(uri: Uri) {
-        Toast.makeText(this, R.string.attachment_reading_file, Toast.LENGTH_SHORT).show()
-        executor.execute {
-            val result = AttachmentFileReader.read(this, uri)
-            mainHandler.post {
-                if (isFinishing || isDestroyed) return@post
-                when (result) {
-                    is AttachmentFileReader.Result.Text -> {
-                        val truncatedSuffix = if (result.truncated) "（已截断）" else ""
-                        val payload = "\n[文件: ${result.displayName}$truncatedSuffix]\n```\n${result.content}\n```\n"
-                        insertAttachmentText(payload)
-                    }
-                    is AttachmentFileReader.Result.Unsupported -> {
-                        insertAttachmentText("\n[文件: ${result.displayName}]\n")
-                        Toast.makeText(
-                            this,
-                            getString(R.string.attachment_unsupported_format, result.reason),
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                    is AttachmentFileReader.Result.Failure -> {
-                        Toast.makeText(
-                            this,
-                            getString(R.string.attachment_read_failed, result.reason),
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
-            }
+    /**
+     * SAF CREATE_DOCUMENT launcher 用于会话导出。
+     * 用 StartActivityForResult（而不是 CreateDocument 合约）是因为后者把 mime 绑死在注册时刻，
+     * 而导出格式是用户运行时选的（json/txt/html），mime 不同。
+     */
+    private val exportDocumentLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+            val uri = result.data?.data ?: return@registerForActivityResult
+            if (::sessionExporter.isInitialized) sessionExporter.onDocumentCreated(uri)
         }
-    }
 
     private val photoPickerLauncher: ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> =
         registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
@@ -179,13 +190,13 @@ class ChatSessionActivity : ThemedActivity() {
         updateSendButtonState()
     }
 
-    private fun queryDisplayName(uri: Uri): String? {
-        return try {
-            contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
-                if (c.moveToFirst()) c.getString(0) else null
-            }
-        } catch (e: Exception) { null }
-    }
+    // R8: ChatAttachmentController.Host 实现（isFinishingOrDestroyed 顺带满足 StreamTypewriter.Host）
+    override fun isFinishingOrDestroyed(): Boolean = isFinishing || isDestroyed
+    override fun onAttachmentsChanged() = updateSendButtonState()
+
+    // R9: StreamTypewriter.Host 实现
+    override fun onTickRendered() = maybeAutoScrollOnStreamTick()
+    override fun applyMessagesFully() = applyMessagesAndTitle()
 
     private val thinkingTicker = object : Runnable {
         override fun run() {
@@ -242,7 +253,9 @@ class ChatSessionActivity : ThemedActivity() {
         })
     }
 
-    private var historyExpanded = false
+    // R8: 重命名 historyExpanded → historyExpandedState，避开 ChapterJumpController.Host
+    // 接口里的 `val historyExpanded` 同名冲突。语义不变。
+    private var historyExpandedState = false
     private var addActionsExpanded = false
     private var allMessages: MutableList<Message> = ArrayList()
     private var scrollMessagesView: NestedScrollView? = null
@@ -254,33 +267,32 @@ class ChatSessionActivity : ThemedActivity() {
     /** maybeAutoScrollToBottom(force=true) 时置位，runnable 看到后忽略 flag/手势限制并把 flag 重置为 true。 */
     @Volatile private var pendingAutoScrollForce = false
     private var pendingInitialMessage: String? = null
-    private var assistantId: String? = null
-    private var writerAssistant = false
-    private var characterAssistant = false
+    override var assistantId: String? = null
+    // R6: 替代 writerAssistant / characterAssistant 两个布尔字段。
+    // 在 onCreate 与 onResume 里根据当前助手刷新（用户可能在 SessionSettings 里切换助手）。
+    private lateinit var mode: SessionModeStrategy
     private var autoTtsEnabled = false
     private var btnAutoTtsView: ImageButton? = null
     private val autoReadStore by lazy { AutoReadStore(this) }
-    private var characterMemoryService: CharacterMemoryService? = null
     private var outlineStore: SessionOutlineStore? = null
     private var sessionOptions: SessionChatOptions = SessionChatOptions()
     @Volatile private var autoNamingInFlight = false
     private var assistantResponseInProgress = false
-    private var streamRenderPending = false
-    private var lastStreamRenderAt = 0L
-    private var activeChatHandle: ChatService.ChatHandle? = null
+    private var activeChatHandle: ChatHandle? = null
     private var activeStreamingMessage: Message? = null
         set(value) {
             field = value
             // 同步给 adapter，让流式消息底部工具栏在生成期间隐藏。
             if (::historyAdapter.isInitialized) historyAdapter.setStreamingAssistantMessage(value)
             if (::currentAdapter.isInitialized) currentAdapter.setStreamingAssistantMessage(value)
+            // 同步给 typewriter，使后续 enqueueDelta 知道往哪条消息追加。
+            if (::streamTypewriter.isInitialized) streamTypewriter.setTarget(value)
         }
     private var activeResponseToken = 0L
     private var lastStreamAutoScrollAt = 0L
-    private var streamingTargetMessage: Message? = null
-    private val pendingStreamChars = StringBuilder()
-    private var streamTypewriterRunning = false
-    private var characterMemoryLoadingMessage: Message? = null
+    // R9: streamingTargetMessage / pendingStreamChars / streamTypewriterRunning /
+    //     streamRenderPending / lastStreamRenderAt / 两个 Runnable 全部搬到 StreamTypewriter
+    private var loadingPlaceholderMessage: Message? = null
     private var loadEarlierMessagesView: TextView? = null
     private var quickModelSwitchView: TextView? = null
     private var firstDialoguePreviewView: TextView? = null
@@ -293,47 +305,7 @@ class ChatSessionActivity : ThemedActivity() {
     private var oldestLoadedCreatedAt = Long.MAX_VALUE
     private var oldestLoadedMessageId = Long.MAX_VALUE
 
-    private val streamRenderRunnable = Runnable {
-        streamRenderPending = false
-        lastStreamRenderAt = System.currentTimeMillis()
-        renderStreamingMessageTick(streamingTargetMessage)
-    }
-
-    private val streamTypewriterRunnable = object : Runnable {
-        override fun run() {
-            if (isFinishing || isDestroyed) {
-                streamTypewriterRunning = false
-                return
-            }
-            if (streamingTargetMessage == null) {
-                streamTypewriterRunning = false
-                pendingStreamChars.setLength(0)
-                return
-            }
-            if (pendingStreamChars.isEmpty()) {
-                streamTypewriterRunning = false
-                return
-            }
-            val take = minOf(STREAM_TYPEWRITER_CHARS_PER_FRAME, pendingStreamChars.length)
-            val delta = pendingStreamChars.substring(0, take)
-            pendingStreamChars.delete(0, take)
-            val targetMsg = streamingTargetMessage
-            val old = targetMsg?.content ?: ""
-            targetMsg?.content = old + delta
-            var rendered = historyAdapter.renderStreamingMessageIfVisible(targetMsg)
-            rendered = rendered or currentAdapter.renderStreamingMessageIfVisible(targetMsg)
-            if (!rendered) {
-                scheduleStreamRender()
-            } else {
-                maybeAutoScrollOnStreamTick()
-            }
-            if (pendingStreamChars.isNotEmpty()) {
-                mainHandler.postDelayed(this, STREAM_TYPEWRITER_FRAME_MS)
-            } else {
-                streamTypewriterRunning = false
-            }
-        }
-    }
+    // R9: 两个 Runnable + 帧循环全部在 StreamTypewriter 内部
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -350,10 +322,8 @@ class ChatSessionActivity : ThemedActivity() {
         } else {
             assistantId = SessionAssistantBindingStore(this).getAssistantId(sessionId)
         }
-        writerAssistant = resolveWriterAssistant()
-        characterAssistant = resolveCharacterAssistant()
+        mode = resolveSessionMode()
         outlineStore = SessionOutlineStore(this)
-        characterMemoryService = CharacterMemoryService(this)
 
         chatService = ChatService(this)
         viewModel = ViewModelProvider(this).get(ChatViewModel::class.java)
@@ -403,10 +373,13 @@ class ChatSessionActivity : ThemedActivity() {
                 handleStreamDeltaEvent(event)
             }
         }
-        viewModel.proactiveMessageEvent.observe(this) { event ->
+        // drain 整个队列, 防止 Activity STOPPED 期间多个 split 段触发时 LiveData
+        // coalesce 只保留最后一个值导致中间段丢失.
+        viewModel.proactiveMessageEvent.observe(this) { _ ->
             if (isFinishing || isDestroyed) return@observe
-            if (event == null) return@observe
-            handleProactiveMessageEvent(event)
+            for (event in viewModel.drainPendingProactiveEvents()) {
+                handleProactiveMessageEvent(event)
+            }
         }
 
         sessionOptions = resolveChatOptions()
@@ -425,9 +398,9 @@ class ChatSessionActivity : ThemedActivity() {
         btnSessionMore?.setOnClickListener { v -> showSessionMoreMenu(v) }
         val btnWriterOutline: View? = findViewById(R.id.btnWriterOutline)
         if (btnWriterOutline != null) {
-            btnWriterOutline.visibility = if (writerAssistant) View.VISIBLE else View.GONE
+            btnWriterOutline.visibility = if (mode.showsWriterOutlineButton) View.VISIBLE else View.GONE
             btnWriterOutline.setOnClickListener {
-                if (!writerAssistant) return@setOnClickListener
+                if (!mode.showsWriterOutlineButton) return@setOnClickListener
                 startActivity(Intent(this, SessionOutlineActivity::class.java)
                     .putExtra(SessionOutlineActivity.EXTRA_SESSION_ID, sessionId))
             }
@@ -440,10 +413,24 @@ class ChatSessionActivity : ThemedActivity() {
         val recyclerCurrent: RecyclerView? = findViewById(R.id.recyclerCurrent)
         val scrollMessages: NestedScrollView? = findViewById(R.id.scrollMessages)
         scrollMessagesView = scrollMessages
+        scrollMessages?.addOnLayoutChangeListener { _, _, _, _, bottom, _, _, _, oldBottom ->
+            if (bottom < oldBottom) maybeAutoScrollToBottom(true)
+        }
         val inputEdit: EditText? = findViewById(R.id.inputEdit)
         val sendButton: ImageButton? = findViewById(R.id.sendButton)
         inputEditView = inputEdit
         sendButtonView = sendButton
+        val attachmentsScroll: HorizontalScrollView = findViewById(R.id.scrollAttachments)
+        val attachmentsContainer: LinearLayout = findViewById(R.id.layoutAttachments)
+        attachmentController = ChatAttachmentController(
+            context = this,
+            scrollView = attachmentsScroll,
+            container = attachmentsContainer,
+            executor = executor,
+            mainHandler = mainHandler,
+            host = this,
+        )
+        attachmentController.refresh()
         inputEdit?.addTextChangedListener(object : android.text.TextWatcher {
             override fun afterTextChanged(s: android.text.Editable?) { updateSendButtonState() }
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
@@ -464,14 +451,38 @@ class ChatSessionActivity : ThemedActivity() {
 
         historyAdapter = MessageAdapter(assistantMarkdownStateStore)
         currentAdapter = MessageAdapter(assistantMarkdownStateStore)
-        historyAdapter.setWriterMode(writerAssistant)
-        currentAdapter.setWriterMode(writerAssistant)
-        historyAdapter.setDisableAssistantCollapseToggle(characterAssistant)
-        currentAdapter.setDisableAssistantCollapseToggle(characterAssistant)
-        historyAdapter.setCharacterMode(characterAssistant)
-        currentAdapter.setCharacterMode(characterAssistant)
-        historyAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
-        currentAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
+        applyModeToAdapters()
+        // R8: ChapterJumpController 需要的几个 view 引用都已就绪
+        if (recyclerHistory != null && recyclerCurrent != null && scrollMessages != null) {
+            chapterJumpController = ChapterJumpController(
+                activity = this,
+                scrollMessagesView = scrollMessages,
+                recyclerHistory = recyclerHistory,
+                recyclerCurrent = recyclerCurrent,
+                historyAdapter = historyAdapter,
+                currentAdapter = currentAdapter,
+                mainHandler = mainHandler,
+                host = this,
+            )
+        }
+        // R9: StreamTypewriter 帧循环 + render throttle
+        streamTypewriter = StreamTypewriter(
+            mainHandler = mainHandler,
+            historyAdapter = historyAdapter,
+            currentAdapter = currentAdapter,
+            host = this,
+        )
+        sessionExporter = SessionExporter(
+            activity = this,
+            sessionId = sessionId,
+            mode = mode,
+            createDocumentLauncher = exportDocumentLauncher,
+            getMessages = { ArrayList(allMessages) },
+            getSessionTitle = {
+                chatTitleView?.text?.toString()?.trim().orEmpty().ifEmpty { sessionId }
+            },
+            getOutline = { outlineStore?.getAll(sessionId).orEmpty() },
+        )
         val assistantStateListener = object : MessageAdapter.OnAssistantStateChangedListener {
             override fun onAssistantStateChanged() {
                 historyAdapter.notifyDataSetChanged()
@@ -497,7 +508,7 @@ class ChatSessionActivity : ThemedActivity() {
         setupAutoCollapseActions(recyclerHistory, recyclerCurrent, scrollMessages)
 
         if (headerHistory != null && expandHistoryView != null && historyExpandIconView != null) {
-            headerHistory.setOnClickListener { setHistoryExpanded(!historyExpanded) }
+            headerHistory.setOnClickListener { setHistoryExpanded(!historyExpandedState) }
         }
 
         if (btnAdd != null && layoutAddActions != null) {
@@ -506,6 +517,7 @@ class ChatSessionActivity : ThemedActivity() {
                 layoutAddActions.visibility = if (addActionsExpanded) View.VISIBLE else View.GONE
             }
         }
+        bindInkToggle()
         btnAddFile?.setOnClickListener { filePickerLauncher.launch(arrayOf("*/*")) }
         btnAddLocation?.setOnClickListener { handleAddLocationClicked() }
         btnAddPhoto?.setOnClickListener {
@@ -520,13 +532,18 @@ class ChatSessionActivity : ThemedActivity() {
         updateSendButtonState()
         sendButton?.setOnClickListener {
             if (assistantResponseInProgress) {
+                // 1s 防误触: 刚发出去手指还没离开按钮就识别成第二次点击 → 误触发 stop.
+                val sinceStart = android.os.SystemClock.elapsedRealtime() - streamStartedAtMs
+                if (streamStartedAtMs > 0 && sinceStart < STOP_GUARD_MS) return@setOnClickListener
                 stopLatestResponse()
                 return@setOnClickListener
             }
-            val text = inputEditView?.text?.toString()?.trim() ?: ""
-            if (text.isEmpty()) return@setOnClickListener
+            val rawText = inputEditView?.text?.toString()?.trim() ?: ""
+            val composed = attachmentController.composeMessageWith(rawText)
+            if (composed.isEmpty()) return@setOnClickListener
             inputEditView?.setText("")
-            sendMessageFromText(text)
+            attachmentController.clear()
+            sendMessageFromText(composed)
         }
         inputEdit?.setOnFocusChangeListener { _, hasFocus ->
             if (hasFocus) collapseMessageActions()
@@ -574,7 +591,7 @@ class ChatSessionActivity : ThemedActivity() {
         val textHistoryTitle: View? = findViewById(R.id.textHistoryTitle)
         val latestUser = findLatestByRole(Message.ROLE_USER)
         val latestAssistant = findLatestByRole(Message.ROLE_ASSISTANT)
-        if (characterAssistant) {
+        if (mode.hidesPinnedActions) {
             historyAdapter.setPinnedActionMessages(null, null, assistantResponseInProgress)
             currentAdapter.setPinnedActionMessages(null, null, assistantResponseInProgress)
         } else {
@@ -606,6 +623,7 @@ class ChatSessionActivity : ThemedActivity() {
         if (text.isEmpty()) return
         if (isFinishing || isDestroyed) return
         if (VolcEngineTTSManager.isPlaying()) VolcEngineTTSManager.stop()
+        streamStartedAtMs = android.os.SystemClock.elapsedRealtime()
         setAssistantResponseInProgress(true)
         activeResponseToken = viewModel.incrementResponseToken()
         val responseToken = activeResponseToken
@@ -626,40 +644,107 @@ class ChatSessionActivity : ThemedActivity() {
         if (historyForApi.isNotEmpty()) (historyForApi as MutableList).removeAt(historyForApi.size - 1)
         historyForApi = buildHistoryForApi(historyForApi)
         val options = resolveChatOptions()
-        val shouldUseCharacterMemory = shouldUseCharacterMemory()
         val plainApiUserMessage = buildUserMessageForApi(text)
-        val finalHistoryForApi = historyForApi
-        val finalOptions = options
         // Chapter plan auto-trigger removed; plan is now generated manually from the outline page "更多" menu.
-        dispatchChatRequestWithOptionalMemory(finalHistoryForApi, plainApiUserMessage, finalOptions, responseToken, shouldUseCharacterMemory)
+        dispatchChatRequestWithRemoteContextIfEnabled(historyForApi, plainApiUserMessage, options, responseToken)
     }
 
-    private fun dispatchChatRequestWithOptionalMemory(
+    /**
+     * V3 hot path：每轮发消息前调 `POST /api/chat/context`，拿 server 渲染好的
+     * mergedSystem 直接当 system prompt，末尾追加客户端 `<client>` slot 与
+     * `<output_protocol>`。详见 wi-chat-server/docs/client-prompt-merge-protocol.md。
+     *
+     * 调用条件：远程同步开启 + baseUrl + assistantId + sessionId 全部齐备。任一缺失
+     * 就直接走 fallback（boot cache mergedSystem + 本地 systemPrompt）。
+     *
+     * 容错：网络/解析失败不阻塞 chat — 走 fallback 同样能发出消息。
+     */
+    private fun dispatchChatRequestWithRemoteContextIfEnabled(
         historyForApi: List<Message>,
-        plainApiUserMessage: String,
+        apiUserMessage: String,
         options: SessionChatOptions,
         responseToken: Long,
-        shouldUseCharacterMemory: Boolean
     ) {
-        if (!shouldUseCharacterMemory) {
-            dispatchChatRequest(historyForApi, plainApiUserMessage, options, responseToken)
+        val cfg = com.example.aichat.sync.RemoteSyncConfigStore(this)
+        val aid = assistantId.orEmpty().trim()
+        val sid = sessionId.orEmpty()
+        val shouldFetch = cfg.isEnabled() && cfg.getBaseUrl().isNotEmpty()
+            && aid.isNotEmpty() && sid.isNotEmpty()
+        if (!shouldFetch) {
+            dispatchChatRequest(historyForApi, apiUserMessage, options, responseToken, null)
             return
         }
-        showCharacterMemoryLoadingPlaceholder(responseToken)
+        showLoadingPlaceholder(responseToken)
+        val historyTurns = buildChatContextHistory(historyForApi)
+        val baseUrl = cfg.getBaseUrl()
+        val apiKey = cfg.getApiKey()
         executor.execute {
-            var enrichedUserMessage = plainApiUserMessage
+            var ctxResp: com.example.aichat.sync.ChatContextResponse? = null
             try {
-                val memory = characterMemoryService?.getMemoryContext(assistantId, sessionId, plainApiUserMessage)
-                enrichedUserMessage = buildUserMessageForApiWithMemory(plainApiUserMessage, memory)
+                val api = com.example.aichat.sync.ChatServerApi(baseUrl, apiKey)
+                ctxResp = api.chatContext(com.example.aichat.sync.ChatContextRequest(
+                    assistantId = aid,
+                    sessionId = sid,
+                    userInput = apiUserMessage,
+                    history = historyTurns,
+                ))
+                logChatContextDebug(ctxResp)
+                com.example.aichat.sync.ChatContextCache.put(aid, ctxResp)
             } catch (e: Exception) {
-                Log.w(TAG, "memory-context failed: ${e.message ?: ""}")
+                Log.w(TAG, "chat/context failed: ${e.message ?: ""}, trying cache")
+                ctxResp = com.example.aichat.sync.ChatContextCache.get(aid)
+                if (ctxResp != null) {
+                    Log.d(TAG, "chat/context: using cached response for $aid")
+                }
             }
-            val finalUserMessage = enrichedUserMessage
+            val finalCtx = ctxResp
             mainHandler.post {
                 if (responseToken != activeResponseToken) return@post
                 if (isFinishing || isDestroyed) return@post
-                dispatchChatRequest(historyForApi, finalUserMessage, options, responseToken)
+                dispatchChatRequest(historyForApi, apiUserMessage, options, responseToken, finalCtx)
             }
+        }
+    }
+
+    /** 取 history 最后 ≤4 轮（user/assistant），转 ChatHistoryTurn。 */
+    private fun buildChatContextHistory(historyForApi: List<Message>): List<com.example.aichat.sync.ChatHistoryTurn> {
+        if (historyForApi.isEmpty()) return emptyList()
+        val recent = historyForApi.asReversed().asSequence()
+            .filter { it.role == Message.ROLE_USER || it.role == Message.ROLE_ASSISTANT }
+            .filter { !(it.content.isNullOrBlank()) }
+            .take(4)
+            .toList()
+            .asReversed()
+        return recent.map {
+            com.example.aichat.sync.ChatHistoryTurn(
+                role = if (it.role == Message.ROLE_ASSISTANT) "assistant" else "user",
+                content = it.content.orEmpty(),
+            )
+        }
+    }
+
+    private fun logChatContextDebug(resp: com.example.aichat.sync.ChatContextResponse) {
+        val rd = resp.routerDecision
+        if (rd != null) {
+            Log.d(TAG,
+                "chat/context router tags=[${rd.registerTags?.joinToString(",") ?: rd.register ?: "-"}] " +
+                "stance=${rd.responseStance ?: "-"} " +
+                "skills=[${rd.skillIds?.joinToString(",") ?: ""}] " +
+                "budget=${rd.budget ?: "-"} " +
+                "reason=${rd.reason ?: "-"}")
+            rd.inner?.let { inner ->
+                Log.d(TAG,
+                    "chat/context inner subtext='${inner.subtextRead ?: ""}' " +
+                    "feel='${inner.myFeeling ?: ""}' " +
+                    "honesty='${inner.honestyCheck ?: ""}'")
+            }
+            rd.stateDeltaApplied?.let { applied ->
+                Log.d(TAG, "chat/context state_delta_applied=$applied")
+            }
+        }
+        val att = resp.attention1h
+        if (att != null) {
+            Log.d(TAG, "chat/context attention topics=[${att.topics?.joinToString(" / ") ?: ""}] focus=${att.innerFocus ?: "-"} tone=${att.emotionalTone ?: "-"} turns=${att.turnCount}")
         }
     }
 
@@ -667,15 +752,16 @@ class ChatSessionActivity : ThemedActivity() {
         historyForApi: List<Message>,
         apiUserMessage: String,
         options: SessionChatOptions,
-        responseToken: Long
+        responseToken: Long,
+        chatCtx: com.example.aichat.sync.ChatContextResponse?,
     ) {
         var streamingAssistant: Message?
-        if (characterMemoryLoadingMessage != null) {
+        if (loadingPlaceholderMessage != null) {
             // Reuse loading placeholder bubble to avoid a blank gap between loading and first token.
-            streamingAssistant = characterMemoryLoadingMessage
-            characterMemoryLoadingMessage = null
+            streamingAssistant = loadingPlaceholderMessage
+            loadingPlaceholderMessage = null
             if (streamingAssistant?.content.isNullOrEmpty()) {
-                streamingAssistant?.content = CHARACTER_MEMORY_LOADING_TEXT
+                streamingAssistant?.content = LOADING_PLACEHOLDER_TEXT
             }
             streamingAssistant?.thinkingRunning = false
             streamingAssistant?.thinkingStartedAt = 0L
@@ -687,15 +773,15 @@ class ChatSessionActivity : ThemedActivity() {
             streamingAssistant.thinkingElapsedMs = 0L
             allMessages.add(streamingAssistant)
             applyMessagesAndTitle()
-            maybeAutoScrollToBottom(true)
+            // 不 force: 用户在底部就跟着, 在中间看历史就别强拽回底.
+            maybeAutoScrollToBottom(false)
         }
-        activeStreamingMessage = streamingAssistant
-        streamingTargetMessage = streamingAssistant
-        stopStreamTypewriter(true)
+        activeStreamingMessage = streamingAssistant  // setter 同步 typewriter.setTarget
+        streamTypewriter.stop(true)
         try {
             activeChatHandle = viewModel.doChatRequest(
                 historyForApi, apiUserMessage, options, responseToken,
-                assistantId, characterMemoryService!!)
+                assistantId, chatCtx)
         } catch (e: Exception) {
             setAssistantResponseInProgress(false)
             activeChatHandle = null
@@ -710,8 +796,8 @@ class ChatSessionActivity : ThemedActivity() {
             // is in flight; the next stream round's first onPartial will clear it.
             val streamingMsg = activeStreamingMessage
             if (streamingMsg != null) {
-                stopStreamTypewriter(true)
-                streamingMsg.content = CHARACTER_MEMORY_LOADING_TEXT
+                streamTypewriter.stop(true)
+                streamingMsg.content = LOADING_PLACEHOLDER_TEXT
                 streamingMsg.reasoning = ""
                 streamingMsg.thinkingRunning = false
                 streamingMsg.thinkingElapsedMs = 0L
@@ -722,22 +808,22 @@ class ChatSessionActivity : ThemedActivity() {
         if (event.delta != null) {
             // onPartial
             val streamingMsg = activeStreamingMessage
-            if (streamingMsg != null && CHARACTER_MEMORY_LOADING_TEXT == streamingMsg.content?.trim()) {
+            if (streamingMsg != null && LOADING_PLACEHOLDER_TEXT == streamingMsg.content?.trim()) {
                 streamingMsg.content = ""
-                removeCharacterMemoryLoadingPlaceholder()
+                removeLoadingPlaceholder()
             }
             finishThinking(activeStreamingMessage)
-            enqueueStreamDelta(activeStreamingMessage, event.delta)
+            streamTypewriter.enqueueDelta(activeStreamingMessage, event.delta)
         } else if (event.reasoning != null) {
             // onReasoning
             val streamingMsg = activeStreamingMessage
-            if (streamingMsg != null && CHARACTER_MEMORY_LOADING_TEXT == streamingMsg.content?.trim()) {
+            if (streamingMsg != null && LOADING_PLACEHOLDER_TEXT == streamingMsg.content?.trim()) {
                 streamingMsg.content = ""
-                removeCharacterMemoryLoadingPlaceholder()
+                removeLoadingPlaceholder()
             }
             beginThinking(activeStreamingMessage)
             activeStreamingMessage?.reasoning = event.reasoning ?: ""
-            scheduleStreamRender()
+            streamTypewriter.schedule()
         } else if (event.isUsage) {
             // onUsage
             activeStreamingMessage?.let { msg ->
@@ -745,7 +831,7 @@ class ChatSessionActivity : ThemedActivity() {
                 msg.completionTokens = event.completionTokens
                 msg.totalTokens = event.totalTokens
                 msg.elapsedMs = event.elapsedMs
-                scheduleStreamRender()
+                streamTypewriter.schedule()
             }
         } else if (event.isSuccess) {
             // onSuccess
@@ -755,10 +841,10 @@ class ChatSessionActivity : ThemedActivity() {
             val streaming = activeStreamingMessage
             activeStreamingMessage = null
             val safeContent = event.successContent ?: ""
-            removeCharacterMemoryLoadingPlaceholder()
+            removeLoadingPlaceholder()
             if (streaming != null) {
                 finishThinking(streaming)
-                stopStreamTypewriter(true)
+                streamTypewriter.stop(true)
                 streaming.content = safeContent
                 // ViewModel.onSuccess 已 insert 这条 assistant 行, 把真实 id / sync 字段
                 // 同步回 streaming, 让后续 persistSessionMessagesAsync 走增量 upsert 时
@@ -778,7 +864,7 @@ class ChatSessionActivity : ThemedActivity() {
                 }
                 allMessages.add(assistantMsg)
             }
-            flushStreamRenderNow()
+            streamTypewriter.flushNow()
             maybeAutoScrollToBottom(shouldStick)
             maybeAutoReadAssistantMessage(streaming, safeContent)
         } else if (event.isError) {
@@ -787,14 +873,14 @@ class ChatSessionActivity : ThemedActivity() {
             activeChatHandle = null
             val streaming = activeStreamingMessage
             activeStreamingMessage = null
-            removeCharacterMemoryLoadingPlaceholder()
+            removeLoadingPlaceholder()
             if (streaming != null) {
                 finishThinking(streaming)
             }
-            stopStreamTypewriter(true)
+            streamTypewriter.stop(true)
             if (streaming != null) {
                 allMessages.remove(streaming)
-                flushStreamRenderNow()
+                streamTypewriter.flushNow()
             }
             val errMsg = viewModel.errorEvent.value
             Toast.makeText(
@@ -804,7 +890,7 @@ class ChatSessionActivity : ThemedActivity() {
             ).show()
         } else if (event.isCancelled) {
             // onCancelled
-            removeCharacterMemoryLoadingPlaceholder()
+            removeLoadingPlaceholder()
             handleResponseStopped(activeStreamingMessage)
             activeStreamingMessage = null
         }
@@ -903,6 +989,9 @@ class ChatSessionActivity : ThemedActivity() {
                 if (out.sessionAvatar.isNullOrEmpty()) {
                     out.sessionAvatar = AssistantAvatarHelper.resolveTextAvatar(assistant, assistant.name)
                 }
+                if (out.sessionAvatarImageBase64.isNullOrEmpty() && !assistant.avatarImageBase64.isNullOrEmpty()) {
+                    out.sessionAvatarImageBase64 = assistant.avatarImageBase64
+                }
             }
         }
 
@@ -948,6 +1037,8 @@ class ChatSessionActivity : ThemedActivity() {
         out.autoChapterPlan = src.autoChapterPlan
         out.thinking = src.thinking
         out.googleThinkingBudget = src.googleThinkingBudget
+        out.autoChatEnabled = src.autoChatEnabled
+        out.proactiveDailyBudget = src.proactiveDailyBudget
         return out
     }
 
@@ -957,10 +1048,8 @@ class ChatSessionActivity : ThemedActivity() {
         // It can still finish in background and be persisted to DB.
         activeChatHandle = null
         activeStreamingMessage = null
-        stopStreamTypewriter(true)
-        streamingTargetMessage = null
-        mainHandler.removeCallbacks(streamRenderRunnable)
-        streamRenderPending = false
+        streamTypewriter.stop(true)
+        streamTypewriter.resetTarget()
         mainHandler.removeCallbacks(thinkingTicker)
         scrollMessagesView?.removeCallbacks(autoScrollRunnable)
         activeThinkingMessage = null
@@ -969,20 +1058,13 @@ class ChatSessionActivity : ThemedActivity() {
 
     override fun onResume() {
         super.onResume()
-        writerAssistant = resolveWriterAssistant()
-        characterAssistant = resolveCharacterAssistant()
-        historyAdapter.setWriterMode(writerAssistant)
-        currentAdapter.setWriterMode(writerAssistant)
-        historyAdapter.setDisableAssistantCollapseToggle(characterAssistant)
-        currentAdapter.setDisableAssistantCollapseToggle(characterAssistant)
-        historyAdapter.setCharacterMode(characterAssistant)
-        currentAdapter.setCharacterMode(characterAssistant)
-        historyAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
-        currentAdapter.setAutoFocusLatestOnSetMessages(!characterAssistant)
+        mode = resolveSessionMode()
+        applyModeToAdapters()
         val btnWriterOutline: View? = findViewById(R.id.btnWriterOutline)
-        btnWriterOutline?.visibility = if (writerAssistant) View.VISIBLE else View.GONE
+        btnWriterOutline?.visibility = if (mode.showsWriterOutlineButton) View.VISIBLE else View.GONE
         refreshAutoTtsButton()
         sessionOptions = resolveChatOptions()
+        bindInkToggle()
         applyMessagesAndTitle()
         // Bootstrap (coreMemories / coreFacts / relationshipState) — fire-and-forget;
         // 跨日才会真正发请求, 同日 no-op. ChatViewModel 拼 prompt 时直接读 in-memory cache.
@@ -990,6 +1072,14 @@ class ChatSessionActivity : ThemedActivity() {
             com.example.aichat.sync.CharacterBootstrapStore
                 .getInstance(this).refreshIfStale(assistantId)
         }
+        com.example.aichat.proactive.ActiveSessionTracker.setActive(sessionId) {
+            runOnUiThread { viewModel.loadMessages() }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        com.example.aichat.proactive.ActiveSessionTracker.clearActive()
     }
 
     private fun updateToolbarModelSubtitle() {
@@ -1044,9 +1134,14 @@ class ChatSessionActivity : ThemedActivity() {
 
     private fun showSessionMoreMenu(anchor: View) {
         val density = resources.displayMetrics.density
+        // writer 模式: 「查看角色信息」位置换成「查看书籍信息」, 走 BookInfoActivity 连 inkos
+        val infoLabel = if (mode.usesWriterAdapter)
+            getString(R.string.book_info) else getString(R.string.character_info)
         val labels = listOf(
             getString(R.string.quick_jump_chapters),
             getString(R.string.tool_call_log),
+            infoLabel,
+            getString(R.string.action_export),
         )
         val popup = ListPopupWindow(this)
         popup.setAdapter(ArrayAdapter(this, R.layout.item_popup_menu, labels))
@@ -1063,8 +1158,10 @@ class ChatSessionActivity : ThemedActivity() {
         popup.setOnItemClickListener { _, _, position, _ ->
             popup.dismiss()
             when (position) {
-                0 -> showChapterJumpDialog()
+                0 -> chapterJumpController.show()
                 1 -> openToolCallLog()
+                2 -> if (mode.usesWriterAdapter) openBookInfo() else openCharacterInfo()
+                3 -> sessionExporter.show()
             }
         }
         popup.show()
@@ -1075,152 +1172,23 @@ class ChatSessionActivity : ThemedActivity() {
             .putExtra(ToolCallLogActivity.EXTRA_SESSION_ID, sessionId))
     }
 
-    private fun showChapterJumpDialog() {
-        val items = buildChapterJumpItems()
-        if (items.isEmpty()) {
-            Toast.makeText(this, R.string.no_assistant_chapters, Toast.LENGTH_SHORT).show()
-            return
-        }
-        val labels = Array<CharSequence>(items.size) { i ->
-            val one = items[i]
-            val prefix = "章节${one.index}："   // 黑体部分
-            val text = prefix + one.preview
-            SpannableString(text).also { s ->
-                // 序号前缀：黑体
-                s.setSpan(StyleSpan(Typeface.BOLD), 0, prefix.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                // 整行：字号缩小一档（约 87.5%）
-                s.setSpan(RelativeSizeSpan(0.875f), 0, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-            }
-        }
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.quick_jump_chapters)
-            .setItems(labels) { _, which ->
-                if (which < 0 || which >= items.size) return@setItems
-                val target = items[which]
-                scrollToChapterMessage(target.createdAt, target.messageId)
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+    private fun openCharacterInfo() {
+        startActivity(Intent(this, CharacterInfoActivity::class.java)
+            .putExtra(CharacterInfoActivity.EXTRA_SESSION_ID, sessionId))
     }
 
-    private fun buildChapterJumpItems(): List<ChapterJumpItem> {
-        val out = ArrayList<ChapterJumpItem>()
-        var chapterIndex = 1
-        for (m in allMessages) {
-            if (m == null || m.role != Message.ROLE_ASSISTANT) continue
-            val content = m.content?.trim() ?: ""
-            if (content.isEmpty()) continue
-            val item = ChapterJumpItem()
-            item.index = chapterIndex++
-            item.messageId = m.id
-            item.createdAt = m.createdAt
-            item.preview = buildChapterPreview(content)
-            out.add(item)
-        }
-        return out
+    private fun openBookInfo() {
+        startActivity(Intent(this, BookInfoActivity::class.java)
+            .putExtra(BookInfoActivity.EXTRA_SESSION_ID, sessionId))
     }
 
-    private fun buildChapterPreview(content: String): String {
-        // 只取第一个非空行，截断到 40 字
-        for (line in content.split(Regex("\\r?\\n"))) {
-            val trimmed = line.trim()
-            if (trimmed.isEmpty()) continue
-            return if (trimmed.length > 40) trimmed.substring(0, 40) + "…" else trimmed
-        }
-        val fallback = content.trim()
-        return if (fallback.length > 40) fallback.substring(0, 40) + "…" else fallback
-    }
+    // R8: 章节跳转的 9 个方法 + ChapterJumpItem 已搬到 ChapterJumpController。
+    // 入口在 menu 选择"章节跳转"时调 chapterJumpController.show()。
 
-    private fun scrollToChapterMessage(createdAt: Long, messageId: Long) {
-        if (scrollMessagesView == null) return
-        if (containsMessage(historyAdapter, createdAt, messageId) && !historyExpanded) {
-            setHistoryExpanded(true)
-        }
-        attemptScrollToChapterMessage(createdAt, messageId, 0)
-    }
-
-    private fun attemptScrollToChapterMessage(createdAt: Long, messageId: Long, attempt: Int) {
-        if (scrollMessagesView == null) return
-        var moved = scrollToMessageTopInRecycler(
-            findViewById(R.id.recyclerHistory), historyAdapter, createdAt, messageId)
-        if (!moved) {
-            moved = scrollToMessageTopInRecycler(
-                findViewById(R.id.recyclerCurrent), currentAdapter, createdAt, messageId)
-        }
-        if (moved) return
-        if (attempt >= 12) {
-            Toast.makeText(this, R.string.chapter_jump_failed, Toast.LENGTH_SHORT).show()
-            return
-        }
-        mainHandler.postDelayed({ attemptScrollToChapterMessage(createdAt, messageId, attempt + 1) }, 60L)
-    }
-
-    private fun scrollToMessageTopInRecycler(
-        recyclerView: RecyclerView?,
-        adapter: MessageAdapter?,
-        createdAt: Long,
-        messageId: Long
-    ): Boolean {
-        if (recyclerView == null || adapter == null || scrollMessagesView == null) return false
-        val list = adapter.getMessages()
-        var pos = -1
-        for (i in list.indices) {
-            if (matchesJumpTarget(list[i], createdAt, messageId)) {
-                pos = i
-                break
-            }
-        }
-        if (pos < 0) return false
-        val layoutManager = recyclerView.layoutManager
-        if (layoutManager is LinearLayoutManager) {
-            layoutManager.scrollToPositionWithOffset(pos, 0)
-        } else {
-            recyclerView.scrollToPosition(pos)
-        }
-        val vh = recyclerView.findViewHolderForAdapterPosition(pos)
-        var itemView: View? = vh?.itemView
-        if (itemView == null) {
-            itemView = layoutManager?.findViewByPosition(pos)
-        }
-        if (itemView == null) return false
-        val timestampView: View? = itemView.findViewById(R.id.textTimestamp)
-        val targetY = computeScrollYInContainer(timestampView ?: itemView)
-        if (targetY < 0) return false
-        val margin = (8f * resources.displayMetrics.density).toInt()
-        scrollMessagesView?.smoothScrollTo(0, maxOf(0, targetY - margin))
-        return true
-    }
-
-    private fun containsMessage(adapter: MessageAdapter?, createdAt: Long, messageId: Long): Boolean {
-        if (adapter == null) return false
-        for (one in adapter.getMessages()) {
-            if (matchesJumpTarget(one, createdAt, messageId)) return true
-        }
-        return false
-    }
-
-    private fun matchesJumpTarget(one: Message?, createdAt: Long, messageId: Long): Boolean {
-        if (one == null) return false
-        if (messageId > 0 && one.id > 0) return one.id == messageId
-        return createdAt > 0 && one.createdAt == createdAt
-    }
-
-    private fun computeScrollYInContainer(targetView: View?): Int {
-        if (targetView == null || scrollMessagesView == null) return -1
-        val child = scrollMessagesView!!.getChildAt(0) ?: return -1
-        var y = 0
-        var cursor: View? = targetView
-        while (cursor != null && cursor != child) {
-            y += cursor.top - cursor.scrollY
-            val parent: ViewParent = cursor.parent
-            if (parent !is View) return -1
-            cursor = parent
-        }
-        return if (cursor == child) y else -1
-    }
-
-    private fun setHistoryExpanded(expanded: Boolean) {
-        historyExpanded = expanded
+    override fun currentMessages(): List<Message> = allMessages
+    override val historyExpanded: Boolean get() = historyExpandedState
+    override fun setHistoryExpanded(expanded: Boolean) {
+        historyExpandedState = expanded
         expandHistoryView?.visibility = if (expanded) View.VISIBLE else View.GONE
         historyExpandIconView?.rotation = if (expanded) 90f else 0f
     }
@@ -1293,15 +1261,25 @@ class ChatSessionActivity : ThemedActivity() {
             }
 
             override fun onOutline(message: Message) {
-                if (!writerAssistant) return
-                summarizeMessageToOutline(message)
+                mode.onOutlineAction(message, this@ChatSessionActivity)
             }
 
             override fun onDelete(message: Message) {
                 val idx = indexOf(message)
                 if (idx < 0) return
-                allMessages.removeAt(idx)
+                // split 组 (proactiveKind=1 且有 turnId): 内存列表里同组所有段落一并移除,
+                // 对应 DB 层的 deleteSplitGroupByTurnId 整组清除, 保持 UI 与 DB 一致.
+                val splitGroupTurnId = if (message.proactiveKind == 1 && message.turnId.isNotEmpty())
+                    message.turnId else null
+                if (splitGroupTurnId != null) {
+                    allMessages.removeAll { it.proactiveKind == 1 && it.turnId == splitGroupTurnId }
+                } else {
+                    allMessages.removeAt(idx)
+                }
                 applyMessagesAndTitle()
+                // proactiveKind != 0 的行 (远程推送 / 仿推送 / split) 不在 persist 对账范围,
+                // 只靠 persistSessionMessagesAsync 删不掉 DB; 这里走专用入口: DB 删 + WS 同步.
+                if (message.id > 0L) viewModel.deleteMessageAsync(message)
                 persistSessionMessagesAsync()
             }
 
@@ -1312,14 +1290,14 @@ class ChatSessionActivity : ThemedActivity() {
     }
 
     private fun maybeAutoReadAssistantMessage(message: Message?, content: String) {
-        if (!autoTtsEnabled || !characterAssistant) return
+        if (!autoTtsEnabled || !mode.supportsAutoTts) return
         if (message == null || content.isBlank()) return
         handleVoicePlay(message)
     }
 
     private fun toggleAutoTts() {
         val id = assistantId
-        if (id.isNullOrEmpty() || !characterAssistant) return
+        if (id.isNullOrEmpty() || !mode.supportsAutoTts) return
         autoTtsEnabled = !autoTtsEnabled
         autoReadStore.setEnabled(id, autoTtsEnabled)
         btnAutoTtsView?.alpha = if (autoTtsEnabled) 1.0f else 0.4f
@@ -1333,7 +1311,7 @@ class ChatSessionActivity : ThemedActivity() {
 
     private fun refreshAutoTtsButton() {
         val btn = btnAutoTtsView ?: return
-        val visible = characterAssistant && !writerAssistant && !assistantId.isNullOrEmpty()
+        val visible = mode.supportsAutoTts && !assistantId.isNullOrEmpty()
         btn.visibility = if (visible) View.VISIBLE else View.GONE
         if (!visible) {
             autoTtsEnabled = false
@@ -1352,25 +1330,9 @@ class ChatSessionActivity : ThemedActivity() {
             return
         }
         val raw = message.content?.trim() ?: ""
-        val text: String
-        val speechParams: VolcEngineHttpTTS.SpeechParams?
-        if (characterAssistant) {
-            val parsed = EmotionTagParser.parse(raw)
-            text = parsed.ttsText
-            val profile = parsed.profile
-            speechParams = if (profile != null && profile.hasAnyParam()) {
-                VolcEngineHttpTTS.SpeechParams(
-                    emotion = profile.emotion,
-                    emotionScale = profile.emotionScale,
-                    speechRate = profile.speechRate,
-                    loudnessRate = profile.loudnessRate,
-                    pitchRate = profile.pitchRate,
-                )
-            } else null
-        } else {
-            text = raw
-            speechParams = null
-        }
+        val payload = mode.resolveVoicePlay(message, raw)
+        val text: String = payload?.text ?: raw
+        val speechParams: VolcEngineHttpTTS.SpeechParams? = payload?.speechParams
         if (text.isEmpty()) {
             Toast.makeText(this, "消息为空，无法朗读", Toast.LENGTH_SHORT).show()
             return
@@ -1393,14 +1355,15 @@ class ChatSessionActivity : ThemedActivity() {
         tts.speak(text, message.id, callback, speechParams)
     }
 
-    private fun summarizeMessageToOutline(message: Message) {
+    override fun summarizeMessageToOutline(message: Message) {
         val source = message.content?.trim() ?: ""
         if (source.isEmpty()) {
             Toast.makeText(this, "消息为空，无法提取", Toast.LENGTH_SHORT).show()
             return
         }
         Toast.makeText(this, "正在提取到大纲…", Toast.LENGTH_SHORT).show()
-        chatService.summarizeMessageForOutline(source, object : ChatService.ChatCallback {
+        val oprompt = resolveOutlinePrompt()
+        chatService.summarizeMessageForOutline(source, oprompt, object : ChatCallback {
             override fun onSuccess(content: String) {
                 mainHandler.post {
                     val summary = content.trim()
@@ -1427,120 +1390,134 @@ class ChatSessionActivity : ThemedActivity() {
         })
     }
 
-    private fun buildUserMessageForApi(text: String): String {
-        val source = text.trim()
-        if (!writerAssistant || source.isEmpty()) return source
-        val outlines = outlineStore?.getAll(sessionId).orEmpty()
-        val outlineBlock = OutlinePromptBuilder.build(outlines, includeKnowledgeEnforcement = true)
-        if (outlineBlock.isEmpty()) return source
-        return buildString {
-            append(source).append("\n\n")
-            append("【写作大纲与资料】\n")
-            append(outlineBlock).append("\n\n")
-            append("请严格参考以上内容，保持情节、设定、任务线索的一致性与准确性。")
-        }.trim()
+    private fun resolveOutlinePrompt(): String {
+        val sessionPrompt = SessionChatOptionsStore(this).get(sessionId).outlinePrompt.trim()
+        if (sessionPrompt.isNotEmpty()) return sessionPrompt
+        val aid = SessionAssistantBindingStore(this).getAssistantId(sessionId)
+        if (aid.isNotEmpty()) {
+            val ap = MyAssistantStore(this).getById(aid)?.options?.outlinePrompt?.trim().orEmpty()
+            if (ap.isNotEmpty()) return ap
+        }
+        return ""
     }
 
-    private fun buildUserMessageForApiWithMemory(
-        baseUserMessage: String,
-        memory: CharacterMemoryApi.MemoryContextResponse?
-    ): String {
-        val source = baseUserMessage.trim()
-        if (source.isEmpty()) return source
-        if (memory == null || !memory.shouldUseMemory) return source
-        val guidance = memory.memoryGuidance?.trim() ?: ""
-        if (guidance.isEmpty()) return source
-        val maxChars = 1200
-        val truncated = if (guidance.length > maxChars) guidance.substring(0, maxChars) else guidance
-        return "$source\n\n【角色长期记忆参考】\n$truncated"
+    private fun buildUserMessageForApi(text: String): String {
+        return mode.buildUserMessageForApi(text, buildSessionContext())
     }
 
     private fun buildHistoryForApi(sourceHistory: List<Message>): List<Message> {
-        val source = sourceHistory.ifEmpty { return emptyList() }
-        if (!writerAssistant) return source
-        var lastAssistantIndex = -1
-        for (i in source.indices.reversed()) {
-            val one = source[i]
-            if (one != null && one.role == Message.ROLE_ASSISTANT) {
-                lastAssistantIndex = i
-                break
-            }
-        }
-        val out = ArrayList<Message>(source.size)
-        for (i in source.indices) {
-            val m = source[i] ?: continue
-            var content = m.content ?: ""
-            if (m.role == Message.ROLE_ASSISTANT) {
-                content = if (i == lastAssistantIndex) {
-                    buildLastAssistantExcerpt(content)
-                } else if (content.length > WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS) {
-                    val excerpt = content.substring(0, WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS)
-                    "【节选说明】以下内容为较早助手回复的前${WRITER_ASSISTANT_CONTEXT_EXCERPT_MAX_CHARS}字节选，用于保留关键语气与事实锚点；完整情节请以写作大纲与资料为准。\n$excerpt"
-                } else content
-            }
-            out.add(Message(sessionId, m.role, content))
-        }
-        return out
-    }
-
-    private fun buildLastAssistantExcerpt(content: String): String {
-        val source = content
-        val total = source.length
-        val segment = WRITER_ASSISTANT_LAST_SEGMENT_CHARS
-        if (total <= segment * 3) {
-            return source
-        }
-        val start = source.substring(0, segment)
-        val middleStart = maxOf(0, (total - segment) / 2)
-        val middle = source.substring(middleStart, middleStart + segment)
-        val end = source.substring(total - segment)
-        return "【节选说明】以下内容为最近一条助手回复的分段节选（前${segment}字 / 中间${segment}字 / 后${segment}字），用于保留上下文细节与风格连续性；完整情节请以写作大纲与资料为准。\n" +
-                "【前段】\n$start\n【中段】\n$middle\n【后段】\n$end"
-    }
-
-
-    private fun resolveWriterAssistant(): Boolean {
-        if (assistantId.isNullOrEmpty()) return false
-        val assistant = MyAssistantStore(this).getById(assistantId!!)
-        return assistant != null && "writer" == assistant.type
-    }
-
-    private fun resolveCharacterAssistant(): Boolean {
-        if (assistantId.isNullOrEmpty()) return false
-        val assistant = MyAssistantStore(this).getById(assistantId!!)
-        return assistant != null && "character" == assistant.type
+        return mode.buildHistoryForApi(sourceHistory, buildSessionContext())
     }
 
     /**
-     * memory-context 注入路径暂时弃用 (2026-05-07).
-     * 现在由 LLM 通过 search_memory tool 按需主动检索, 不再每条 user message 自动 prepend.
-     * 函数 / 接口 / DTO 全部保留, 后续若想恢复, 把 return false 换回原条件即可.
+     * R6: 根据当前 assistantId 选 strategy。SessionMode.from 内部把 type 字符串
+     * 映射成 enum，再 strategy companion 选具体实现。
      */
-    private fun shouldUseCharacterMemory(): Boolean {
-        return false
-        // 原条件:
-        // return characterAssistant
-        //         && !assistantId.isNullOrEmpty()
-        //         && characterMemoryService != null
-        //         && characterMemoryService!!.isEnabled()
+    private fun resolveSessionMode(): SessionModeStrategy {
+        val id = assistantId
+        val assistant = if (id.isNullOrEmpty()) null else MyAssistantStore(this).getById(id)
+        return SessionModeStrategy.from(assistant)
     }
 
-    private fun showCharacterMemoryLoadingPlaceholder(responseToken: Long) {
+    private fun bindInkToggle() {
+        val btn = findViewById<View>(R.id.btnInkToggle) ?: return
+        if (!mode.showsInkToggle) {
+            btn.visibility = View.GONE
+            return
+        }
+        btn.visibility = View.VISIBLE
+        btn.isSelected = sessionOptions.inkosEnabled
+        btn.setOnClickListener {
+            if (sessionOptions.inkosEnabled) {
+                // 关闭直接生效, 不需要后端探测
+                sessionOptions.inkosEnabled = false
+                btn.isSelected = false
+                SessionChatOptionsStore(this).save(sessionId, sessionOptions)
+                return@setOnClickListener
+            }
+            // 开启前探测 inkos studio 是否可达 — 失败回退避免状态与实际能力错位
+            btn.isEnabled = false
+            executor.execute {
+                val ok = com.example.aichat.inkos.InkosClient.probe()
+                mainHandler.post {
+                    btn.isEnabled = true
+                    if (ok) {
+                        sessionOptions.inkosEnabled = true
+                        btn.isSelected = true
+                        SessionChatOptionsStore(this).save(sessionId, sessionOptions)
+                        Toast.makeText(this, "Ink 已连接", Toast.LENGTH_SHORT).show()
+                    } else {
+                        btn.isSelected = false
+                        Toast.makeText(
+                            this,
+                            "Ink 后端连接失败 (${com.example.aichat.inkos.InkosClient.BASE_URL})",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * R6: 把当前 mode 的 UI 属性应用到两个 adapter 上。onCreate 与 onResume 共用。
+     */
+    private fun applyModeToAdapters() {
+        historyAdapter.setWriterMode(mode.usesWriterAdapter)
+        currentAdapter.setWriterMode(mode.usesWriterAdapter)
+        historyAdapter.setDisableAssistantCollapseToggle(mode.disablesAssistantCollapseToggle)
+        currentAdapter.setDisableAssistantCollapseToggle(mode.disablesAssistantCollapseToggle)
+        historyAdapter.setCharacterMode(mode.usesCharacterAdapter)
+        currentAdapter.setCharacterMode(mode.usesCharacterAdapter)
+        historyAdapter.setAutoFocusLatestOnSetMessages(mode.autoFocusLatestOnSetMessages)
+        currentAdapter.setAutoFocusLatestOnSetMessages(mode.autoFocusLatestOnSetMessages)
+        val characterAssistantObj = if (mode.usesCharacterAdapter && !assistantId.isNullOrEmpty())
+            MyAssistantStore(this).getById(assistantId!!) else null
+        historyAdapter.setCharacterAssistant(characterAssistantObj)
+        currentAdapter.setCharacterAssistant(characterAssistantObj)
+    }
+
+    /**
+     * R6: 构造一份当前请求所需的会话上下文快照传给 strategy。
+     * Writer 模式才计算 outlineBlock，避免其他模式做无用功。
+     */
+    private fun buildSessionContext(): SessionContext {
+        val outlineBlock = if (mode.usesWriterAdapter) {
+            val outlines = outlineStore?.getAll(sessionId).orEmpty()
+            OutlinePromptBuilder.build(outlines, includeKnowledgeEnforcement = true)
+        } else ""
+        val id = assistantId
+        val assistant = if (id.isNullOrEmpty()) null else MyAssistantStore(this).getById(id)
+        return SessionContext(
+            sessionId = sessionId,
+            assistantId = id,
+            assistant = assistant,
+            options = sessionOptions,
+            writerOutlineBlock = outlineBlock,
+        )
+    }
+
+    /**
+     * Show a "[…正在输入中]" assistant bubble while we wait for slow async work
+     * (V3 chat/context fetch, in-flight tool calls, etc). Cleared the moment
+     * the first stream token arrives or on completion.
+     */
+    private fun showLoadingPlaceholder(responseToken: Long) {
         if (responseToken != activeResponseToken) return
-        if (!shouldUseCharacterMemory()) return
-        removeCharacterMemoryLoadingPlaceholder()
-        val loading = Message(sessionId, Message.ROLE_ASSISTANT, CHARACTER_MEMORY_LOADING_TEXT)
+        removeLoadingPlaceholder()
+        val loading = Message(sessionId, Message.ROLE_ASSISTANT, LOADING_PLACEHOLDER_TEXT)
         loading.createdAt = System.currentTimeMillis()
-        characterMemoryLoadingMessage = loading
+        loadingPlaceholderMessage = loading
         allMessages.add(loading)
         applyMessagesAndTitle()
-        maybeAutoScrollToBottom(true)
+        // 不 force: AI loading 占位也不该抢用户阅读位置.
+        maybeAutoScrollToBottom(false)
     }
 
-    private fun removeCharacterMemoryLoadingPlaceholder() {
-        val loading = characterMemoryLoadingMessage ?: return
+    private fun removeLoadingPlaceholder() {
+        val loading = loadingPlaceholderMessage ?: return
         allMessages.remove(loading)
-        characterMemoryLoadingMessage = null
+        loadingPlaceholderMessage = null
         applyMessagesAndTitle()
     }
 
@@ -1765,17 +1742,26 @@ class ChatSessionActivity : ThemedActivity() {
         recyclerCurrent: RecyclerView?,
         scrollMessages: NestedScrollView?
     ) {
+        // 手势结束延迟 runnable: ACTION_UP 后过 GESTURE_END_DELAY_MS 才真正解除 userGesturing,
+        // 期间认为用户还在 fling, 流式 auto scroll 不抢. ACTION_DOWN 立即取消挂起的解除.
+        // 关键: 这里**不再**调 updateAutoScrollStateFromPosition() — 否则会用最后一次 scroll
+        // 位置重置 flag, 把"用户离开底部 → disengage"的状态又翻回 engage. 让 flag 保持
+        // 手势期间最后一次 ScrollChangeListener 写入的值, 直到用户主动滚回底部.
+        val gestureEndRunnable = Runnable {
+            userGesturing = false
+        }
         // 一个统一的触摸 listener：跟踪用户手势状态 + 顺便折叠消息操作栏。
         val touchHandler = View.OnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    mainHandler.removeCallbacks(gestureEndRunnable)
                     userGesturing = true
                     collapseMessageActions()
                 }
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                    userGesturing = false
-                    // fling 还在继续时 ScrollChangeListener 会持续更新 flag；这里只是兜底再读一次。
-                    updateAutoScrollStateFromPosition()
+                    // 不立即翻 false: 手指离开后还有 fling 惯性, 此时流式 chunk 不该强抢滚动.
+                    mainHandler.removeCallbacks(gestureEndRunnable)
+                    mainHandler.postDelayed(gestureEndRunnable, GESTURE_END_DELAY_MS)
                 }
             }
             false
@@ -1842,7 +1828,8 @@ class ChatSessionActivity : ThemedActivity() {
             btn.isEnabled = true
         } else {
             btn.setImageResource(R.drawable.ic_arrow_up)
-            btn.isEnabled = !inputEditView?.text?.toString()?.trim().isNullOrEmpty()
+            val hasText = !inputEditView?.text?.toString()?.trim().isNullOrEmpty()
+            btn.isEnabled = hasText || attachmentController.hasAttachments
         }
     }
 
@@ -1852,7 +1839,7 @@ class ChatSessionActivity : ThemedActivity() {
         activeResponseToken = viewModel.incrementResponseToken()
         activeChatHandle = null
         activeStreamingMessage = null
-        removeCharacterMemoryLoadingPlaceholder()
+        removeLoadingPlaceholder()
         try {
             handle?.cancel()
         } catch (ignored: Exception) {}
@@ -1864,7 +1851,7 @@ class ChatSessionActivity : ThemedActivity() {
         setAssistantResponseInProgress(false)
         if (streamingMessage != null) {
             finishThinking(streamingMessage)
-            drainPendingStreamCharsTo(streamingMessage)
+            streamTypewriter.drainPendingTo(streamingMessage)
             val hasContent = !streamingMessage.content.isNullOrEmpty()
             val hasReasoning = !streamingMessage.reasoning.isNullOrEmpty()
             if (!hasContent && !hasReasoning) {
@@ -1873,61 +1860,22 @@ class ChatSessionActivity : ThemedActivity() {
                 persistSessionMessagesAsync()
             }
         } else {
-            stopStreamTypewriter(true)
+            streamTypewriter.stop(true)
         }
-        flushStreamRenderNow()
+        streamTypewriter.flushNow()
         maybeAutoScrollToBottom(shouldStickBottomAfterDone)
     }
 
-    private fun scheduleStreamRender() {
-        val throttle = if (pendingStreamChars.length >= STREAM_RENDER_BUSY_PENDING_CHARS)
-            STREAM_RENDER_THROTTLE_BUSY_MS else STREAM_RENDER_THROTTLE_MS
-        val now = System.currentTimeMillis()
-        val wait = maxOf(0L, throttle - (now - lastStreamRenderAt))
-        if (streamRenderPending) return
-        streamRenderPending = true
-        mainHandler.postDelayed(streamRenderRunnable, wait)
-    }
+    // R9: scheduleStreamRender / flushStreamRenderNow / enqueueStreamDelta /
+    //     stopStreamTypewriter / drainPendingStreamCharsTo 全部搬到 StreamTypewriter。
+    //     下面的 renderStreamingMessageTick 保留，被 thinkingTicker 复用（不只
+    //     是流式打字机用，是一个"通知某条消息变了请重绘"的通用 helper）。
 
-    private fun flushStreamRenderNow() {
-        mainHandler.removeCallbacks(streamRenderRunnable)
-        streamRenderPending = false
-        lastStreamRenderAt = System.currentTimeMillis()
-        applyMessagesAndTitle()
-    }
-
-    private fun enqueueStreamDelta(message: Message?, delta: String?) {
-        if (message == null || delta.isNullOrEmpty()) return
-        if (streamingTargetMessage !== message) {
-            streamingTargetMessage = message
-            pendingStreamChars.setLength(0)
-        }
-        pendingStreamChars.append(delta)
-        if (streamTypewriterRunning) return
-        streamTypewriterRunning = true
-        mainHandler.post(streamTypewriterRunnable)
-    }
-
-    private fun stopStreamTypewriter(clearPending: Boolean) {
-        mainHandler.removeCallbacks(streamTypewriterRunnable)
-        streamTypewriterRunning = false
-        if (clearPending) pendingStreamChars.setLength(0)
-    }
-
-    private fun drainPendingStreamCharsTo(message: Message?) {
-        if (message == null) {
-            stopStreamTypewriter(true)
-            return
-        }
-        mainHandler.removeCallbacks(streamTypewriterRunnable)
-        streamTypewriterRunning = false
-        if (pendingStreamChars.isNotEmpty()) {
-            val old = message.content ?: ""
-            message.content = old + pendingStreamChars.toString()
-            pendingStreamChars.setLength(0)
-        }
-    }
-
+    /**
+     * 通用「单条消息内容变化时请尝试 partial 重绘，否则 fallback 全量装配」。
+     * thinkingTicker 用它每 500ms 刷新一次 "思考耗时" 计时显示。
+     * StreamTypewriter 内部有自己的同义 renderTick（私有），不调这里。
+     */
     private fun renderStreamingMessageTick(message: Message?) {
         if (isFinishing || isDestroyed) return
         var updated = false
@@ -1971,7 +1919,12 @@ class ChatSessionActivity : ThemedActivity() {
             return
         }
         val distanceToBottom = child.bottom - (scroll.scrollY + scroll.height)
-        val thresholdPx = (AUTO_SCROLL_BOTTOM_GAP_DP * resources.displayMetrics.density).toInt()
+        // 一律严格阈值 (4dp ≈ 几乎贴底). 简单一致的策略:
+        //   贴底 → engage (auto scroll 跟随)
+        //   离开底部 → disengage (auto scroll 不抢)
+        // 老 32dp 阈值的"灰色地带"是 bug 来源 — 用户拖了 < 32dp 时 flag 维持 engage,
+        // 流式 chunk 持续抢回, 用户感觉"滚不下去". 4dp 给一点 fling 误差余量, 不会震荡.
+        val thresholdPx = (4 * resources.displayMetrics.density).toInt()
         autoScrollToBottomEnabled = distanceToBottom <= thresholdPx
     }
 
@@ -2053,13 +2006,20 @@ class ChatSessionActivity : ThemedActivity() {
                 val target = allMessages.firstOrNull { it.id == event.rowId } ?: return
                 target.content = event.newContent
                 applyMessagesAndTitle()
-                maybeAutoScrollToBottom(true)
+                // 不 force: 自动对话 split rewrite 不该抢用户阅读位置.
+                maybeAutoScrollToBottom(false)
             }
             ChatViewModel.ProactiveMessageEvent.KIND_APPEND -> {
                 val msg = event.appendedMessage ?: return
                 allMessages.add(msg)
                 applyMessagesAndTitle()
-                maybeAutoScrollToBottom(true)
+                // 不 force: AI follow-up 主动消息不该抢用户阅读位置.
+                maybeAutoScrollToBottom(false)
+            }
+            ChatViewModel.ProactiveMessageEvent.KIND_REMOVE -> {
+                // split 取消时清掉还没填上内容的 typing placeholder 行.
+                val removed = allMessages.removeAll { it.id == event.rowId }
+                if (removed) applyMessagesAndTitle()
             }
         }
     }

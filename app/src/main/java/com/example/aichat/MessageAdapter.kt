@@ -1,18 +1,17 @@
 package com.example.aichat
 
-import android.text.SpannableString
-import android.text.Spanned
 import android.text.TextUtils
-import android.text.style.ForegroundColorSpan
 import android.util.TypedValue
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.annotation.NonNull
 import androidx.recyclerview.widget.RecyclerView
+import com.example.aichat.adapter.CharacterDisplayRenderer
+import com.example.aichat.adapter.CollapseAffixController
+import com.example.aichat.adapter.ToolCallMessageBinder
 import io.noties.markwon.Markwon
 import java.text.SimpleDateFormat
 import java.util.ArrayDeque
@@ -39,6 +38,12 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private val messages: MutableList<Message> = ArrayList()
     private val expandedReasoningMessages: MutableSet<Message> =
         Collections.newSetFromMap(IdentityHashMap())
+    /**
+     * Tool call/result 行 (role 3/4) 不单独显示, 把它们的摘要拼到紧跟其后的
+     * assistant 行, 复用 reasoning 折叠区显示.
+     * key 用 IdentityHashMap 避免 Message.equals 影响 (Message 是 Room entity, 没自定义 equals).
+     */
+    private val toolPrefixByMessage: MutableMap<Message, String> = IdentityHashMap()
     private var pinnedUserMessage: Message? = null
     private var pinnedAssistantMessage: Message? = null
     private var hidePinnedAssistantActions: Boolean = false
@@ -56,10 +61,10 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         Collections.newSetFromMap(IdentityHashMap())
     private var writerMode: Boolean = false
     private var characterMode: Boolean = false
+    private var characterAssistant: MyAssistant? = null
     private var disableAssistantCollapseToggle: Boolean = false
     private var autoFocusLatestOnSetMessages: Boolean = true
-    private var affixViewportTop: Int = Int.MIN_VALUE
-    private var affixViewportBottom: Int = Int.MIN_VALUE
+    private val affixController = CollapseAffixController()
     private var userActionPopup: com.example.aichat.widget.MessageActionPopup? = null
 
     constructor() : this(AssistantMarkdownStateStore(), ActionPanelStateStore())
@@ -302,28 +307,55 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         notifyDataSetChanged()
     }
 
+    fun setCharacterAssistant(assistant: MyAssistant?) {
+        characterAssistant = assistant
+        notifyDataSetChanged()
+    }
+
     fun setAutoFocusLatestOnSetMessages(enabled: Boolean) {
         autoFocusLatestOnSetMessages = enabled
     }
 
     fun setCollapseToggleAffixViewport(viewportTop: Int, viewportBottom: Int) {
-        affixViewportTop = viewportTop
-        affixViewportBottom = viewportBottom
+        affixController.setViewport(viewportTop, viewportBottom)
         updateCollapseToggleAffixForAttachedHolders()
     }
 
     fun setMessages(list: List<Message>?) {
         messages.clear()
+        toolPrefixByMessage.clear()
         if (list != null) {
-            messages.addAll(list)
+            // role=3/4 (tool_call / tool_result) 不进显示列表, 累积到 buffer 等下条 assistant 来收走;
+            // 用户输入 / proactiveKind!=0 等其它行打断 buffer (因为后续 assistant 不再属于这次工具链).
+            val pendingTools = ArrayList<Message>()
+            for (m in list) {
+                if (m == null) continue
+                when (m.role) {
+                    Message.ROLE_TOOL_CALL, Message.ROLE_TOOL_RESULT -> pendingTools.add(m)
+                    Message.ROLE_ASSISTANT -> {
+                        if (pendingTools.isNotEmpty() && m.proactiveKind == 0) {
+                            toolPrefixByMessage[m] = ToolCallMessageBinder.formatBuffer(pendingTools)
+                        }
+                        pendingTools.clear()
+                        messages.add(m)
+                    }
+                    else -> {
+                        pendingTools.clear()
+                        messages.add(m)
+                    }
+                }
+            }
         }
         expandedReasoningMessages.retainAll(messages)
+        toolPrefixByMessage.keys.retainAll(messages)
         actionPanelStateStore.onAllMessagesChanged(messages)
         actionPanelStateStore.applyAutoFold(messages)
         markdownRenderedSource.keys.retainAll(messages)
         markdownLastRenderAt.keys.retainAll(messages)
         notifyDataSetChanged()
     }
+
+    // R10: formatToolBuffer / parseFirstToolCall 搬到 adapter/ToolCallMessageBinder.kt
 
     fun addMessage(msg: Message) {
         messages.add(msg)
@@ -359,6 +391,11 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             if (h.boundMessage !== target) continue
             val content = target.content ?: ""
             val hasVisibleContent = content.trim().isNotEmpty()
+            // 当首字到达时, typing indicator GONE 与 textContent VISIBLE 必须在同一布局帧切换,
+            // 否则两者在 FrameLayout 中会短暂叠加, 视觉上出现「输入中」与首字上下重叠.
+            if (hasVisibleContent) {
+                h.layoutTypingIndicator.visibility = View.GONE
+            }
             h.textContent.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
             if (hasVisibleContent) {
                 bindAssistantContentStreaming(h, target, content)
@@ -472,15 +509,33 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             holder.boundMessage = m
             holder.textTimestamp.text = formatTimestamp(m.createdAt)
             holder.textContent.alpha = 1f
-            val isMemoryLoadingPlaceholder =
-                m.role == Message.ROLE_ASSISTANT &&
-                CHARACTER_MEMORY_LOADING_TEXT == content.trim()
-            if (isMemoryLoadingPlaceholder) {
-                holder.textContent.visibility = View.VISIBLE
-                holder.textContent.text = CHARACTER_MEMORY_LOADING_TEXT
-                holder.textContent.maxLines = 1
-                holder.textContent.ellipsize = TextUtils.TruncateAt.END
-                holder.textContent.alpha = 0.72f
+            if (characterMode) {
+                holder.layoutAssistantAvatar.visibility = View.VISIBLE
+                AssistantAvatarHelper.bindAvatar(
+                    holder.imageAssistantAvatar,
+                    holder.textAssistantAvatar,
+                    characterAssistant,
+                    characterAssistant?.name
+                )
+            } else {
+                holder.layoutAssistantAvatar.visibility = View.GONE
+            }
+            val trimmedContent = content.trim()
+            // 三类需要显示 typing indicator 的状态:
+            //  1. 显式 placeholder 文本 ([...正在输入中])
+            //  2. 当前 streaming message 但 content 还是空 (placeholder 刚清掉、首个 delta 未到)
+            //     —— 避免 placeholder 隐藏 → 首字打字之间气泡空白闪烁
+            //  reasoning 已在流的不算 (用户已看到 thinking 内容)
+            val isStreamingEmpty = m === streamingAssistantMessage &&
+                trimmedContent.isEmpty() &&
+                m.reasoning.isEmpty()
+            val showTypingIndicator = m.role == Message.ROLE_ASSISTANT && (
+                CHARACTER_MEMORY_LOADING_TEXT == trimmedContent || isStreamingEmpty
+            )
+            if (showTypingIndicator) {
+                holder.layoutAssistantBubble.visibility = View.VISIBLE
+                holder.textContent.visibility = View.GONE
+                holder.layoutTypingIndicator.visibility = View.VISIBLE
                 holder.layoutReasoning.visibility = View.GONE
                 holder.textUsage.visibility = View.GONE
                 holder.actionExpand.visibility = View.GONE
@@ -489,6 +544,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 if (fullBind) holder.itemView.setOnClickListener(null)
                 return
             }
+            holder.layoutTypingIndicator.visibility = View.GONE
             // 把"最新一条 AI 消息"扩展成"最新一段连续 AI 消息" — 自动对话 split /
             // follow-up 会产生 ≥2 条相邻 assistant 行, 它们都应当各自展开工具栏.
             val isLatest = isInLatestAssistantRun(m)
@@ -637,6 +693,10 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         val textCollapseIcon: ImageView = itemView.findViewById(R.id.textCollapseIcon)
         val textCollapseLabel: TextView = itemView.findViewById(R.id.textCollapseLabel)
         val layoutAssistantBubble: View = itemView.findViewById(R.id.layoutAssistantBubble)
+        val layoutTypingIndicator: View = itemView.findViewById(R.id.layoutTypingIndicator)
+        val layoutAssistantAvatar: View = itemView.findViewById(R.id.layoutAssistantAvatar)
+        val imageAssistantAvatar: ImageView = itemView.findViewById(R.id.imageAssistantAvatar)
+        val textAssistantAvatar: TextView = itemView.findViewById(R.id.textAssistantAvatar)
         val actionExpand: ImageView = itemView.findViewById(R.id.actionExpand)
         val layoutActions: View = itemView.findViewById(R.id.layoutActions)
         val layoutReasoning: View = itemView.findViewById(R.id.layoutReasoning)
@@ -682,16 +742,30 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     private fun bindReasoning(h: AssistantHolder, m: Message?, position: Int) {
         val hasReasoning = m != null && m.reasoning.trim().isNotEmpty()
-        val hasThinkingState = m != null && (m.thinkingRunning || m.thinkingElapsedMs > 0 || hasReasoning)
+        val toolPrefix = if (m != null) toolPrefixByMessage[m].orEmpty() else ""
+        val hasToolPrefix = toolPrefix.isNotEmpty()
+        val hasThinkingState = m != null &&
+            (m.thinkingRunning || m.thinkingElapsedMs > 0 || hasReasoning || hasToolPrefix)
         val hasUsage = m != null && (m.totalTokens > 0 || m.elapsedMs > 0)
         h.layoutReasoning.visibility = if (hasThinkingState) View.VISIBLE else View.GONE
         if (hasThinkingState) {
             h.textReasoningHeader.visibility = View.VISIBLE
             val expanded = m != null && expandedReasoningMessages.contains(m)
             val thinkingTime = formatSeconds(m?.thinkingElapsedMs ?: 0)
-            h.textReasoningHeader.text = (if (expanded) "Thinking \u25b2 " else "Thinking \u25bc ") + thinkingTime
-            val reasoning = m?.reasoning
-            val display = if (reasoning == null || reasoning.trim().isEmpty()) "Thinking 中..." else reasoning
+            val headerLabel = when {
+                hasToolPrefix && hasReasoning -> "\u5de5\u5177\u8c03\u7528 + Thinking"
+                hasToolPrefix -> "\u5de5\u5177\u8c03\u7528"
+                else -> "Thinking"
+            }
+            val arrow = if (expanded) "\u25b2" else "\u25bc"
+            h.textReasoningHeader.text = "$headerLabel $arrow $thinkingTime"
+            val reasoning = m?.reasoning?.takeIf { it.trim().isNotEmpty() }
+            val display = when {
+                hasToolPrefix && reasoning != null -> "$toolPrefix\n\n$reasoning"
+                hasToolPrefix -> toolPrefix
+                reasoning != null -> reasoning
+                else -> "Thinking 中..."
+            }
             h.textReasoningContent.visibility = View.VISIBLE
             h.textReasoningContent.text = display
             if (expanded) {
@@ -756,7 +830,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             h.textContent.ellipsize = null
         }
         if (characterMode) {
-            h.textContent.text = buildCharacterDisplay(h.textContent, content)
+            h.textContent.text = CharacterDisplayRenderer.render(h.textContent, content)
             return
         }
         if (markwon == null || m == null) {
@@ -784,38 +858,14 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         var expanded = m != null && assistantStateStore.isExpanded(m)
         if (disableAssistantCollapseToggle) expanded = true
         if (!expanded) {
-            h.textContent.text = if (characterMode) buildCharacterDisplay(h.textContent, content) else content
+            h.textContent.text = if (characterMode) CharacterDisplayRenderer.render(h.textContent, content) else content
             h.textContent.maxLines = 3
             h.textContent.ellipsize = TextUtils.TruncateAt.END
             return
         }
         h.textContent.maxLines = Int.MAX_VALUE
         h.textContent.ellipsize = null
-        h.textContent.text = if (characterMode) buildCharacterDisplay(h.textContent, content) else content
-    }
-
-    /**
-     * 角色模式渲染：解析协议 emoji 后隐藏，括号段落用 ios_section_label 灰色。
-     */
-    private fun buildCharacterDisplay(anchor: TextView, content: String): CharSequence {
-        if (content.isEmpty()) return content
-        val parsed = EmotionTagParser.parse(content)
-        val display = parsed.displayText
-        if (parsed.narrationRanges.isEmpty()) return display
-        val color = ContextCompat.getColor(anchor.context, R.color.ios_section_label)
-        val span = SpannableString(display)
-        for (range in parsed.narrationRanges) {
-            val end = (range.last + 1).coerceAtMost(display.length)
-            val start = range.first.coerceAtLeast(0)
-            if (start >= end) continue
-            span.setSpan(
-                ForegroundColorSpan(color),
-                start,
-                end,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
-            )
-        }
-        return span
+        h.textContent.text = if (characterMode) CharacterDisplayRenderer.render(h.textContent, content) else content
     }
 
     private fun updateCollapseToggleAffixForAttachedHolders() {
@@ -825,55 +875,12 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
     }
 
-    /**
-     * Pin the floating "expand / collapse" pill to the vertical center of the
-     * portion of the bubble that's visible inside the RecyclerView's viewport.
-     * When the bubble is fully on-screen → the pill sits in the geometric
-     * center of the bubble. When the bubble extends beyond the viewport → the
-     * pill clamps to the visible slice's center, so it never scrolls out.
-     *
-     * No-op if viewport hasn't been wired up yet (affixViewportTop sentinel).
-     */
-    /**
-     * Float the "expand / collapse" pill so it stays reachable while the
-     * user scrolls a long assistant bubble.
-     *
-     * Default anchor (handled entirely by layout, no work here): bottom|end of
-     * the bubble with 6dp margin. While the bubble's bottom is inside the
-     * viewport — including the common "streaming + auto-scroll-to-bottom"
-     * case where bubble bottom equals viewport bottom — translationY is 0 so
-     * the pill never moves and never causes invalidation.
-     *
-     * Only when the bubble's bottom has scrolled below the viewport does this
-     * lift the pill upward, just enough to keep it inside the viewport,
-     * clamped so it never escapes the bubble.
-     *
-     * Bubble fully off-screen → no-op; we leave the last translationY as-is to
-     * avoid wasted invalidations.
-     */
     private fun applyCollapseToggleAffix(h: AssistantHolder) {
-        val toggle = h.textCollapseToggle
-        if (toggle.visibility != View.VISIBLE) return
-        if (affixViewportTop == Int.MIN_VALUE || affixViewportBottom == Int.MIN_VALUE) return
-        val bubble = h.layoutAssistantBubble
-        if (bubble.height <= 0 || toggle.height <= 0) return
-        val pos = IntArray(2)
-        bubble.getLocationOnScreen(pos)
-        val bubbleTopAbs = pos[1]
-        val bubbleBottomAbs = bubbleTopAbs + bubble.height
-        if (bubbleBottomAbs <= affixViewportTop || bubbleTopAbs >= affixViewportBottom) return
-
-        val gapPx = (6f * h.itemView.resources.displayMetrics.density)
-        val newY: Float = if (bubbleBottomAbs <= affixViewportBottom) {
-            0f
-        } else {
-            // How far the bubble bottom is below the viewport bottom.
-            val pullUp = (bubbleBottomAbs - affixViewportBottom).toFloat()
-            // Don't lift past bubble top (toggle would escape upward).
-            val maxPullUp = (bubble.height - toggle.height - gapPx * 2f).coerceAtLeast(0f)
-            -minOf(pullUp, maxPullUp)
-        }
-        if (toggle.translationY != newY) toggle.translationY = newY
+        affixController.applyAffix(
+            h.textCollapseToggle,
+            h.layoutAssistantBubble,
+            h.itemView.resources.displayMetrics.density,
+        )
     }
 
     /**

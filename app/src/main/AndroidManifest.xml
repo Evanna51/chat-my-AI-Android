@@ -54,6 +54,7 @@
             android:name=".ChatSessionActivity"
             android:exported="false"
             android:parentActivityName=".MainActivity"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.AIChat" />
         <activity
             android:name=".AllConversationsActivity"
@@ -92,6 +93,16 @@
             android:theme="@style/Theme.AIChat" />
         <activity
             android:name=".ToolCallLogActivity"
+            android:exported="false"
+            android:parentActivityName=".ChatSessionActivity"
+            android:theme="@style/Theme.AIChat" />
+        <activity
+            android:name=".CharacterInfoActivity"
+            android:exported="false"
+            android:parentActivityName=".ChatSessionActivity"
+            android:theme="@style/Theme.AIChat" />
+        <activity
+            android:name=".BookInfoActivity"
             android:exported="false"
             android:parentActivityName=".ChatSessionActivity"
             android:theme="@style/Theme.AIChat" />

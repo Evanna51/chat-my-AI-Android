@@ -28,6 +28,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.util.LinkedHashSet
 import java.util.UUID
 import java.util.concurrent.Executors
+import com.example.aichat.chat.ChatCallback
 
 class SessionOutlineActivity : ThemedActivity() {
 
@@ -40,6 +41,21 @@ class SessionOutlineActivity : ThemedActivity() {
     private lateinit var adapter: SessionOutlineAdapter
     private lateinit var textEmpty: TextView
     private val executor = Executors.newSingleThreadExecutor()
+
+    /** 解析大纲提示词：优先会话级，回退到助手级 */
+    private fun resolveOutlinePrompt(): String {
+        // 会话级 outlinePrompt
+        val sessionPrompt = SessionChatOptionsStore(this).get(sessionId).outlinePrompt.trim()
+        if (sessionPrompt.isNotEmpty()) return sessionPrompt
+        // 助手级 outlinePrompt
+        val assistantId = SessionAssistantBindingStore(this).getAssistantId(sessionId)
+        if (assistantId.isNotEmpty()) {
+            val assistant = MyAssistantStore(this).getById(assistantId)
+            val assistantPrompt = assistant?.options?.outlinePrompt?.trim().orEmpty()
+            if (assistantPrompt.isNotEmpty()) return assistantPrompt
+        }
+        return ""
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -129,6 +145,8 @@ class SessionOutlineActivity : ThemedActivity() {
     }
 
     override fun onDestroy() {
+        for (l in inkosListeners) com.example.aichat.inkos.InkosEventBus.removeListener(l)
+        inkosListeners.clear()
         executor.shutdown()
         super.onDestroy()
     }
@@ -745,12 +763,14 @@ class SessionOutlineActivity : ThemedActivity() {
             val contextItems = mutableListOf<SessionOutlineItem>()
             contextItems.addAll(rangeChapters)
             contextItems.addAll(all.filter { it.type in setOf("task", "world", "knowledge", "material") })
-            val promptCtx = OutlinePromptBuilder.buildFull(contextItems)
+            val promptCtx = OutlinePromptBuilder.appendOutlinePrompt(
+                OutlinePromptBuilder.buildFull(contextItems), resolveOutlinePrompt()
+            )
 
             Toast.makeText(this, "正在生成卷纲…", Toast.LENGTH_SHORT).show()
             ChatService(this).generateVolumeOutline(
                 volumeTitle, coverageLabel, promptCtx,
-                object : ChatService.ChatCallback {
+                object : ChatCallback {
                     override fun onSuccess(content: String) {
                         runOnUiThread {
                             val item = outlineStore.add(sessionId, "volume", volumeTitle, content)
@@ -839,10 +859,13 @@ class SessionOutlineActivity : ThemedActivity() {
      */
     private fun runKnowledgeExtraction() {
         val all = outlineStore.getAll(sessionId)
+        val oprompt = resolveOutlinePrompt()
         val chapters = all.filter { "chapter" == outlineStore.normalizeType(it.type) }
         if (chapters.isEmpty()) {
             // 没章节也允许跑：基于人物/世界/已有知情提取通用约束
-            val outlineText = OutlinePromptBuilder.buildFull(all)
+            val outlineText = OutlinePromptBuilder.appendOutlinePrompt(
+                OutlinePromptBuilder.buildFull(all), oprompt
+            )
             if (outlineText.isEmpty()) {
                 Toast.makeText(this, "大纲为空，无法分析", Toast.LENGTH_SHORT).show()
                 return
@@ -862,7 +885,9 @@ class SessionOutlineActivity : ThemedActivity() {
                     "task", "world", "knowledge", "material" -> filtered.add(item)
                 }
             }
-            val baseText = OutlinePromptBuilder.buildFull(filtered)
+            val baseText = OutlinePromptBuilder.appendOutlinePrompt(
+                OutlinePromptBuilder.buildFull(filtered), oprompt
+            )
             val scopeLabel = "${rangeChapters.first().title.trim()} ~ ${rangeChapters.last().title.trim()}"
             // 在 prompt 顶部插一个【目标章节范围】小节，让模型知道 chapter 字段只能取自这些标题。
             val outlineText = buildString {
@@ -962,7 +987,7 @@ class SessionOutlineActivity : ThemedActivity() {
         val positive = dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE)
         positive?.isEnabled = false
 
-        ChatService(this).extractKnowledgeConstraints(outlineText, object : ChatService.ChatCallback {
+        ChatService(this).extractKnowledgeConstraints(outlineText, object : ChatCallback {
             override fun onSuccess(content: String) {
                 runOnUiThread {
                     val parsed = parseKnowledgeCandidates(content)
@@ -1062,11 +1087,129 @@ class SessionOutlineActivity : ThemedActivity() {
 
     /**
      * 章节计划：先选目标章节（已有 / 续写新章），再调模型生成 → 弹编辑对话框 → 保存到大纲。
+     *
+     * Ink toggle 打开时,改走 inkos:把当前完整大纲作为 blurb,POST /api/v1/books/create,
+     * 让 inkos pipeline 用大纲生成 story bible / outline 等结构化资料,而不是走本地章节计划。
      */
     private fun runChapterPlanGeneration() {
+        if (SessionChatOptionsStore(this).get(sessionId).inkosEnabled) {
+            sendOutlineToInkos()
+            return
+        }
         showChapterTargetPicker { spec ->
             startChapterPlanRequest(spec)
         }
+    }
+
+    private fun sendOutlineToInkos() {
+        val items = outlineStore.getAll(sessionId)
+        if (items.isEmpty()) {
+            Toast.makeText(this, "大纲为空,先添加大纲条目再发给 Ink", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val opts = SessionChatOptionsStore(this).get(sessionId)
+        val meta = SessionMetaStore(this).get(sessionId)
+        val title = meta.title.trim().ifEmpty { opts.sessionTitle.trim() }
+            .ifEmpty { "未命名作品-$sessionId" }
+
+        // 子类预设决定 genre 和 book_rules YAML。
+        // 用户在会话设置里改过 inkosBookRulesYaml 就走它,没改走预设默认模板。
+        val preset = com.example.aichat.inkos.InkosSubtypePresets.byId(opts.inkosSubtype)
+        val bookRulesYaml = opts.inkosBookRulesYaml.trim().ifEmpty { preset.defaultBookRulesYaml }
+        val blurb = com.example.aichat.inkos.InkosBlurbBuilder.build(items, title, bookRulesYaml)
+
+        Toast.makeText(this, "正在发起 Ink 建书 ($title, ${preset.displayName}, blurb ${blurb.length}字)…", Toast.LENGTH_LONG).show()
+        android.util.Log.i("InkBookCreate", "POST start: title=$title genre=${preset.genreId} blurbLen=${blurb.length}")
+
+        executor.execute {
+            // 兜底 try/catch — 任何异常都要在 UI 上反映出来, 不能让 executor 静默吞掉。
+            val result: com.example.aichat.inkos.InkosClient.BookCreateResult = try {
+                com.example.aichat.inkos.InkosClient.createBook(
+                    title = title,
+                    blurb = blurb,
+                    genre = preset.genreId,
+                    targetChapters = opts.inkosTargetChapters,
+                    chapterWordCount = opts.inkosChapterWordCount,
+                )
+            } catch (t: Throwable) {
+                android.util.Log.e("InkBookCreate", "createBook threw", t)
+                com.example.aichat.inkos.InkosClient.BookCreateResult(
+                    false, null, "异常: ${t.javaClass.simpleName} ${t.message}"
+                )
+            }
+            android.util.Log.i("InkBookCreate", "POST done: ok=${result.ok} bookId=${result.bookId} err=${result.errorMessage}")
+
+            runOnUiThread {
+                if (result.ok && result.bookId != null) {
+                    val saved = SessionChatOptionsStore(this).get(sessionId)
+                    saved.inkosBookId = result.bookId
+                    SessionChatOptionsStore(this).save(sessionId, saved)
+
+                    Toast.makeText(this, "Ink 已开始建书: ${result.bookId}, 跳转到书籍信息看实时进度", Toast.LENGTH_SHORT).show()
+                    watchInkosBookProgress(result.bookId, title)
+
+                    // 立刻在 inkos 端建一个 session 绑书 — 否则 studio UI 的 session 导航
+                    // 看不到这本书 (POST /books/create 不会自动建 session)。
+                    val targetBookId = result.bookId
+                    executor.execute {
+                        val sid = com.example.aichat.inkos.InkosClient.createBookSession(targetBookId)
+                        android.util.Log.i("InkBookCreate", "bound studio session=$sid for bookId=$targetBookId")
+                    }
+
+                    // 自动跳到 BookInfoActivity 看事件流, 否则用户找不到进度
+                    startActivity(
+                        android.content.Intent(this, BookInfoActivity::class.java)
+                            .putExtra(BookInfoActivity.EXTRA_SESSION_ID, sessionId)
+                    )
+                } else {
+                    Toast.makeText(
+                        this,
+                        "Ink 建书失败: ${result.errorMessage ?: "未知错误"} (URL=${com.example.aichat.inkos.InkosClient.BASE_URL})",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
+    /**
+     * SSE 监听给定 bookId 的 `book:created` / `book:error`。匹配到就 Toast + 摘掉自己。
+     * Activity 销毁时一并摘掉,避免对死 context 调 Toast。
+     */
+    private val inkosListeners = mutableSetOf<com.example.aichat.inkos.InkosEventBus.Listener>()
+    private fun watchInkosBookProgress(bookId: String, title: String) {
+        val listener = object : com.example.aichat.inkos.InkosEventBus.Listener {
+            override fun onEvent(event: String, data: com.google.gson.JsonObject) {
+                val id = data.get("bookId")?.takeIf { !it.isJsonNull }?.asString
+                if (id != bookId) return
+                when (event) {
+                    "book:created" -> {
+                        Toast.makeText(
+                            this@SessionOutlineActivity,
+                            "Ink 已建好《$title》",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        detach(this)
+                    }
+                    "book:error" -> {
+                        val err = data.get("error")?.takeIf { !it.isJsonNull }?.asString ?: "未知"
+                        Toast.makeText(
+                            this@SessionOutlineActivity,
+                            "Ink 建书失败: $err",
+                            Toast.LENGTH_LONG
+                        ).show()
+                        detach(this)
+                    }
+                }
+            }
+        }
+        inkosListeners.add(listener)
+        com.example.aichat.inkos.InkosEventBus.addListener(listener)
+    }
+
+    private fun detach(l: com.example.aichat.inkos.InkosEventBus.Listener) {
+        inkosListeners.remove(l)
+        com.example.aichat.inkos.InkosEventBus.removeListener(l)
     }
 
     private data class ChapterPlanTargetSpec(
@@ -1195,18 +1338,30 @@ class SessionOutlineActivity : ThemedActivity() {
     }
 
     private fun startChapterPlanRequest(spec: ChapterPlanTargetSpec) {
-        // 先弹编辑对话框（带"生成中…"状态），然后异步收集大纲与对话上下文，模型回调时填字段。
         val dialogTitle = if (spec.isExisting) "章节计划：${spec.targetTitle}（覆盖）"
                           else "章节计划：${spec.targetTitle}（新建）"
         val initial = ChapterPlanDraft().apply {
             if (spec.targetLength.isNotEmpty()) targetLength = spec.targetLength
         }
+        // resolved: true = 用户已手动保存或取消 → 停止一切后续处理
+        // backgroundMode: true = 用户点了"后台"按钮 → 对话框关闭但后台继续, 完成后自动添加草稿
         var resolved = false
+        var backgroundMode = false
         val controller = ChapterPlanDialog.show(
             this, dialogTitle, initial,
             initialStatus = "正在收集大纲与上下文…",
             object : ChapterPlanDialog.Callback {
-                override fun onCancel() { resolved = true }
+                override fun onCancel() {
+                    resolved = true
+                }
+                override fun onBackground() {
+                    backgroundMode = true
+                    Toast.makeText(
+                        this@SessionOutlineActivity,
+                        "章节计划在后台继续生成，完成后将自动添加草稿",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
                 override fun onSave(edited: ChapterPlanDraft) {
                     resolved = true
                     persistChapterPlanToOutline(spec, edited)
@@ -1234,43 +1389,57 @@ class SessionOutlineActivity : ThemedActivity() {
                 recentDialogue = dialogue,
                 userHint = spec.userHint,
                 targetLength = spec.targetLength,
+                outlinePrompt = resolveOutlinePrompt(),
             )
 
             runOnUiThread {
                 if (resolved) return@runOnUiThread
-                controller.setStatus("正在请求章节计划模型…")
-                ChatService(this).generateChapterPlanJson(ctx, object : ChatService.ChatCallback {
+                if (!backgroundMode) controller.setStatus("正在请求章节计划模型…")
+                ChatService(this).generateChapterPlanJson(ctx, object : ChatCallback {
                     override fun onPartial(delta: String) {
                         runOnUiThread {
-                            if (resolved) return@runOnUiThread
-                            if (delta.trim().isNotEmpty()) controller.setStatus(delta.trim())
+                            if (!resolved && !backgroundMode && delta.trim().isNotEmpty()) {
+                                controller.setStatus(delta.trim())
+                            }
                         }
                     }
 
                     override fun onSuccess(content: String) {
+                        if (resolved) return
                         runOnUiThread {
-                            if (resolved) return@runOnUiThread
                             val draft = parseChapterPlanDraft(content)
-                            if (draft == null) {
-                                controller.setStatus("计划解析失败，可手动填写后保存")
-                                return@runOnUiThread
-                            }
-                            if (spec.targetLength.isNotEmpty() && draft.targetLength.trim().isEmpty()) {
+                            if (draft != null && spec.targetLength.isNotEmpty()
+                                && draft.targetLength.trim().isEmpty()) {
                                 draft.targetLength = spec.targetLength
                             }
-                            controller.applyDraft(draft, fillOnlyEmpty = false)
-                            controller.setStatus(
-                                if (draft.hasAnyContent()) "章节计划已生成，可编辑后保存"
-                                else "已解析到结构，但字段为空；可手动填写后保存"
-                            )
+
+                            if (backgroundMode && draft != null && draft.hasAnyContent()) {
+                                // 后台模式 → 自动添加草稿到大纲
+                                persistChapterPlanDraftToOutline(spec, draft)
+                            } else if (!backgroundMode && draft != null) {
+                                // 对话框仍然打开 → 填入字段让用户编辑
+                                controller.applyDraft(draft, fillOnlyEmpty = false)
+                                controller.setStatus(
+                                    if (draft.hasAnyContent()) "章节计划已生成，可编辑后保存"
+                                    else "已解析到结构，但字段为空；可手动填写后保存"
+                                )
+                            }
                         }
                     }
 
                     override fun onError(message: String) {
+                        if (resolved) return
                         runOnUiThread {
-                            if (resolved) return@runOnUiThread
-                            val msg = if (message.trim().isNotEmpty()) message.trim() else "章节计划生成失败"
-                            controller.setStatus("$msg。可手动填写后保存。")
+                            if (backgroundMode) {
+                                Toast.makeText(
+                                    this@SessionOutlineActivity,
+                                    "章节计划后台生成失败",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                val msg = if (message.trim().isNotEmpty()) message.trim() else "章节计划生成失败"
+                                controller.setStatus("$msg。可手动填写后保存。")
+                            }
                         }
                     }
                 })
@@ -1278,16 +1447,21 @@ class SessionOutlineActivity : ThemedActivity() {
         }
     }
 
+    /** 后台生成完成后自动以"草稿"形式新增到大纲 */
+    private fun persistChapterPlanDraftToOutline(spec: ChapterPlanTargetSpec, draft: ChapterPlanDraft) {
+        val text = draft.toOutlineText()
+        val draftTitle = "${spec.targetTitle} 草稿"
+        outlineStore.add(sessionId, "chapter", draftTitle, text)
+        Toast.makeText(this, "草稿已自动添加：$draftTitle", Toast.LENGTH_SHORT).show()
+        refreshList()
+    }
+
+    /** 用户手动保存 → 始终新增草稿条目（不覆盖已有条目） */
     private fun persistChapterPlanToOutline(spec: ChapterPlanTargetSpec, draft: ChapterPlanDraft) {
         val text = draft.toOutlineText()
-        if (spec.isExisting && spec.existingItem != null) {
-            val updated = spec.existingItem.copy(content = text)
-            outlineStore.update(sessionId, updated)
-            Toast.makeText(this, "已覆盖：${spec.targetTitle}", Toast.LENGTH_SHORT).show()
-        } else {
-            outlineStore.add(sessionId, "chapter", spec.targetTitle, text)
-            Toast.makeText(this, "已加入大纲：${spec.targetTitle}", Toast.LENGTH_SHORT).show()
-        }
+        val draftTitle = "${spec.targetTitle} 草稿"
+        outlineStore.add(sessionId, "chapter", draftTitle, text)
+        Toast.makeText(this, "已加入大纲：$draftTitle", Toast.LENGTH_SHORT).show()
         refreshList()
     }
 

@@ -12,26 +12,29 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 
 /**
- * Caches `GET /api/character/bootstrap` payloads per assistantId so the chat
- * dispatch path can read coreMemories / coreFacts synchronously when building
- * system prompt.
+ * Caches `POST /api/character/context` payloads per assistantId so the chat
+ * dispatch path can read renderedSlots / coreFacts / coreMemories synchronously
+ * when building system prompt.
  *
  * - 内存级 cache (per-process). 不持久化 — 进程重启会重新拉.
- * - 跨自然日 (本地时区) TTL: 同一 assistantId 当天只 fetch 一次.
+ * - TTL: 同一 assistantId 距上次成功 fetch [TTL_MS] 内 no-op, 超过就 refresh.
  * - 失败容错: 网络错误时保留旧 cache, 不阻塞 chat.
  *
  * `relationshipState` 仍走现有 [RelationshipStateStore] (Room 持久化, 跨进程 ok).
- * 这里只缓存 bootstrap 特有的 coreMemories / coreFacts.
  */
 class CharacterBootstrapStore private constructor(private val appContext: Context) {
 
     /** Single-line in-memory cache row. */
     data class Cache(
         val assistantId: String,
+        /** character/context renderedSlots：role / character / background / constraints / toolProtocol. */
+        val renderedSlots: ChatRenderedSlots? = null,
         val coreMemories: List<CoreMemory>,
         val coreFacts: List<CoreFact>,
         val fetchedAtMs: Long,
         val fetchedDayKey: Int,
+        /** 原始 JSON 响应, 供"查看角色信息"页面展示. */
+        val rawJson: String = "",
     )
 
     data class CoreMemory(
@@ -51,16 +54,15 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
     private val executor = Executors.newSingleThreadExecutor()
 
     /**
-     * Fire-and-forget refresh. 跨自然日就 fetch, 同日命中就 no-op.
+     * Fire-and-forget refresh. 距上次成功 fetch 超过 [TTL_MS] 才发请求, 否则 no-op.
      * 调用方 (e.g. ChatSessionActivity.onResume) 不需要等 — chat dispatch 时
      * [getCached] 直接读, 没有也只是没注入 coreMemories/coreFacts, 不影响主流程.
      */
     fun refreshIfStale(assistantId: String?) {
         val aid = assistantId?.trim().orEmpty()
         if (aid.isEmpty()) return
-        val today = todayKey()
         val existing = cacheByAssistant[aid]
-        if (existing != null && existing.fetchedDayKey == today) return
+        if (existing != null && (System.currentTimeMillis() - existing.fetchedAtMs) < TTL_MS) return
         executor.execute { doRefresh(aid) }
     }
 
@@ -81,15 +83,19 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
         val cfg = RemoteSyncConfigStore(appContext)
         if (!cfg.isEnabled() || cfg.getBaseUrl().isEmpty()) return null
         val api = ChatServerApi(cfg.getBaseUrl(), cfg.getApiKey())
+
+        // 调 /api/character/context（admin/debug 端点 — 拿 V_NEW_LEAN mergedSystem
+        // + 7 层认知态 + slots，不带本轮 user 上下文）。chat hot path 每轮发消息时
+        // 走 chatContext 拿带 facts/narrative 的当轮上下文 — 那是 ChatViewModel 的事。
         val raw = try {
-            api.characterBootstrap(aid)
+            api.characterContext(aid)
         } catch (e: Exception) {
-            Log.w(TAG, "bootstrap fetch failed for $aid: ${e.message}")
+            Log.w(TAG, "character/context failed for $aid: ${e.message}")
             return null
         }
         val cache = parse(aid, raw) ?: return null
         cacheByAssistant[aid] = cache
-        // Fan out relationshipState into existing store (already used by prompt path).
+        // Fan out relationshipState into existing store
         try {
             extractRelationshipJson(raw)?.let { rsJson ->
                 RelationshipStateStore(appContext).upsertFromServerJson(aid, rsJson)
@@ -105,20 +111,35 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
         return try {
             val root = JsonParser().parse(raw).asJsonObject
             if (!readBool(root, "ok", true)) {
-                Log.w(TAG, "bootstrap returned ok=false: $raw")
+                Log.w(TAG, "character/context returned ok=false: $raw")
                 return null
             }
             Cache(
                 assistantId = aid,
+                renderedSlots = parseRenderedSlots(root),
                 coreMemories = parseCoreMemories(root.get("coreMemories")),
                 coreFacts = parseCoreFacts(root.get("coreFacts")),
                 fetchedAtMs = System.currentTimeMillis(),
                 fetchedDayKey = todayKey(),
+                rawJson = raw,
             )
         } catch (e: Exception) {
-            Log.w(TAG, "bootstrap parse failed", e)
+            Log.w(TAG, "character/context parse failed", e)
             null
         }
+    }
+
+    private fun parseRenderedSlots(root: JsonObject): ChatRenderedSlots? {
+        val el = root.get("renderedSlots") ?: return null
+        if (el.isJsonNull || !el.isJsonObject) return null
+        val obj = el.asJsonObject
+        return ChatRenderedSlots(
+            role        = readStr(obj, "role").takeIf { it.isNotEmpty() },
+            character   = readStr(obj, "character").takeIf { it.isNotEmpty() },
+            background  = readStr(obj, "background").takeIf { it.isNotEmpty() },
+            constraints = readStr(obj, "constraints").takeIf { it.isNotEmpty() },
+            toolProtocol = readStr(obj, "tool_protocol").takeIf { it.isNotEmpty() },
+        )
     }
 
     private fun parseCoreMemories(el: JsonElement?): List<CoreMemory> {
@@ -191,6 +212,8 @@ class CharacterBootstrapStore private constructor(private val appContext: Contex
 
     companion object {
         private const val TAG = "CharacterBootstrapStore"
+        /** Refresh TTL — same assistantId 间隔小于这个就走缓存. */
+        private const val TTL_MS = 10L * 60 * 1000
 
         @Volatile private var instance: CharacterBootstrapStore? = null
 

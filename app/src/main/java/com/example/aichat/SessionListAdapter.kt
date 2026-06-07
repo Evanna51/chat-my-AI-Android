@@ -10,6 +10,7 @@ import java.text.SimpleDateFormat
 import java.util.ArrayList
 import java.util.Date
 import java.util.Locale
+import com.example.aichat.session.SessionMode
 
 class SessionListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
@@ -95,7 +96,7 @@ class SessionListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             avatar = s.avatar
             avatarImageBase64 = s.avatarImageBase64
         }
-        AssistantAvatarHelper.bindAvatar(h.avatarImage, h.avatar, avatarShim, "🤖")
+        AssistantAvatarHelper.bindAvatar(h.avatarImage, h.avatar, avatarShim, s.title)
         h.title?.let { tv ->
             var title = if (s.title != null && s.title.isNotEmpty()) s.title else "新对话"
             if (s.favorite && !s.pinned) title = "★ $title"
@@ -156,6 +157,6 @@ class SessionListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         private const val VIEW_TYPE_HEADER = 1
         private val SDF_TIME = SimpleDateFormat("HH:mm", Locale.getDefault())
         private val SDF_DATE = SimpleDateFormat("MM-dd", Locale.getDefault())
-        const val GROUP_WRITER = "writer"
+        val GROUP_WRITER: String = SessionMode.WRITER.raw
     }
 }

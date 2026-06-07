@@ -7,6 +7,8 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import java.util.ArrayList
+import com.example.aichat.session.SessionMode
+import com.example.aichat.session.mode
 
 class MyAssistantListAdapter : RecyclerView.Adapter<MyAssistantListAdapter.Holder>() {
 
@@ -37,8 +39,8 @@ class MyAssistantListAdapter : RecyclerView.Adapter<MyAssistantListAdapter.Holde
         holder.name.setText(name)
         AssistantAvatarHelper.bindAvatar(holder.avatarImage, holder.avatarText, a, name)
         val typeLabel = when {
-            "writer" == a.type -> "作家"
-            "character" == a.type -> "人物"
+            a.mode() == SessionMode.WRITER -> "作家"
+            a.mode() == SessionMode.CHARACTER -> "人物"
             else -> "默认"
         }
         holder.type.setText(typeLabel)

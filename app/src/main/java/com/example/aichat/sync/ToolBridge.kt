@@ -11,6 +11,7 @@ import com.google.gson.JsonParser
  * server-side handlers:
  *   - `search_memory`  → POST /api/tool/memory-recall
  *   - `correct_memory` → POST /api/tool/memory-correct
+ *   - `web_search`     → POST /api/tool/web-search（Tavily 后端，每角色每日 3 次配额）
  *
  * The bridge is constructed per chat dispatch with the session's bound
  * assistantId/sessionId so the LLM stays agnostic of those — tool schemas
@@ -29,6 +30,7 @@ class ToolBridge(
     fun toolsJson(): JsonArray = JsonArray().apply {
         add(SEARCH_MEMORY_TOOL_SCHEMA)
         add(CORRECT_MEMORY_TOOL_SCHEMA)
+        add(WEB_SEARCH_TOOL_SCHEMA)
     }
 
     /**
@@ -41,6 +43,7 @@ class ToolBridge(
             when (toolName) {
                 TOOL_SEARCH_MEMORY -> invokeSearchMemory(argumentsJson)
                 TOOL_CORRECT_MEMORY -> invokeCorrectMemory(argumentsJson)
+                TOOL_WEB_SEARCH -> invokeWebSearch(argumentsJson)
                 else -> errorJson("unknown_tool", "tool '$toolName' is not registered")
             }
         } catch (e: Exception) {
@@ -65,6 +68,14 @@ class ToolBridge(
         return MemoryToolApi(baseUrl, apiKey).memoryCorrect(assistantId, args)
     }
 
+    private fun invokeWebSearch(argumentsJson: String): String {
+        val args = parseArgs(argumentsJson) ?: return errorJson("bad_arguments", "invalid JSON")
+        val queryEl = args.get("query")
+        val query = if (queryEl == null || queryEl.isJsonNull) "" else queryEl.asString
+        if (query.trim().isEmpty()) return errorJson("bad_arguments", "missing 'query'")
+        return MemoryToolApi(baseUrl, apiKey).webSearch(assistantId, args)
+    }
+
     private fun parseArgs(json: String): JsonObject? = try {
         JsonParser().parse(json).asJsonObject
     } catch (_: Exception) {
@@ -82,14 +93,16 @@ class ToolBridge(
         private const val TAG = "ToolBridge"
         const val TOOL_SEARCH_MEMORY = "search_memory"
         const val TOOL_CORRECT_MEMORY = "correct_memory"
+        const val TOOL_WEB_SEARCH = "web_search"
 
         private val CATEGORY_VALUES = listOf(
             "chitchat", "personal_experience", "relationship_info", "knowledge",
             "goals_plans", "preferences", "decisions_reflections", "wellbeing", "ideas"
         )
+        // 与 server ALLOWED_MEMORY_TYPES (src/db.js) 保持同步.
+        // CR-03: assistant_turn 已移除; tool_call/tool_result/system_event 从未存在过.
         private val MEMORY_TYPE_VALUES = listOf(
-            "user_turn", "assistant_turn", "life_event", "work_event",
-            "tool_call", "tool_result", "system_event"
+            "user_turn", "life_event", "work_event", "knowledge"
         )
         private val QUALITY_GRADES = listOf("A", "B", "C", "D", "E")
         private val SOURCE_VALUES = listOf("user", "character", "all")
@@ -108,6 +121,12 @@ class ToolBridge(
                         "Search user/character memory. Use when user references past events, " +
                             "preferences, plans or relationships. " +
                             "query: refined topic words, not full user sentence.\n" +
+                            "source: 'user' (default) searches what user said in chats; " +
+                            "'character' ONLY searches character's own generated narratives " +
+                            "(very few entries — NOT user conversations). " +
+                            "For recalling anything the user mentioned (experiences, feelings, " +
+                            "events, opinions), always use 'user' or omit. " +
+                            "Use 'all' if unsure whether info came from user or character.\n" +
                             "Time params: pass dateString only if user names a specific date " +
                             "(yesterday/3-13/etc, computed from user's words, NOT today). " +
                             "Pass withinDays only if user names a range (recent/last week). " +
@@ -115,31 +134,65 @@ class ToolBridge(
                             "When unsure, omit time params.\n" +
                             "If count=0 or no semantic match, tell user there is no record. Never fabricate."
                     )
+                    // 参数精简到 6 个核心字段. 参数过多 (>6) 会让 DeepSeek/本地模型
+                    // 倾向不调用 tool. 高级参数 (minQuality/excludeIds/memoryType 等)
+                    // 由 bridge 层用默认值, LLM 不需要感知.
                     add("parameters", JsonObject().apply {
                         addProperty("type", "object")
                         add("required", JsonArray().apply { add("query") })
                         add("properties", JsonObject().apply {
-                            add("query", strProp("Refined topic words"))
-                            add("topK", intProp("1-20, default 5", min = 1, max = 20))
-                            add("source", enumProp(SOURCE_VALUES, "default user"))
-                            add("category", enumProp(CATEGORY_VALUES, "Optional category filter"))
-                            add("memoryType", enumProp(MEMORY_TYPE_VALUES, "Overrides source"))
-                            add("minQuality", enumProp(QUALITY_GRADES, "A strictest"))
-                            add("minScore", numProp("0-1, suggested 0.5", min = 0.0, max = 1.0))
+                            add("query", strProp("Refined topic keywords, not full user sentence"))
+                            add("topK", intProp("Number of results, 1-20, default 5", min = 1, max = 20))
+                            add("source", enumProp(SOURCE_VALUES,
+                                "user=user's own words (default); " +
+                                "character=character inner narratives only; " +
+                                "all=both"))
                             add("dateString", JsonObject().apply {
                                 addProperty("type", "string")
                                 addProperty("pattern", "^\\d{4}-\\d{2}-\\d{2}$")
                                 addProperty("description",
-                                    "YYYY-MM-DD. Only if user names a specific date. NOT today by default.")
+                                    "YYYY-MM-DD. Only if user names a specific date.")
                             })
-                            add("withinDays", intProp("Last N days; only if user named a range", min = 1))
-                            add("excludeIds", JsonObject().apply {
-                                addProperty("type", "array")
-                                add("items", strProp(null))
-                                addProperty("description", "Pagination: ids already seen")
-                            })
-                            add("excludeRecentEcho", boolProp("Default true; skip recent echo"))
-                            add("includeFacts", boolProp("Return memory_facts, default false"))
+                            add("withinDays", intProp("Last N days, only if user names a range", min = 1))
+                            add("includeFacts", boolProp("Return memory facts, default false"))
+                        })
+                    })
+                })
+            }
+        }
+
+        /**
+         * OpenAI tool schema for web-search（Tavily 后端，每角色每日 3 次配额）。
+         *
+         * 用例：用户问当前事实 / 新闻 / 天气 / 热点；LLM 想分享一条外部信息。
+         * 不要为闲聊 / 情绪 / RP / 一般百科类调用 —— 浪费配额。
+         */
+        val WEB_SEARCH_TOOL_SCHEMA: JsonObject by lazy {
+            JsonObject().apply {
+                addProperty("type", "function")
+                add("function", JsonObject().apply {
+                    addProperty("name", TOOL_WEB_SEARCH)
+                    addProperty(
+                        "description",
+                        "Search the web for current external facts: news, weather, market data, " +
+                            "trending topics, or any info too recent / external to be in memory. " +
+                            "Backed by Tavily; quota ~10 calls/day per assistant. " +
+                            "Use when user asks about today/recent events, current data, or asks " +
+                            "you to look up / recommend recent content. " +
+                            "Do NOT use for casual chat, emotions, role-play, or encyclopedia-type " +
+                            "questions you can answer from training — it wastes quota. " +
+                            "Returns results[] with title/url/content; rephrase in character voice, " +
+                            "don't recite titles. If ok=false with reason=daily_cap_exceeded, tell " +
+                            "user gently you've already searched too much today."
+                    )
+                    add("parameters", JsonObject().apply {
+                        addProperty("type", "object")
+                        add("required", JsonArray().apply { add("query") })
+                        add("properties", JsonObject().apply {
+                            add("query", strProp("Search keywords (1-200 chars), Chinese or English"))
+                            add("topic", enumProp(listOf("news", "general"),
+                                "news (default, recent events) / general (broader, less time-sensitive)"))
+                            add("maxResults", intProp("Number of results, 1-10, default 5", min = 1, max = 10))
                         })
                     })
                 })

@@ -12,6 +12,7 @@ import java.util.concurrent.TimeUnit
  * Calls wi-chat-server's tool endpoints:
  *   - POST /api/tool/memory-recall   — search past memories
  *   - POST /api/tool/memory-correct  — edit / delete / set-quality / fact mutations
+ *   - POST /api/tool/web-search      — Tavily-backed external search（每角色每日 3 次配额）
  *
  * `assistantId` (and optionally `sessionId`) are injected by the bridge — the LLM
  * never sees them. Other params are passed through verbatim from the LLM tool
@@ -51,6 +52,16 @@ class MemoryToolApi(
             addProperty("assistantId", assistantId)
         }
         return postJson("$baseUrl/api/tool/memory-correct", body.toString())
+    }
+
+    @Throws(IOException::class)
+    fun webSearch(assistantId: String, args: JsonObject): String {
+        require(baseUrl.isNotEmpty()) { "baseUrl not configured" }
+        require(assistantId.isNotEmpty()) { "assistantId required" }
+        val body = args.deepCopy().apply {
+            addProperty("assistantId", assistantId)
+        }
+        return postJson("$baseUrl/api/tool/web-search", body.toString())
     }
 
     @Throws(IOException::class)

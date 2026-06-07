@@ -40,7 +40,7 @@ data class ProactiveMeta(
 
 /**
  * 沉默期 follow-up 决策.
- *  - [afterSec]: 用户上次输入到 follow-up 之间的等待秒数 (clamp 30..1800)
+ *  - [afterSec]: 用户上次输入到 follow-up 之间的等待秒数 (clamp 30..600)
  *  - [intent]:   模型自己描述的 follow-up 意图, 喂回下一次 prompt 当 hint
  */
 data class ProactiveFollowUp(

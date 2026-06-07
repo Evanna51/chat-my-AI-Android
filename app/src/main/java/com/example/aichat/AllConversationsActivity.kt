@@ -3,6 +3,7 @@ package com.example.aichat
 import android.content.Intent
 import android.os.Bundle
 import android.os.Handler
+import com.example.aichat.chat.ChatCallback
 import android.os.Looper
 import android.widget.EditText
 import android.widget.Toast
@@ -80,7 +81,8 @@ class AllConversationsActivity : ThemedActivity() {
                             i++
                         }
                     }
-                    ChatService(this@AllConversationsActivity).generateSessionOutline(firstTen, object : ChatService.ChatCallback {
+                    val oprompt = resolveOutlinePrompt(session.sessionId)
+                    ChatService(this@AllConversationsActivity).generateSessionOutline(firstTen, oprompt, object : ChatCallback {
                         override fun onSuccess(content: String) {
                             val outline = content?.trim() ?: ""
                             if (outline.isEmpty()) {
@@ -206,6 +208,18 @@ class AllConversationsActivity : ThemedActivity() {
             }
             mainHandler.post { adapter.setRows(rows) }
         }
+    }
+
+    private fun resolveOutlinePrompt(sessionId: String?): String {
+        if (sessionId.isNullOrEmpty()) return ""
+        val sp = SessionChatOptionsStore(this).get(sessionId).outlinePrompt.trim()
+        if (sp.isNotEmpty()) return sp
+        val aid = SessionAssistantBindingStore(this).getAssistantId(sessionId)
+        if (aid.isNotEmpty()) {
+            val ap = MyAssistantStore(this).getById(aid)?.options?.outlinePrompt?.trim().orEmpty()
+            if (ap.isNotEmpty()) return ap
+        }
+        return ""
     }
 
     override fun onDestroy() {

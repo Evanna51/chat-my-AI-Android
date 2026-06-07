@@ -7,10 +7,15 @@ import android.util.Log
 import androidx.annotation.NonNull
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
+import com.example.aichat.chat.ChatCallback
+import com.example.aichat.chat.ChatHandle
 import com.example.aichat.chat.ChatTimeContext
 import com.example.aichat.chat.ProactiveChatPlanner
 import com.example.aichat.chat.ProactiveMeta
-import com.example.aichat.chat.ProactivePromptBuilder
+import com.example.aichat.prompts.Prompts
+import com.example.aichat.chat.ToolMessageRecord
+import com.example.aichat.session.SessionMode
+import com.example.aichat.session.mode
 import java.util.Collections
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.ExecutorService
@@ -26,8 +31,9 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
 
     companion object {
         private const val TAG = "ChatViewModel"
-        private const val INITIAL_RENDER_MESSAGE_LIMIT = 200
-        private const val LOAD_MORE_BATCH_SIZE = 50
+        // 微信式分页：默认只渲染最近 60 条，上拉加载更多。降低长会话打开时的卡顿。
+        private const val INITIAL_RENDER_MESSAGE_LIMIT = 60
+        private const val LOAD_MORE_BATCH_SIZE = 30
         private const val MAX_CORE_MEMORIES_IN_PROMPT = 8
         private const val MAX_CORE_FACTS_IN_PROMPT = 15
     }
@@ -52,7 +58,9 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     // --- Internal state ---
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val db: AppDatabase = AppDatabase.getInstance(application)
-    private val chatService: ChatService = ChatService(application)
+    // 字段类型用 ChatGenerator 接口而非具体 ChatService，方便 R7 接入 inkos 时
+    // 按 SessionMode 切到 InkosGenerator。当前唯一实现就是 ChatService。
+    private val chatService: com.example.aichat.chat.ChatGenerator = ChatService(application)
     private val mainHandler = Handler(Looper.getMainLooper())
 
     /**
@@ -64,10 +72,19 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
      */
     private val pendingStreamEvents = ConcurrentLinkedQueue<StreamDeltaEvent>()
 
+    /**
+     * 与 pendingStreamEvents 同理: proactiveMessageEvent 也用队列保护.
+     * Activity 处于 STOPPED 状态时 LiveData 只保留最后一次 postValue, 多段 split
+     * 如果在后台依次触发, 只有最后一段到达 UI — 前面的段永久丢失.
+     * 解法: 事件先入队, postValue 只作"有新事件"的通知信号, Activity 每次收到
+     * 通知后把整个队列 drain 出来按顺序处理.
+     */
+    private val pendingProactiveEvents = ConcurrentLinkedQueue<ProactiveMessageEvent>()
+
     private var sessionId: String? = null
 
     @Volatile private var activeResponseToken: Long = 0
-    @Volatile private var activeChatHandle: ChatService.ChatHandle? = null
+    @Volatile private var activeChatHandle: ChatHandle? = null
     @Volatile private var loadingOlderMessages: Boolean = false
     private var oldestLoadedCreatedAt: Long = Long.MAX_VALUE
     private var oldestLoadedMessageId: Long = Long.MAX_VALUE
@@ -82,17 +99,29 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                 executor = executor,
                 db = db,
                 onMessageReplaced = { rowId, newContent ->
-                    proactiveMessageEvent.postValue(
-                        ProactiveMessageEvent.replace(rowId, newContent)
-                    )
+                    val evt = ProactiveMessageEvent.replace(rowId, newContent)
+                    pendingProactiveEvents.offer(evt)
+                    proactiveMessageEvent.postValue(evt) // 仅作通知信号; Activity drain 队列获取内容
                 },
                 onMessageAppended = { msg ->
-                    proactiveMessageEvent.postValue(
-                        ProactiveMessageEvent.append(msg)
-                    )
+                    val evt = ProactiveMessageEvent.append(msg)
+                    pendingProactiveEvents.offer(evt)
+                    proactiveMessageEvent.postValue(evt)
+                },
+                onMessageRemoved = { rowId ->
+                    val evt = ProactiveMessageEvent.remove(rowId)
+                    pendingProactiveEvents.offer(evt)
+                    proactiveMessageEvent.postValue(evt)
                 }
             ).also { planner = it }
         }
+    }
+
+    /** Activity observer 调用此方法排空队列，确保所有事件都被处理，不因 LiveData coalesce 而丢失. */
+    fun drainPendingProactiveEvents(): List<ProactiveMessageEvent> {
+        val out = mutableListOf<ProactiveMessageEvent>()
+        while (true) out.add(pendingProactiveEvents.poll() ?: break)
+        return out
     }
 
     /** Call once from Activity.onCreate; idempotent on config change. */
@@ -250,6 +279,48 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         com.example.aichat.sync.WsClient.sendMessageUpdate(turnId, content, assistantId)
     }
 
+    /** 实时通道: message 被删 → 通知 server 删 turn + memory embedding + 跨端同步. */
+    private fun relayDeleteToWs(turnId: String, assistantId: String) {
+        if (turnId.isEmpty()) return
+        com.example.aichat.sync.WsClient.sendMessageDelete(turnId, assistantId)
+    }
+
+    /**
+     * 删一条消息: DB 删 + WS 同步 (server re-embed/删 memory + 跨端).
+     *
+     * Split 消息的处理:
+     *   - split[0..N] 全部共享同一个 turnId (splitGroupTurnId), proactiveKind=1.
+     *   - 删除其中任意一段时, 通过 turnId 一次性清掉整组, 不留孤儿行.
+     *   - WS delete 只发一次 (用共享 turnId), server 只认识 split[0] 那条,
+     *     split[1..N] 的 synced=1 从未推送, 不会产生无效 404.
+     *
+     * 不依赖 persistSessionMessagesAsync 的对账 — proactive 行 (远程推送 / 仿推送 / split)
+     * 不在对账列表里, 仅靠 allMessages 内存移除是删不掉 DB 的, 重启 / loadMessages 又会被
+     * 读出来 → "删除失败". onDelete 单条删除场景应直接调这个.
+     */
+    fun deleteMessageAsync(message: Message) {
+        if (message.id <= 0L) return
+        val msgId = message.id
+        val turnId = message.turnId
+        val assistantId = message.assistantId
+        val isSplitGroup = message.proactiveKind == 1 && turnId.isNotEmpty()
+        executor.execute {
+            try {
+                if (isSplitGroup) {
+                    // 整组删除: 清掉所有共享同一 turnId 的 proactive 段落 (split[0..N]).
+                    db.messageDao().deleteSplitGroupByTurnId(turnId)
+                } else {
+                    db.messageDao().deleteById(msgId)
+                }
+            } catch (ignored: Exception) {}
+            // ws 离线时 no-op; server 没收到也无大碍 — 本地 DB 已经删, 同账号其它端
+            // 下次拉 server 也拉不到这条 (server 删了) 或仍能拉到 (server 没删, 此时
+            // 用户在其它端再删一次即可).
+            // split 组只发一次 WS delete (turnId 唯一), server 只认识 split[0] 那条.
+            relayDeleteToWs(turnId, assistantId)
+        }
+    }
+
     /**
      * 增量同步 Activity 的 in-memory message list 到 DB:
      *   - id > 0 且 DB 里在 → update content/reasoning, 保留 turnId/synced
@@ -378,7 +449,14 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     // ─────────────────────────── Chat Dispatch ───────────────────────────
 
     /**
-     * Direct chat dispatch (called from Activity after optional memory enrichment).
+     * Chat dispatch entry. Pass [chatCtx] (V3 `POST /api/chat/context` response)
+     * when remote sync is enabled — system prompt is then assembled from
+     * server-rendered `mergedSystem` + a client-only `<client>` slot
+     * (path B in wi-chat-server/docs/client-prompt-merge-protocol.md).
+     *
+     * If [chatCtx] is null we fall back to boot-cache renderedSlots
+     * (role/character/background/constraints) from `POST /api/character/context`
+     * assembled in [buildBootstrapPrefixIfAny], plus local-only hints.
      */
     fun doChatRequest(
         historyForApi: List<Message>,
@@ -386,47 +464,69 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         options: SessionChatOptions,
         responseToken: Long,
         assistantId: String?,
-        characterMemoryService: CharacterMemoryService
-    ): ChatService.ChatHandle {
+        chatCtx: com.example.aichat.sync.ChatContextResponse?,
+    ): ChatHandle {
         val sid = sessionId ?: ""
         activeResponseToken = responseToken
         responseInProgress.postValue(true)
         val toolBridge = com.example.aichat.sync.ToolBridge.build(getApplication(), assistantId, sid)
 
-        // 1. 角色对话 prepend 当前时间上下文 (周几 + 节气/节日). 时间是强相关的,
-        //    早晨/深夜 / 周一/周末 / 立夏 等会改变角色的语气与状态.
-        //    仅在绑定了非"writer"角色时注入, 避免污染纯创作场景.
+        // ── Client-side dynamic hints — go into the `<client>` slot in V3 path B,
+        //    or assembled alongside boot-cache renderedSlots in fallback.
         val timePrefix = buildTimeContextIfRoleplay(assistantId)
-
-        // 2. 关系状态 (亲密度 / 信任 / 共同话题 / 情绪基调). 同上仅角色场景.
         val relationshipHint = buildRelationshipHintIfAny(assistantId)
         val closeness = readClosenessForAssistant(assistantId)
+        // TODO(V3 ablation): 工具使用指引暂时关闭，验证 V3 router 在没有 client tool
+        // 提示时的效果。要恢复就把下面两行换回 `buildToolSystemHint(toolBridge)`。
+        // val toolSystemHint = buildToolSystemHint(toolBridge)
+        val toolSystemHint = ""
+        // V6 自动对话 JSON mode 只在 "角色人物" 类型 assistant 上启用. 写作 / 普通
+        // chat / novelist 类型即便用户开了 autoChat 也不走 JSON 协议 — 否则会污染
+        // 创作 / 通用对话场景的输出格式.
+        val isCharacter = isCharacterAssistant(assistantId)
+        val effectiveAutoChat = options.autoChatEnabled && isCharacter
+        Log.d(TAG, "autoChat: autoChatEnabled=${options.autoChatEnabled} isCharacter=$isCharacter → effectiveAutoChat=$effectiveAutoChat | aid=$assistantId")
+        val autoChatSuffix = if (effectiveAutoChat)
+            Prompts.Proactive.systemSuffix(closeness) else ""
+        val localSystemPrompt = (options.systemPrompt ?: "").trim()
 
-        // 2b. Bootstrap-only: pinned coreMemories + 高分 coreFacts. 来自
-        //     GET /api/character/bootstrap 的内存 cache, 跨日才刷新.
-        //     模型应当作"已经知道的事实", 不需要触发 search_memory.
-        val bootstrapPrefix = buildBootstrapPrefixIfAny(assistantId)
-
-        // 3. 自动对话: 在 system 末尾注入 META 协议指令, 让模型在回复尾部自带 split / followUp 决策.
-        //    closeness 影响 followUp 默认门槛 (亲密度高 → 主动消息阈值放宽).
-        val autoChatSuffix = if (options.autoChatEnabled)
-            ProactivePromptBuilder.buildSystemSuffix(closeness) else ""
-
-        val mergedSystemPrompt = buildString {
-            if (timePrefix.isNotEmpty()) append(timePrefix).append('\n')
-            if (relationshipHint.isNotEmpty()) append(relationshipHint).append('\n')
-            if (bootstrapPrefix.isNotEmpty()) append(bootstrapPrefix).append('\n')
-            val origin = (options.systemPrompt ?: "").trim()
-            if (origin.isNotEmpty()) append(origin)
-            if (autoChatSuffix.isNotEmpty()) append('\n').append(autoChatSuffix)
+        val promptSource: String
+        val mergedSystemPrompt = if (chatCtx != null) {
+            promptSource = "v3"
+            composeSystemPromptV3(
+                chatCtx,
+                timePrefix = timePrefix,
+                relationshipHint = relationshipHint,
+                localSystemPrompt = localSystemPrompt,
+                toolSystemHint = toolSystemHint,
+                autoChatSuffix = autoChatSuffix,
+            )
+        } else {
+            promptSource = "fallback"
+            composeSystemPromptFallback(
+                assistantId = assistantId,
+                timePrefix = timePrefix,
+                relationshipHint = relationshipHint,
+                localSystemPrompt = localSystemPrompt,
+                toolSystemHint = toolSystemHint,
+                autoChatSuffix = autoChatSuffix,
+            )
         }
-        val effectiveOptions = if (mergedSystemPrompt != options.systemPrompt)
-            options.copy(systemPrompt = mergedSystemPrompt) else options
+        // Always copy: autoChatEnabled 可能被 isCharacter 收紧, 必须把 effective 值
+        // 传给 ChatService — 它要据此决定是否注入 response_format=json_object 和屏蔽
+        // streaming onPartial.
+        val effectiveOptions = options.copy(
+            systemPrompt = mergedSystemPrompt,
+            autoChatEnabled = effectiveAutoChat,
+        )
 
-        val autoChatActive = options.autoChatEnabled
+        // Snapshot 给 CharacterInfoActivity 读，让"查看角色信息"页面能展示真实下发的 prompt。
+        recordEffectivePrompt(assistantId, mergedSystemPrompt, promptSource, chatCtx)
+
+        val autoChatActive = effectiveAutoChat
 
         val handle = chatService.chat(historyForApi, apiUserMessage, effectiveOptions,
-            object : ChatService.ChatCallback {
+            object : ChatCallback {
 
                 private fun isStale(): Boolean = responseToken != activeResponseToken
 
@@ -447,15 +547,14 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     val capturedMeta = lastMeta
                     lastMeta = null
 
-                    // Persist to DB as fallback for when Activity is detached/destroyed
-                    // 自动对话路径: 这次 insert 的 row id 给 planner 用作 split rewrite 锚点.
-                    // 同步路径: insert 后把 row id / turnId / assistantId 通过 event 回传 Activity,
-                    //   让 streaming 对象拿到真实身份, 后续 persistSessionMessagesAsync 走增量 upsert.
+                    // Persist to DB on application-scoped executor — this MUST run
+                    // even if ViewModel.onCleared has already fired (user finished
+                    // the chat page mid-stream). See [IngestExecutor].
                     val event = StreamDeltaEvent(responseToken)
                     event.isSuccess = true
                     event.successContent = safeContent
                     event.autoChatActive = autoChatActive
-                    executor.execute {
+                    IngestExecutor.execute {
                         var insertedId: Long = 0L
                         val msg = Message(sid, Message.ROLE_ASSISTANT, safeContent)
                         try {
@@ -470,12 +569,14 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                         event.assistantTurnId = msg.turnId
                         event.assistantAssignedId = msg.assistantId
                         postStreamEvent(event)
+                        Log.d(TAG, "onSuccess: autoChatActive=$autoChatActive insertedId=$insertedId meta=${capturedMeta?.let { "split=${it.split?.size} followUp=${it.followUp?.afterSec} autoStop=${it.autoStop}" } ?: "null"}")
                         if (autoChatActive && insertedId > 0) {
                             try {
                                 ensurePlanner().onAssistantTurnFinalized(
                                     sid,
                                     assistantId ?: "",
                                     insertedId,
+                                    msg.turnId,
                                     safeContent,
                                     capturedMeta,
                                     options
@@ -540,13 +641,11 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
                     postStreamEvent(event)
                 }
 
-                override fun onToolMessageRecorded(record: ChatService.ToolMessageRecord) {
+                override fun onToolMessageRecorded(record: ToolMessageRecord) {
                     if (isStale()) return
-                    // Persist tool-round messages to the local log for audit / replay.
-                    // Intentionally bypass stampForSync: server schema doesn't yet
-                    // accept role=tool_call/tool_result, so we leave turnId empty and
-                    // SyncQueueDrainer's `WHERE turnId != ''` filter will skip it.
-                    executor.execute {
+                    // App-scoped executor: tool-round messages may arrive after the
+                    // user has left the chat page (Activity finished). See [IngestExecutor].
+                    IngestExecutor.execute {
                         try {
                             val msg = Message(sid, record.role, record.content)
                             msg.createdAt = record.createdAt
@@ -567,7 +666,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     // ─────────────────────────── Thread Title ───────────────────────────
 
     fun generateThreadTitle(firstUserMessage: String?, fallbackTitle: String?) {
-        chatService.generateThreadTitle(firstUserMessage, object : ChatService.ChatCallback {
+        chatService.generateThreadTitle(firstUserMessage, object : ChatCallback {
             override fun onSuccess(content: String) {
                 val generated = content.trim()
                 if (generated.isEmpty()) return
@@ -590,7 +689,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
 
     fun getActiveResponseToken(): Long = activeResponseToken
 
-    fun getActiveChatHandle(): ChatService.ChatHandle? = activeChatHandle
+    fun getActiveChatHandle(): ChatHandle? = activeChatHandle
 
     fun clearActiveChatHandle() {
         activeChatHandle = null
@@ -607,12 +706,29 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     }
 
     /**
-     * 用户发送了新消息 → 取消任何 pending 的 follow-up timer.
+     * 用户发送了新消息 → 取消任何 pending 的 follow-up timer 和 split runnables.
      * Activity 在 sendMessage 路径调用; 即便 planner 没 init 也安全 (no-op).
+     *
+     * 之前只取消了 followUp, split runnables 被遗漏 — 会导致旧轮次的分段消息在
+     * 新消息回复下面冒出来. 现在一并取消.
      */
     fun cancelPendingProactive() {
         val sid = sessionId ?: return
         try { planner?.cancelFollowUp(sid) } catch (_: Exception) {}
+        try { planner?.cancelPendingSplits(sid) } catch (_: Exception) {}
+    }
+
+    /**
+     * 严格判定 assistant 是否是 "角色人物" 类型 (type == "character"). V6 自动对话
+     * JSON mode 只对这类 assistant 启用, 写作 / 普通 chat / novelist 都返回 false.
+     */
+    private fun isCharacterAssistant(assistantId: String?): Boolean {
+        val aid = assistantId?.trim().orEmpty()
+        if (aid.isEmpty()) return false
+        return try {
+            val a = MyAssistantStore(getApplication()).getById(aid) ?: return false
+            a.mode() == SessionMode.CHARACTER
+        } catch (_: Exception) { false }
     }
 
     /**
@@ -642,9 +758,132 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         } catch (_: Exception) { "" }
     }
 
+    private fun recordEffectivePrompt(
+        assistantId: String?,
+        systemPrompt: String,
+        source: String,
+        chatCtx: com.example.aichat.sync.ChatContextResponse?,
+    ) {
+        val routerSummary = chatCtx?.routerDecision?.let { rd ->
+            val tags = rd.registerTags?.joinToString(",") ?: rd.register ?: "-"
+            "tags=[$tags]  stance=${rd.responseStance ?: "-"}  skills=[${rd.skillIds?.joinToString(",") ?: ""}]  budget=${rd.budget ?: "-"}"
+        }
+        com.example.aichat.sync.EffectivePromptStore.record(
+            assistantId,
+            com.example.aichat.sync.EffectivePromptStore.Snapshot(
+                systemPrompt = systemPrompt,
+                source = source,
+                capturedAtMs = System.currentTimeMillis(),
+                routerSummary = routerSummary,
+            )
+        )
+    }
+
     /**
-     * Build "[角色已知事实/记忆]" prefix from bootstrap cache. Empty if no cache yet.
-     * coreMemories 是 pinned 整段叙事; coreFacts 是结构化 key-value, 密度高几乎不占 token.
+     * V3 path A+：直接用 server 渲染好的 [mergedSystem] 当主 system prompt。
+     *
+     * 拼装顺序（最末尾 = 最强 recency bias）：
+     *   mergedSystem  ← server 给的，含 role / style / voice_skills / ... / avoid
+     *   <client>...   ← 客户端语境（本地时间 / relationship / localSystemPrompt）
+     *   <output_protocol>...  ← 自动对话 META 协议（如果 autoChatEnabled）
+     *   prefill       ← 角色独白片段（V3 默认空字符串）
+     *
+     * `<output_protocol>` 必须在最末尾才能压住 split 决策——之前测试发现夹在中间会
+     * 被前面的 `<avoid>` 段拉跑（"避免枚举式回答" → 误读为"不要 split"）。server 的
+     * `<avoid>` 已改成"避免 1.2.3 编号列表"避免歧义，但 protocol 仍放末尾保险。
+     */
+    private fun composeSystemPromptV3(
+        chatCtx: com.example.aichat.sync.ChatContextResponse,
+        timePrefix: String,
+        relationshipHint: String,
+        localSystemPrompt: String,
+        toolSystemHint: String,
+        autoChatSuffix: String,
+    ): String {
+        val merged = chatCtx.mergedSystem?.trim().orEmpty()
+        val clientSlot = buildClientSlot(
+            timePrefix, relationshipHint, localSystemPrompt, toolSystemHint
+        )
+        val outputProtocol = if (autoChatSuffix.isNotEmpty()) {
+            buildString {
+                append("<output_protocol>\n")
+                append(autoChatSuffix.trim())
+                append("\n</output_protocol>")
+            }
+        } else ""
+        val prefill = chatCtx.assistantPrefill?.trim().orEmpty()
+
+        return buildString {
+            if (merged.isNotEmpty()) append(merged)
+            appendBlock(clientSlot)
+            appendBlock(outputProtocol)
+            appendBlock(prefill)
+        }
+    }
+
+    private fun StringBuilder.appendBlock(block: String) {
+        if (block.isEmpty()) return
+        if (this.isNotEmpty()) append("\n\n")
+        append(block)
+    }
+
+    /** Render a `<client>` XML slot from local-only signals. Empty if all empty. */
+    private fun buildClientSlot(
+        timePrefix: String,
+        relationshipHint: String,
+        localSystemPrompt: String,
+        toolSystemHint: String,
+    ): String {
+        val parts = listOfNotNull(
+            timePrefix.takeIf { it.isNotEmpty() },
+            relationshipHint.takeIf { it.isNotEmpty() },
+            localSystemPrompt.takeIf { it.isNotEmpty() },
+            toolSystemHint.takeIf { it.isNotEmpty() },
+        )
+        if (parts.isEmpty()) return ""
+        return buildString {
+            append("<client>\n")
+            append(parts.joinToString("\n\n"))
+            append("\n</client>")
+        }
+    }
+
+    /**
+     * Fallback when chat/context isn't available: assembles from boot-cache
+     * renderedSlots (role/character/background/constraints) + local client hints.
+     * facts/narrative are absent — those only come from per-turn chat/context.
+     */
+    private fun composeSystemPromptFallback(
+        assistantId: String?,
+        timePrefix: String,
+        relationshipHint: String,
+        localSystemPrompt: String,
+        toolSystemHint: String,
+        autoChatSuffix: String,
+    ): String {
+        val bootstrapPrefix = buildBootstrapPrefixIfAny(assistantId)
+        val outputProtocol = if (autoChatSuffix.isNotEmpty()) {
+            buildString {
+                append("<output_protocol>\n")
+                append(autoChatSuffix.trim())
+                append("\n</output_protocol>")
+            }
+        } else ""
+        return buildString {
+            if (timePrefix.isNotEmpty()) append(timePrefix).append('\n')
+            if (relationshipHint.isNotEmpty()) append(relationshipHint).append('\n')
+            if (bootstrapPrefix.isNotEmpty()) append(bootstrapPrefix).append('\n')
+            if (localSystemPrompt.isNotEmpty()) append(localSystemPrompt)
+            if (toolSystemHint.isNotEmpty()) append("\n\n").append(toolSystemHint)
+            if (outputProtocol.isNotEmpty()) append("\n\n").append(outputProtocol)
+        }
+    }
+
+    /**
+     * Fallback system prompt prefix built from boot-cache [CharacterBootstrapStore].
+     * Uses [ChatRenderedSlots] (role / character / background / constraints) rather
+     * than the pre-merged monolithic string, so we control which slots go in and in
+     * what order. toolProtocol is omitted — per-turn tool hints come from chatCtx.
      */
     private fun buildBootstrapPrefixIfAny(assistantId: String?): String {
         val aid = assistantId?.trim().orEmpty()
@@ -653,21 +892,58 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
             com.example.aichat.sync.CharacterBootstrapStore.getInstance(getApplication())
                 .getCached(aid)
         } catch (_: Exception) { null } ?: return ""
-        if (cache.coreMemories.isEmpty() && cache.coreFacts.isEmpty()) return ""
+
+        val slots = cache.renderedSlots
+        if (slots != null) {
+            val parts = listOfNotNull(
+                slots.role?.trim()?.takeIf { it.isNotEmpty() },
+                slots.character?.trim()?.takeIf { it.isNotEmpty() },
+                slots.background?.trim()?.takeIf { it.isNotEmpty() },
+                slots.constraints?.trim()?.takeIf { it.isNotEmpty() },
+            )
+            if (parts.isNotEmpty()) return parts.joinToString("\n\n")
+        }
+        // slots 未缓存时（旧 boot cache 未包含 renderedSlots）退到本地 systemPrompt，
+        // 什么都不注入，让 composeSystemPromptFallback 只拼客户端信号。
+        return ""
+    }
+
+    /**
+     * 模型级工具使用指引. 和角色人设完全分离 — 这段写给"AI 模型"而非"角色".
+     * 只在 ToolBridge ready 时返回内容, 否则空串.
+     */
+    private fun buildToolSystemHint(toolBridge: com.example.aichat.sync.ToolBridge?): String {
+        if (toolBridge == null || !toolBridge.isReady()) return ""
+        val toolNames = try {
+            toolBridge.toolsJson().mapNotNull { el ->
+                el.asJsonObject?.getAsJsonObject("function")?.get("name")?.asString
+            }
+        } catch (_: Exception) { emptyList() }
+        if (toolNames.isEmpty()) return ""
+
         return buildString {
-            if (cache.coreMemories.isNotEmpty()) {
-                append("[你和用户的核心记忆 — 始终在你脑海里]\n")
-                cache.coreMemories.take(MAX_CORE_MEMORIES_IN_PROMPT).forEach { m ->
-                    append("- ").append(m.content).append('\n')
-                }
+            append("[System — Tool Instructions]\n")
+            append("You have ${toolNames.size} tool(s) available: ${toolNames.joinToString(", ")}.\n")
+            if ("search_memory" in toolNames) {
+                append("- search_memory: search the user's conversation history and character narratives. ")
+                append("Use it when the user references past events, preferences, plans, or relationships. ")
+                append("For most queries about what the user said or experienced, use source='user' (default) or omit. ")
+                append("source='character' only searches character-generated internal narratives (very few entries), NOT user conversations. ")
+                append("Use source='all' when unsure.\n")
             }
-            if (cache.coreFacts.isNotEmpty()) {
-                append("[角色已知关键事实]\n")
-                cache.coreFacts.take(MAX_CORE_FACTS_IN_PROMPT).forEach { f ->
-                    append("- ").append(f.factKey).append(": ").append(f.factValue).append('\n')
-                }
+            if ("correct_memory" in toolNames) {
+                append("- correct_memory: fix or delete incorrect memories found via search_memory.\n")
             }
-        }.trimEnd()
+            if ("web_search" in toolNames) {
+                append("- web_search: look up current external facts (news, weather, today's events, ")
+                append("trending topics). Quota: ~10 calls/day per assistant. ")
+                append("Use only for real external lookup needs — never for casual chat, emotions, ")
+                append("role-play, or encyclopedia-type questions you can answer from training. ")
+                append("Rephrase results in character voice, don't recite titles.\n")
+            }
+            append("Call tools when relevant; do not fabricate information you could look up. ")
+            append("If a search returns count=0, tell the user honestly that no record was found.")
+        }
     }
 
     /**
@@ -778,6 +1054,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         companion object {
             const val KIND_REPLACE = 1
             const val KIND_APPEND = 2
+            const val KIND_REMOVE = 3
 
             @JvmStatic
             fun replace(rowId: Long, newContent: String): ProactiveMessageEvent =
@@ -786,6 +1063,10 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
             @JvmStatic
             fun append(msg: Message): ProactiveMessageEvent =
                 ProactiveMessageEvent(KIND_APPEND, msg.id, msg.content, msg)
+
+            @JvmStatic
+            fun remove(rowId: Long): ProactiveMessageEvent =
+                ProactiveMessageEvent(KIND_REMOVE, rowId, "", null)
         }
     }
 }

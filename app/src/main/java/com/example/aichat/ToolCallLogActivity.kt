@@ -58,8 +58,10 @@ class ToolCallLogActivity : ThemedActivity() {
         loadEntries(sid)
     }
 
+    private var diagExpanded = false
+
     /**
-     * 实时检测 ToolBridge 链路状态. 用户点开此页就能一眼看出: tools 没注入是哪一环卡了.
+     * 实时检测 ToolBridge 链路状态. 默认折叠只显示一行摘要, 点击展开完整信息.
      */
     private fun renderDiagnostic(sessionId: String) {
         val cfg = RemoteSyncConfigStore(this)
@@ -79,7 +81,14 @@ class ToolCallLogActivity : ThemedActivity() {
             else -> null
         }
 
-        diagView.text = buildString {
+        val summaryLine = buildString {
+            append("ToolBridge: ")
+            append(if (bridgeReady) "✓ 就绪 ($toolCount 工具)" else "✗ 未注入")
+            if (blockReason != null) append(" — $blockReason")
+            append("  ▶ 点击展开")
+        }
+
+        val fullText = buildString {
             append("ToolBridge 状态: ")
             append(if (bridgeReady) "✓ 就绪 (注入 $toolCount 个工具)" else "✗ 未注入")
             append('\n')
@@ -103,6 +112,22 @@ class ToolCallLogActivity : ThemedActivity() {
                 append("DeepSeek-V3 / Claude 3.5 等已知支持的模型测试.")
             }
         }
+
+        diagView.text = summaryLine
+        diagView.maxLines = 1
+        diagView.setTextIsSelectable(false)
+        diagView.setOnClickListener {
+            diagExpanded = !diagExpanded
+            if (diagExpanded) {
+                diagView.text = fullText
+                diagView.maxLines = Int.MAX_VALUE
+                diagView.setTextIsSelectable(true)
+            } else {
+                diagView.text = summaryLine
+                diagView.maxLines = 1
+                diagView.setTextIsSelectable(false)
+            }
+        }
     }
 
     private fun loadEntries(sid: String) {
@@ -111,6 +136,7 @@ class ToolCallLogActivity : ThemedActivity() {
             val mapped = rows
                 .filter { it.role == Message.ROLE_TOOL_CALL || it.role == Message.ROLE_TOOL_RESULT }
                 .map { toEntry(it) }
+                .reversed()
             runOnUiThread {
                 items.clear()
                 items.addAll(mapped)

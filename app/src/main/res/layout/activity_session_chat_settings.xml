@@ -26,17 +26,63 @@
             android:orientation="vertical"
             android:paddingBottom="8dp">
 
-            <!-- Section: 对话信息 -->
-            <TextView
+            <!-- 居中头像，点击上传图片，下方清除按钮。与助手编辑页一致。 -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="对话信息"
-                android:textSize="13sp"
-                android:textColor="@color/ios_section_label"
-                android:paddingStart="20dp"
-                android:paddingEnd="20dp"
-                android:paddingTop="16dp"
-                android:paddingBottom="8dp" />
+                android:orientation="vertical"
+                android:gravity="center_horizontal"
+                android:paddingTop="24dp"
+                android:paddingBottom="16dp">
+
+                <FrameLayout
+                    android:id="@+id/sessionAvatarPickerContainer"
+                    android:layout_width="80dp"
+                    android:layout_height="80dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:clickable="true"
+                    android:focusable="true">
+
+                    <ImageView
+                        android:id="@+id/imageSessionAvatarPreview"
+                        android:layout_width="80dp"
+                        android:layout_height="80dp"
+                        android:background="@drawable/bg_avatar_circle"
+                        android:clipToOutline="true"
+                        android:scaleType="centerCrop"
+                        android:visibility="gone"
+                        android:contentDescription="@null" />
+
+                    <TextView
+                        android:id="@+id/textSessionAvatarPreview"
+                        android:layout_width="80dp"
+                        android:layout_height="80dp"
+                        android:background="@drawable/bg_avatar_circle"
+                        android:gravity="center"
+                        android:textSize="28sp"
+                        android:textAppearance="?attr/textAppearanceTitleLarge" />
+
+                    <TextView
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="end|bottom"
+                        android:background="@drawable/bg_avatar_circle"
+                        android:gravity="center"
+                        android:text="+"
+                        android:textSize="14sp"
+                        android:textColor="?attr/colorOnPrimary" />
+                </FrameLayout>
+
+                <ImageButton
+                    android:id="@+id/btnClearSessionAvatarImage"
+                    android:layout_width="32dp"
+                    android:layout_height="32dp"
+                    android:layout_marginTop="4dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/clear_avatar_image"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    app:tint="@color/ios_section_label" />
+            </LinearLayout>
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
@@ -66,73 +112,159 @@
                             android:inputType="text" />
                     </com.example.aichat.widget.GlassTextInputLayout>
 
-                    <!-- 头像 — 默认继承自助手，点击图片可上传覆盖；下方文本框可输入 emoji 覆盖。 -->
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:orientation="horizontal"
-                        android:gravity="center_vertical">
-
-                        <FrameLayout
-                            android:id="@+id/sessionAvatarPickerContainer"
-                            android:layout_width="56dp"
-                            android:layout_height="56dp"
-                            android:clickable="true"
-                            android:focusable="true"
-                            android:background="?attr/selectableItemBackgroundBorderless">
-                            <ImageView
-                                android:id="@+id/imageSessionAvatarPreview"
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:scaleType="centerCrop"
-                                android:visibility="gone"
-                                android:contentDescription="@null" />
-                            <TextView
-                                android:id="@+id/textSessionAvatarPreview"
-                                android:layout_width="match_parent"
-                                android:layout_height="match_parent"
-                                android:gravity="center"
-                                android:textSize="26sp" />
-                        </FrameLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:layout_marginStart="12dp"
-                            android:orientation="vertical">
-                            <com.example.aichat.widget.GlassTextInputLayout
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:hint="@string/session_avatar_optional"
-                                style="@style/Widget.AIChat.GlassInput">
-                                <com.google.android.material.textfield.TextInputEditText
-                                    android:id="@+id/editSessionAvatar"
-                                    android:layout_width="match_parent"
-                                    android:layout_height="wrap_content"
-                                    android:inputType="text"
-                                    android:maxLength="6" />
-                            </com.example.aichat.widget.GlassTextInputLayout>
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnClearSessionAvatarImage"
-                                style="@style/Widget.Material3.Button.TextButton"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:layout_marginStart="-6dp"
-                                android:minHeight="32dp"
-                                android:text="清除自定义头像"
-                                android:textSize="12sp"
-                                android:visibility="gone" />
-                        </LinearLayout>
-                    </LinearLayout>
-
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
             <!-- Chat settings form (model, params, switches) -->
             <include layout="@layout/view_chat_settings_form" />
+
+            <!-- Ink 建书设置 (writer 模式专属, 非 writer 模式隐藏) -->
+            <LinearLayout
+                android:id="@+id/sectionInkSettings"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Ink 建书设置"
+                    android:textSize="13sp"
+                    android:textColor="@color/ios_section_label"
+                    android:paddingStart="20dp"
+                    android:paddingEnd="20dp"
+                    android:paddingTop="24dp"
+                    android:paddingBottom="8dp" />
+
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_marginEnd="16dp"
+                    app:cardElevation="0dp"
+                    app:cardBackgroundColor="@color/ios_cell_bg"
+                    app:cardCornerRadius="16dp"
+                    app:strokeWidth="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="子类预设"
+                            android:textSize="13sp"
+                            android:textColor="@color/ios_section_label"
+                            android:paddingBottom="4dp" />
+
+                        <LinearLayout
+                            android:id="@+id/inkSubtypeRow"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp"
+                            android:background="?attr/selectableItemBackground"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+                            <TextView
+                                android:id="@+id/textInkSubtypeValue"
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content"
+                                android:textSize="14sp"
+                                android:textColor="?attr/colorOnSurface" />
+                            <ImageView
+                                android:layout_width="20dp"
+                                android:layout_height="20dp"
+                                android:src="@drawable/ic_chevron_right"
+                                app:tint="@color/ios_section_label" />
+                        </LinearLayout>
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="0.5dp"
+                            android:background="@color/ios_separator"
+                            android:layout_marginTop="6dp"
+                            android:layout_marginBottom="10dp" />
+
+                        <!-- 建书规模: 目标章数 / 每章字数 -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:paddingBottom="10dp">
+                            <com.example.aichat.widget.GlassTextInputLayout
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content"
+                                android:hint="目标章数"
+                                style="@style/Widget.AIChat.GlassInput">
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/editInkTargetChapters"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:inputType="number" />
+                            </com.example.aichat.widget.GlassTextInputLayout>
+                            <com.example.aichat.widget.GlassTextInputLayout
+                                android:layout_width="0dp"
+                                android:layout_weight="1"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="8dp"
+                                android:hint="每章字数"
+                                style="@style/Widget.AIChat.GlassInput">
+                                <com.google.android.material.textfield.TextInputEditText
+                                    android:id="@+id/editInkChapterWordCount"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:inputType="number" />
+                            </com.example.aichat.widget.GlassTextInputLayout>
+                        </LinearLayout>
+
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="0.5dp"
+                            android:background="@color/ios_separator"
+                            android:layout_marginBottom="10dp" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="book_rules YAML (architect 字面采用)"
+                            android:textSize="13sp"
+                            android:textColor="@color/ios_section_label"
+                            android:paddingBottom="6dp" />
+
+                        <com.google.android.material.textfield.TextInputEditText
+                            android:id="@+id/editInkBookRulesYaml"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_input_pill"
+                            android:fontFamily="monospace"
+                            android:textSize="12sp"
+                            android:padding="10dp"
+                            android:gravity="top|start"
+                            android:inputType="textMultiLine|textNoSuggestions"
+                            android:minLines="8"
+                            android:maxLines="20"
+                            android:scrollbars="vertical" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnResetInkBookRules"
+                            style="@style/Widget.Material3.Button.TextButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:layout_marginStart="-6dp"
+                            android:minHeight="32dp"
+                            android:text="重置为子类默认"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
 
         </LinearLayout>
     </ScrollView>

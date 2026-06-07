@@ -46,6 +46,14 @@ interface MessageDao {
     @Query("DELETE FROM message WHERE id = :id")
     fun deleteById(id: Long)
 
+    /**
+     * 删除同一 split 组的全部段落.
+     * split[0..N] 共享同一个 turnId (splitGroupTurnId), 且都是 proactiveKind=1.
+     * 用户删除任意一段时调此方法一次性清掉整组, 不留孤儿行.
+     */
+    @Query("DELETE FROM message WHERE turnId = :turnId AND proactiveKind = 1")
+    fun deleteSplitGroupByTurnId(turnId: String)
+
     @Query("SELECT * FROM message WHERE sessionId = :sessionId AND role IN (0, 1) AND proactiveKind = 0 ORDER BY createdAt ASC")
     fun getUserAssistantBySession(sessionId: String): List<Message>
 

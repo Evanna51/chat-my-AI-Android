@@ -3,135 +3,125 @@ package com.example.aichat.chat
 import com.google.gson.JsonParser
 
 /**
- * Parses the `<<<META ... META>>>` tail block emitted by models in 自动对话模式.
+ * V10: 双协议解析.
+ *   1. 末尾 `||==FOLLOWUP==||{...}` / `||==STOP==||` / `||==SKIP==||` 元信息标记
+ *      → 提取 followUp / autoStop / skip 决策, 从 raw 删除
+ *   2. 剩余正文按 `|||` 切分 → messages 数组; 无 `|||` 时回退**空行 + 行首开括号**
+ *      —— 适配模型自然输出节奏（动作/心境描写常以括号开头）
+ *   3. 多段时 cleanContent = messages[0] (主气泡), split = 完整数组 (剩余段由
+ *      ProactiveChatPlanner 逐条追加渲染)
  *
- * Design notes:
- * - 容错优先: 模型经常忘 close 标签 / 加多余空白 / 用 ``` 包 JSON. 我们尽量从混乱中抢救出 JSON.
- * - clamp 数值边界: afterSec 钳到 [30, 1800], split 最多 5 段 (硬上限避免刷屏).
- * - 解析失败一律返回 null meta + 原 content, 不抛异常.
- *
- * Marker 用 `<<<META` / `META>>>` 而不是 XML/JSON 嵌入, 因为:
- *   - 不容易和正文里的 `<` / `{` 误碰
- *   - 即便流式输出半截到达, 也能以 `<<<META` 为锚点
+ * 容错:
+ *   - SKIP 标记: messages 强制清空, 上层视作"放弃本次发言"
+ *   - FOLLOWUP JSON 解析失败: 当作没传 followUp, 不影响其它字段
+ *   - 超 [MAX_SPLIT_PARTS]: 截断保留前 N 段
+ *   - 完全没 marker 也没分隔: 整条原文当 cleanContent (单段)
  */
 object ProactiveMetaParser {
 
-    private const val OPEN_TAG = "<<<META"
-    private const val CLOSE_TAG = "META>>>"
-
-    private const val MIN_FOLLOWUP_SEC = 30
-    private const val MAX_FOLLOWUP_SEC = 1800
+    private const val FOLLOWUP_PREFIX = "||==FOLLOWUP==||"
+    private const val STOP_MARKER = "||==STOP==||"
+    private const val SKIP_MARKER = "||==SKIP==||"
+    private const val SPLIT_MARKER = "|||"           // 文字分段（兼容保留）
+    // 空行 + 行首开括号（英文 ( [ + 中文 （ 【）作为隐式消息分段；
+    // lookahead 保留开括号到下一段开头。与 ProactiveSplitStreamFilter 对齐。
+    private val SPLIT_NL = Regex("""\n[^\S\n]*\n[^\S\n]*(?=[(\[（【])""")
     private const val MAX_SPLIT_PARTS = 5
+    private const val MIN_FOLLOWUP_SEC = 30
+    private const val MAX_FOLLOWUP_SEC = 600
     private const val MAX_INTENT_LEN = 80
+    // 形如 ||==FOLLOWUP==||{"afterSec":120,"intent":"..."}
+    private val FOLLOWUP_REGEX = Regex(
+        """\|\|==FOLLOWUP==\|\|\s*(\{[^}]*\})""",
+        RegexOption.DOT_MATCHES_ALL
+    )
 
-    /**
-     * 从模型完整回复中提取 META 块.
-     * 返回 cleanContent (可显示) + meta (可 null).
-     *
-     * 行为:
-     * - 找不到 OPEN_TAG: cleanContent = raw.trim(), meta = null
-     * - 找到 OPEN_TAG 但缺 CLOSE_TAG: 视作模型截断, cleanContent = OPEN 之前的部分, meta = null
-     * - 找到完整块但 JSON 解析失败: cleanContent = OPEN 之前的部分, meta = null
-     * - 全部成功: cleanContent = OPEN 之前的 trim, meta = 解析后的对象
-     */
     @JvmStatic
     fun extract(raw: String?): ProactiveMetaExtractResult {
-        if (raw == null || raw.isEmpty()) {
-            return ProactiveMetaExtractResult("", null)
+        if (raw.isNullOrEmpty()) return ProactiveMetaExtractResult("", null)
+        var working = raw
+
+        // 1) followUp: 先抽 (含 JSON 内容, 必须先于纯文本 STOP/SKIP 处理)
+        var followUp: ProactiveFollowUp? = null
+        val fuMatch = FOLLOWUP_REGEX.find(working)
+        if (fuMatch != null) {
+            followUp = parseFollowUpJson(fuMatch.groupValues[1])
+            working = working.replaceRange(fuMatch.range, "")
         }
-        val openIdx = raw.indexOf(OPEN_TAG)
-        if (openIdx < 0) {
-            return ProactiveMetaExtractResult(raw.trimEnd(), null)
+
+        // 2) skip: 强制清空 messages
+        val isSkip = working.contains(SKIP_MARKER)
+        if (isSkip) working = working.replace(SKIP_MARKER, "")
+
+        // 3) autoStop
+        val autoStop = working.contains(STOP_MARKER)
+        if (autoStop) working = working.replace(STOP_MARKER, "")
+
+        val body = working.trim()
+
+        // 4) skip 路径: 不输出正文. SKIP 隐含 autoStop=true (终止追问链).
+        //    meta 永远非 null —— 让上层区分"合法跳过" vs "LLM 输出空" 错误.
+        if (isSkip) {
+            return ProactiveMetaExtractResult(
+                "",
+                ProactiveMeta(null, followUp, autoStop = true)
+            )
         }
-        val cleanContent = raw.substring(0, openIdx).trimEnd()
-        val closeIdx = raw.indexOf(CLOSE_TAG, openIdx + OPEN_TAG.length)
-        if (closeIdx < 0) {
-            // 模型截断 META; 抢救 cleanContent, 但 meta 不可用
-            return ProactiveMetaExtractResult(cleanContent, null)
+
+        if (body.isEmpty()) {
+            val meta = if (followUp != null || autoStop)
+                ProactiveMeta(null, followUp, autoStop) else null
+            return ProactiveMetaExtractResult("", meta)
         }
-        val jsonRaw = raw.substring(openIdx + OPEN_TAG.length, closeIdx)
-        val meta = parseMetaJson(jsonRaw)
-        return ProactiveMetaExtractResult(cleanContent, meta)
+
+        // 5) 切段: ||| 优先（prompt 明确指定）; \n{3,} 容错; 无则单段
+        val parts = when {
+            body.contains(SPLIT_MARKER)    -> body.split(SPLIT_MARKER)
+            SPLIT_NL.containsMatchIn(body) -> SPLIT_NL.split(body)
+            else                           -> listOf(body)
+        }
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .take(MAX_SPLIT_PARTS)
+
+        return when {
+            parts.isEmpty() -> {
+                val meta = if (followUp != null || autoStop)
+                    ProactiveMeta(null, followUp, autoStop) else null
+                ProactiveMetaExtractResult("", meta)
+            }
+            parts.size == 1 -> {
+                // 单段: 仅当有元信息时才生成 meta, 否则 meta=null (维持原"无协议"行为)
+                val meta = if (followUp != null || autoStop)
+                    ProactiveMeta(null, followUp, autoStop) else null
+                ProactiveMetaExtractResult(parts[0], meta)
+            }
+            else -> {
+                ProactiveMetaExtractResult(
+                    parts[0],
+                    ProactiveMeta(parts, followUp, autoStop)
+                )
+            }
+        }
     }
 
-    /** Strip wrapping fences/whitespace and JsonParse. Returns null on any failure. */
-    private fun parseMetaJson(rawBlock: String): ProactiveMeta? {
-        val cleaned = stripFences(rawBlock).trim()
-        if (cleaned.isEmpty()) return null
+    private fun parseFollowUpJson(jsonRaw: String): ProactiveFollowUp? {
         return try {
             @Suppress("DEPRECATION")
-            val element = JsonParser().parse(cleaned)
+            val element = JsonParser().parse(jsonRaw.trim())
             if (!element.isJsonObject) return null
             val obj = element.asJsonObject
-
-            val split = parseSplit(obj)
-            val followUp = parseFollowUp(obj)
-            val autoStop = parseAutoStop(obj)
-            // 都为 null = 模型显式表态都不要; 仍然返回 meta 对象, 让上游知道协议被遵守了.
-            ProactiveMeta(split = split, followUp = followUp, autoStop = autoStop)
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private fun parseSplit(obj: com.google.gson.JsonObject): List<String>? {
-        if (!obj.has("split")) return null
-        val raw = obj.get("split")
-        if (raw == null || raw.isJsonNull) return null
-        if (!raw.isJsonArray) return null
-        val arr = raw.asJsonArray
-        if (arr.size() == 0) return null
-        val out = ArrayList<String>(minOf(arr.size(), MAX_SPLIT_PARTS))
-        for (i in 0 until arr.size()) {
-            if (out.size >= MAX_SPLIT_PARTS) break
-            val item = arr.get(i)
-            if (item == null || item.isJsonNull) continue
-            val s = if (item.isJsonPrimitive) item.asString else item.toString()
-            val trimmed = s?.trim().orEmpty()
-            if (trimmed.isNotEmpty()) out.add(trimmed)
-        }
-        return if (out.isEmpty()) null else out
-    }
-
-    private fun parseAutoStop(obj: com.google.gson.JsonObject): Boolean {
-        if (!obj.has("autoStop")) return false
-        return try {
-            val raw = obj.get("autoStop")
-            if (raw == null || raw.isJsonNull) false
-            else if (raw.isJsonPrimitive) raw.asBoolean
-            else false
-        } catch (_: Exception) { false }
-    }
-
-    private fun parseFollowUp(obj: com.google.gson.JsonObject): ProactiveFollowUp? {
-        if (!obj.has("followUp")) return null
-        val raw = obj.get("followUp")
-        if (raw == null || raw.isJsonNull) return null
-        if (!raw.isJsonObject) return null
-        val fu = raw.asJsonObject
-        val afterRaw = try {
-            if (fu.has("afterSec") && fu.get("afterSec").isJsonPrimitive)
-                fu.get("afterSec").asInt else MIN_FOLLOWUP_SEC
-        } catch (_: Exception) { MIN_FOLLOWUP_SEC }
-        val after = afterRaw.coerceIn(MIN_FOLLOWUP_SEC, MAX_FOLLOWUP_SEC)
-        val intentRaw = try {
-            if (fu.has("intent") && fu.get("intent").isJsonPrimitive)
-                fu.get("intent").asString else ""
-        } catch (_: Exception) { "" }
-        val intent = intentRaw.trim().take(MAX_INTENT_LEN)
-        return ProactiveFollowUp(afterSec = after, intent = intent)
-    }
-
-    /** 模型偶尔把 JSON 包在 ```json ... ``` 里, 也可能加 BOM/空行. */
-    private fun stripFences(s: String): String {
-        var t = s.trim()
-        if (t.startsWith("```")) {
-            // ```json or ``` then content then ```
-            val firstNl = t.indexOf('\n')
-            if (firstNl >= 0) t = t.substring(firstNl + 1)
-            if (t.endsWith("```")) t = t.substring(0, t.length - 3)
-            t = t.trim()
-        }
-        return t
+            val afterRaw = try {
+                if (obj.has("afterSec") && obj.get("afterSec").isJsonPrimitive)
+                    obj.get("afterSec").asInt else MIN_FOLLOWUP_SEC
+            } catch (_: Exception) { MIN_FOLLOWUP_SEC }
+            val after = afterRaw.coerceIn(MIN_FOLLOWUP_SEC, MAX_FOLLOWUP_SEC)
+            val intentRaw = try {
+                if (obj.has("intent") && obj.get("intent").isJsonPrimitive)
+                    obj.get("intent").asString else ""
+            } catch (_: Exception) { "" }
+            val intent = intentRaw.trim().take(MAX_INTENT_LEN)
+            ProactiveFollowUp(afterSec = after, intent = intent)
+        } catch (_: Exception) { null }
     }
 }

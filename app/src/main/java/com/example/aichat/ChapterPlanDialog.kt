@@ -5,6 +5,7 @@ import android.app.AlertDialog
 import android.text.TextUtils
 import android.view.LayoutInflater
 import android.view.View
+import android.view.WindowManager
 import android.widget.TextView
 import com.google.android.material.textfield.TextInputEditText
 
@@ -18,6 +19,8 @@ object ChapterPlanDialog {
         fun onCancel()
         /** edited 不为 null 且 hasAnyContent 为 true 时调用。 */
         fun onSave(edited: ChapterPlanDraft)
+        /** 用户点击"后台"按钮，关闭对话框但后台继续生成。 */
+        fun onBackground() { /* default no-op for backward compat */ }
     }
 
     class Controller internal constructor(
@@ -118,12 +121,25 @@ object ChapterPlanDialog {
             callback.onCancel()
             dialog.dismiss()
         }
+        view.findViewById<View?>(R.id.btnPlanBackground)?.setOnClickListener {
+            callback.onBackground()
+            dialog.dismiss()
+        }
         view.findViewById<View>(R.id.btnPlanSave).setOnClickListener {
             val edited = controller.collectDraft()
             if (!edited.hasAnyContent()) callback.onCancel() else callback.onSave(edited)
             dialog.dismiss()
         }
         dialog.show()
+
+        // 加宽对话框、降低高度
+        dialog.window?.let { w ->
+            val dm = activity.resources.displayMetrics
+            val width = (dm.widthPixels * 0.92).toInt()
+            val height = (dm.heightPixels * 0.72).toInt()
+            w.setLayout(width, height)
+        }
+
         controller.dialog = dialog
         return controller
     }

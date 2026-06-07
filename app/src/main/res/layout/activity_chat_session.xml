@@ -280,10 +280,26 @@
         android:paddingTop="10dp"
         android:paddingBottom="24dp">
 
-        <FrameLayout
+        <HorizontalScrollView
+            android:id="@+id/scrollAttachments"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:scrollbars="none"
+            android:visibility="gone">
+            <LinearLayout
+                android:id="@+id/layoutAttachments"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal" />
+        </HorizontalScrollView>
+
+        <LinearLayout
             android:id="@+id/inputPill"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="bottom"
             android:background="@drawable/bg_input_pill"
             android:elevation="3dp"
             android:paddingStart="18dp"
@@ -293,9 +309,9 @@
 
             <EditText
                 android:id="@+id/inputEdit"
-                android:layout_width="match_parent"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="42dp"
+                android:layout_weight="1"
                 android:hint="@string/chat_hint"
                 android:inputType="textMultiLine|textCapSentences"
                 android:maxLines="6"
@@ -309,19 +325,19 @@
 
             <ImageButton
                 android:id="@+id/sendButton"
-                android:layout_width="30dp"
-                android:layout_height="30dp"
-                android:layout_gravity="bottom|end"
-                android:layout_marginEnd="6dp"
-                android:layout_marginBottom="9dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginBottom="3dp"
                 android:padding="6dp"
                 android:scaleType="fitCenter"
                 android:background="@drawable/bg_send_button"
                 android:backgroundTint="@color/send_button_bg"
+                android:foreground="@drawable/ripple_send_button"
                 android:src="@drawable/ic_arrow_up"
                 android:tint="?attr/colorOnPrimary"
                 android:contentDescription="@string/send" />
-        </FrameLayout>
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -339,6 +355,24 @@
                 android:src="@drawable/ic_add"
                 android:padding="8dp"
                 app:tint="?attr/colorOnSurface" />
+
+            <TextView
+                android:id="@+id/btnInkToggle"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_ink_toggle"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:minWidth="52dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="@string/ink_toggle_label"
+                android:textColor="@color/ink_toggle_text"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
 
             <LinearLayout
                 android:id="@+id/layoutAddActions"

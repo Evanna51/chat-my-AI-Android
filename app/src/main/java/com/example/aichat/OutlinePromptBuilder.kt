@@ -144,6 +144,19 @@ object OutlinePromptBuilder {
         return text.split("\n").joinToString("\n") { indent + it }
     }
 
+    /**
+     * 在构建好的大纲文本末尾追加 outlinePrompt（文风/风格指导）。
+     * 如果 outlinePrompt 为空则原样返回。
+     */
+    fun appendOutlinePrompt(outlineText: String, outlinePrompt: String?): String {
+        val prompt = outlinePrompt?.trim().orEmpty()
+        if (prompt.isEmpty()) return outlineText
+        val sb = StringBuilder(outlineText)
+        if (sb.isNotEmpty()) sb.append("\n\n")
+        sb.append("【文风与风格指导】\n").append(prompt)
+        return sb.toString()
+    }
+
     /** 计算"应该建议生成卷纲"的判定：总章节数 > 15 或 总字数 > 2000。 */
     fun shouldSuggestVolume(items: List<SessionOutlineItem>): Boolean {
         val chapters = items.filter { it.type == "chapter" && it.selected }

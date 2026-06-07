@@ -71,6 +71,9 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
     private val switchAutoChat: MaterialSwitch? = root.findViewById(R.id.switchAutoChat)
     private val textAutoChatBudgetHint: TextView? = root.findViewById(R.id.textAutoChatBudgetHint)
     private val editAutoChatDailyBudget: TextInputEditText? = root.findViewById(R.id.editAutoChatDailyBudget)
+    private val editOutlinePromptInForm: TextInputEditText? = root.findViewById(R.id.editOutlinePromptInForm)
+    private val labelOutlinePromptSection: View? = root.findViewById(R.id.labelOutlinePromptSection)
+    private val cardOutlinePrompt: View? = root.findViewById(R.id.cardOutlinePrompt)
 
     private var current = SessionChatOptions()
 
@@ -133,7 +136,15 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         switchAutoChat?.isChecked = current.autoChatEnabled
         editAutoChatDailyBudget?.setText(if (current.proactiveDailyBudget > 0)
             current.proactiveDailyBudget.toString() else "")
+        editOutlinePromptInForm?.setText(current.outlinePrompt)
         updateAutoChatBudgetHint()
+    }
+
+    /** 显示/隐藏大纲提示词区域（仅 writer 类型的对话需要） */
+    fun setOutlinePromptVisible(visible: Boolean) {
+        val vis = if (visible) View.VISIBLE else View.GONE
+        labelOutlinePromptSection?.visibility = vis
+        cardOutlinePrompt?.visibility = vis
     }
 
     /**
@@ -229,6 +240,7 @@ class ChatSettingsFormModule(private val activity: Activity, private val root: V
         out.proactiveDailyBudget = parseNullableInt(editAutoChatDailyBudget)
             ?.coerceIn(ProactiveBudget.MIN_DAILY_BUDGET, ProactiveBudget.MAX_DAILY_BUDGET)
             ?: 0
+        out.outlinePrompt = editOutlinePromptInForm?.text?.toString()?.trim() ?: current.outlinePrompt
         return out
     }
 
