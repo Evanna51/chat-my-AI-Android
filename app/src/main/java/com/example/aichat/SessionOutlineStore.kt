@@ -2,6 +2,7 @@ package com.example.aichat
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.aichat.story.StoryTypes
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.util.UUID
@@ -14,8 +15,20 @@ class SessionOutlineStore(context: Context) {
     fun getAll(sessionId: String?): List<SessionOutlineItem> {
         if (sessionId?.trim().isNullOrEmpty()) return ArrayList()
         val raw = prefs.getString(KEY_PREFIX + sessionId, "[]")
-        var list: List<SessionOutlineItem>? = GSON.fromJson(raw, LIST_TYPE)
-        if (list == null) list = ArrayList()
+        val parsed: List<SessionOutlineItem>? = try {
+            GSON.fromJson(raw, LIST_TYPE)
+        } catch (_: Throwable) { null }
+        val list = parsed ?: return ArrayList()
+        // 懒迁移老 type（task / material）→ 写回一次
+        var mutated = false
+        for (one in list) {
+            val migrated = StoryTypes.migrateLegacy(one.type)
+            if (one.type != migrated) {
+                one.type = migrated
+                mutated = true
+            }
+        }
+        if (mutated) saveAll(sessionId, list)
         return list.sortedBy { it?.createdAt ?: 0L }
     }
 
@@ -25,7 +38,13 @@ class SessionOutlineStore(context: Context) {
         prefs.edit().putString(KEY_PREFIX + sessionId, GSON.toJson(safe)).apply()
     }
 
-    fun add(sessionId: String?, type: String?, title: String?, content: String?): SessionOutlineItem {
+    fun add(
+        sessionId: String?,
+        type: String?,
+        title: String?,
+        content: String?,
+        metaJson: String? = null,
+    ): SessionOutlineItem {
         val list = getAll(sessionId).toMutableList()
         val item = SessionOutlineItem()
         val now = System.currentTimeMillis()
@@ -33,6 +52,7 @@ class SessionOutlineStore(context: Context) {
         item.type = normalizeType(type)
         item.title = title?.trim() ?: ""
         item.content = content?.trim() ?: ""
+        item.metaJson = metaJson?.trim() ?: ""
         item.createdAt = now
         item.updatedAt = now
         list.add(item)
@@ -48,6 +68,7 @@ class SessionOutlineStore(context: Context) {
                 one.type = normalizeType(updated.type)
                 one.title = updated.title?.trim() ?: ""
                 one.content = updated.content?.trim() ?: ""
+                one.metaJson = updated.metaJson?.trim() ?: ""
                 one.selected = updated.selected
                 one.volumeChapters = updated.volumeChapters
                 one.updatedAt = System.currentTimeMillis()
@@ -68,12 +89,17 @@ class SessionOutlineStore(context: Context) {
         saveAll(sessionId, out)
     }
 
+    fun findById(sessionId: String?, itemId: String?): SessionOutlineItem? {
+        if (itemId.isNullOrBlank()) return null
+        return getAll(sessionId).firstOrNull { it.id == itemId }
+    }
+
     fun nextChapterIndex(sessionId: String?): Int {
         var max = 0
         val list = getAll(sessionId)
         for (one in list) {
             if (one == null) continue
-            if ("chapter" != normalizeType(one.type)) continue
+            if (StoryTypes.CHAPTER != normalizeType(one.type)) continue
             val t = one.title ?: ""
             val idx = parseChapterIndex(t)
             if (idx > max) max = idx
@@ -81,17 +107,8 @@ class SessionOutlineStore(context: Context) {
         return max + 1
     }
 
-    fun normalizeType(type: String?): String {
-        if (type == "chapter"
-            || type == "material"
-            || type == "task"
-            || type == "world"
-            || type == "knowledge"
-            || type == "volume") {
-            return type
-        }
-        return "chapter"
-    }
+    /** 老 type 兼容 + 未知 type 退到 chapter. */
+    fun normalizeType(type: String?): String = StoryTypes.migrateLegacy(type)
 
     /** 切换某条 outline 的 selected 状态（主要给 volume 类型用），其它字段不变。 */
     fun setSelected(sessionId: String?, itemId: String?, selected: Boolean) {
