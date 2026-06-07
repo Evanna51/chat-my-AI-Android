@@ -96,6 +96,10 @@ UI 重设计计划详见 [UI_REDESIGN_PLAN.md](UI_REDESIGN_PLAN.md)。
 - **ChatSessionActivity → ViewModel**：已完成（step 2.11 待清理）
 - **Java → Kotlin 全迁移**：已完成（当前分支 `refactor/java-to-kotlin`）
 - **硬编码中文 → strings.xml**：85% 完成，ChatService 部分遗留
+- **故事模式重构（替代 inkos）**：已完成（分支 `refactor/story-mode-replace-inkos`）
+  - 详见 [STORY_MODE_PLAN.md](STORY_MODE_PLAN.md) 与 [docs/features/STORY_TYPES.md](docs/features/STORY_TYPES.md)
+  - 11 种 outline type + 类型化编辑器 + section 折叠 UI + Story Tools (AI 可调) + 「生成书籍」按钮
+  - inkos 接入完全移除（Room v15→v16）
 
 ---
 

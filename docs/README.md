@@ -12,7 +12,8 @@
 | **包结构 / 谁依赖谁** | [architecture/MODULE_MAP.md](architecture/MODULE_MAP.md) |
 | **理解一条用户消息的完整链路** | [features/CHAT_FLOW.md](features/CHAT_FLOW.md) |
 | **改流式 / 打字机 / reasoning / 工具调用** | [features/STREAMING.md](features/STREAMING.md) |
-| **加新的 assistant.type（如 inkos）** | [features/SESSION_MODES.md](features/SESSION_MODES.md) |
+| **加新的 assistant.type** | [features/SESSION_MODES.md](features/SESSION_MODES.md) |
+| **故事模式 metaJson schema / Story Tools** | [features/STORY_TYPES.md](features/STORY_TYPES.md) |
 | **改作家模式 / 大纲 / 章纲** | [features/WRITER_MODE.md](features/WRITER_MODE.md) |
 | **改角色模式 / 情绪 / TTS** | [features/CHARACTER_MODE.md](features/CHARACTER_MODE.md) |
 | **改远程同步 / 工具 / WS** | [features/SYNC.md](features/SYNC.md) |
@@ -51,6 +52,6 @@ R1–R10 完成（commits e649a66...910ced3）。三大胖文件状态：
 行为差异已物理隔离到 `session/` strategy + `writer/` service + `adapter/` binder 子文件。改 mode-specific 行为不再需要全局搜 if 分支。
 
 下一步候选：
-- **R7（inkos）** — 接外部小说生成服务（按 [SESSION_MODES.md §3](features/SESSION_MODES.md) 套路）
 - **R11** — `SessionOutlineStore` SP→Room 迁移
 - **R12** — `AssistantBubbleBinder` 抽取（与 MessageAdapter 状态强耦合，需要先解耦）
+- **故事模式 S6 后置项** — wi-server `/api/story/status-history` endpoint（参考 [STORY_TYPES.md](features/STORY_TYPES.md)）

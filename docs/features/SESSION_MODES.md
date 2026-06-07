@@ -42,9 +42,9 @@ interface SessionModeStrategy {
 
 ---
 
-## 3. 加新模式（以 inkos 为例）的完整步骤
+## 3. 加新模式（以 myMode 为例）的完整步骤
 
-假设要加 `assistant.type = "inkos"` 表示「小说生成专用模式」，行为是用户输入 → 调 inkos 后端 → 流式返回章节文本。
+假设要加 `assistant.type = "myMode"` 表示「小说生成专用模式」，行为是用户输入 → 调 myMode 后端 → 流式返回章节文本。
 
 ### Step 1：扩 enum
 
@@ -54,30 +54,30 @@ enum class SessionMode(val raw: String) {
     DEFAULT(""),
     CHARACTER("character"),
     WRITER("writer"),
-    INKOS("inkos"),   // ← 新增
+    MY_MODE("myMode"),   // ← 新增
 }
 ```
 注意：`raw` 字符串值会持久化到 DB（`MyAssistantEntity.type`），定下来就不能改。
 
 ### Step 2：写 strategy
 
-新建 [session/InkosModeStrategy.kt](../../app/src/main/java/com/example/aichat/session/InkosModeStrategy.kt)：
+新建 [session/MyModeModeStrategy.kt](../../app/src/main/java/com/example/aichat/session/MyModeModeStrategy.kt)：
 ```kotlin
 package com.example.aichat.session
 
 import com.example.aichat.Message
 
-object InkosModeStrategy : SessionModeStrategy {
-    override val mode = SessionMode.INKOS
+object MyModeModeStrategy : SessionModeStrategy {
+    override val mode = SessionMode.MY_MODE
     override val usesCharacterAdapter = false
     override val usesWriterAdapter = true       // 复用 writer 的渲染样式
     override val disablesAssistantCollapseToggle = false
     override val autoFocusLatestOnSetMessages = true
     override val hidesPinnedActions = false
-    override val showsWriterOutlineButton = false  // inkos 不用本地大纲
+    override val showsWriterOutlineButton = false  // myMode 不用本地大纲
     override val supportsAutoTts = false
 
-    // inkos 的特殊行为放这里
+    // myMode 的特殊行为放这里
     override fun buildUserMessageForApi(rawInput: String, ctx: SessionContext): String {
         // 例如：拼上当前小说设定
         return rawInput
@@ -92,36 +92,36 @@ object InkosModeStrategy : SessionModeStrategy {
 fun from(assistant: MyAssistant?): SessionModeStrategy = when (...) {
     SessionMode.CHARACTER -> CharacterModeStrategy
     SessionMode.WRITER -> WriterModeStrategy
-    SessionMode.INKOS -> InkosModeStrategy   // ← 新增
+    SessionMode.MY_MODE -> MyModeModeStrategy   // ← 新增
     SessionMode.DEFAULT -> DefaultModeStrategy
 }
 ```
 
 > ⚠️ **这是项目里唯一允许 `when (SessionMode)` 的位置**。其他任何地方出现都是退步。
 
-### Step 4：UI 允许新建 inkos 类型
+### Step 4：UI 允许新建 myMode 类型
 
 [EditMyAssistantActivity.kt](../../app/src/main/java/com/example/aichat/EditMyAssistantActivity.kt) 加 radio button：
-- res/layout 加一个 `<RadioButton android:id="@+id/typeInkos" />`
-- 加 mapping `R.id.typeInkos -> "inkos"`
-- 加恢复选择的 case：`SessionMode.from(assistant.type) == SessionMode.INKOS -> radioType.check(R.id.typeInkos)`
+- res/layout 加一个 `<RadioButton android:id="@+id/typeMyMode" />`
+- 加 mapping `R.id.typeMyMode -> "myMode"`
+- 加恢复选择的 case：`SessionMode.from(assistant.type) == SessionMode.MY_MODE -> radioType.check(R.id.typeMyMode)`
 
 UI 标签（[HomeAssistantAdapter.kt](../../app/src/main/java/com/example/aichat/HomeAssistantAdapter.kt) / [MyAssistantListAdapter.kt](../../app/src/main/java/com/example/aichat/MyAssistantListAdapter.kt)）加显示 "小说生成"。
 
 ### Step 5（如果模式要走不同后端协议）：新建 ChatGenerator 实现
 
-如果 inkos 不走 OpenAI 兼容 API，要新建独立 generator：
+如果 myMode 不走 OpenAI 兼容 API，要新建独立 generator：
 
 ```kotlin
-// chat/InkosGenerator.kt
-class InkosGenerator(private val context: Context) : ChatGenerator {
+// chat/MyModeGenerator.kt
+class MyModeGenerator(private val context: Context) : ChatGenerator {
     override fun chat(history, userMessage, options, callback, toolBridge): ChatHandle {
-        // 调 inkos HTTP 端点
-        // 解析 inkos 协议的流式响应
+        // 调 myMode HTTP 端点
+        // 解析 myMode 协议的流式响应
         // 转成 ChatCallback.onPartial / onSuccess 调用
     }
     override fun generateThreadTitle(firstUserMessage, callback) {
-        // inkos 可能没有独立标题端点 → fallback 到默认实现 / 简单截取
+        // myMode 可能没有独立标题端点 → fallback 到默认实现 / 简单截取
     }
 }
 ```
@@ -130,7 +130,7 @@ class InkosGenerator(private val context: Context) : ChatGenerator {
 ```kotlin
 // ChatViewModel.kt
 private val chatService: ChatGenerator = when (resolveSessionMode()) {
-    SessionMode.INKOS -> InkosGenerator(application)
+    SessionMode.MY_MODE -> MyModeGenerator(application)
     else -> ChatService(application)
 }
 ```
@@ -145,11 +145,11 @@ Activity 已经不知道有几种模式 —— 它只调 `mode.xxx` / `chatGener
 
 ## 4. 反模式（不要做的事）
 
-❌ **在 Activity 里加 `if (mode == SessionMode.INKOS)`**
-   → 行为差异应该在 InkosModeStrategy 里 override 对应钩子
+❌ **在 Activity 里加 `if (mode == SessionMode.MY_MODE)`**
+   → 行为差异应该在 MyModeModeStrategy 里 override 对应钩子
 
 ❌ **在 Strategy 之间互相引用**
-   → 比如 InkosModeStrategy 调 WriterModeStrategy。strategy 应该自洽。如果有共享逻辑，抽到 strategy 之外的 helper（如 `OutlinePromptBuilder`）
+   → 比如 MyModeModeStrategy 调 WriterModeStrategy。strategy 应该自洽。如果有共享逻辑，抽到 strategy 之外的 helper（如 `OutlinePromptBuilder`）
 
 ❌ **strategy 持有 Activity 引用 / View 引用**
    → 通过 `SessionUiHost` 接口反向调用，Host 接口面要保持最小（目前 2 个成员）
@@ -203,7 +203,7 @@ data class SessionContext(
 - 与某个 strategy 钩子的输入相关
 - 默认值合理（其他模式不填也能工作）
 
-例如：inkos 模式需要"当前小说大纲"传给 strategy，可以加 `inkosNovelOutline: String = ""`。
+例如：myMode 模式需要"当前小说大纲"传给 strategy，可以加 `myModeNovelOutline: String = ""`。
 
 ---
 
@@ -213,15 +213,15 @@ strategy 是 `object` 无状态 → 直接调方法测：
 
 ```kotlin
 @Test
-fun `inkos buildUserMessageForApi 注入小说设定`() {
+fun `myMode buildUserMessageForApi 注入小说设定`() {
     val ctx = SessionContext(
         sessionId = "test",
         assistantId = null,
         assistant = null,
         options = SessionChatOptions(),
-        inkosNovelOutline = "主角是小明",
+        myModeNovelOutline = "主角是小明",
     )
-    val out = InkosModeStrategy.buildUserMessageForApi("第二章发生什么？", ctx)
+    val out = MyModeModeStrategy.buildUserMessageForApi("第二章发生什么？", ctx)
     assertTrue(out.contains("主角是小明"))
 }
 ```

@@ -160,7 +160,7 @@ CHARACTER / DEFAULT 模式不节选。
 
 1. **`outlineBlock` 每次发消息都重新构造** → outlineStore.getAll(sessionId) 每次发都查一次 SP。SP 读快，但如果大纲条目多（>50）有感知。考虑 R11 时迁 Room。
 2. **章节计划 JSON 容错容易"假成功"** → keyword 扫描 fallback 可能漏字段。如果用户报告"章纲缺少 X"，先看 `countNonEmptyPlanFields` 日志（[WriterJsonHelpers](../../app/src/main/java/com/example/aichat/writer/WriterJsonHelpers.kt)）确认模型实际返回了几个字段。
-3. **`includeKnowledgeEnforcement` 参数**：true 时 outlineBlock 末尾会拼"以下设定不要泄露给读者"段落（用于 inkos / writer 防剧透）。改默认值前先确认所有 callsite。
+3. **`includeKnowledgeEnforcement` 参数**：true 时 outlineBlock 末尾会拼"以下设定不要泄露给读者"段落（writer 防剧透）。改默认值前先确认所有 callsite。
 4. **`SessionOutlineItem.selected` 只用于 volume**：UI 上仅 volume 行显示开关。如果给 chapter 加 selected 会被 store 忽略。
 5. **session 大纲 / 章纲 都使用「任务模型」配置**（[AiModelConfig.getConfigForTask](../../app/src/main/java/com/example/aichat/AiModelConfig.kt)）—— 与主聊天模型分离。改 prompt 时不会影响主聊天，但要确认用户在「设置 → 模型」里配过任务模型。
 6. **`buildLastAssistantExcerpt` 总长 ≤ 3*segment 时不节选**（即助手消息 ≤ 3000 字直接全发）。

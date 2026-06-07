@@ -24,7 +24,7 @@ Android 原生 AI 聊天 App（Kotlin），支持多模型多厂商（OpenAI 兼
 | `"character"` | `SessionMode.CHARACTER` | 括号情绪渲染 / 自动 TTS / 不显示 pinned actions / 不允许折叠 reasoning |
 | `"writer"` | `SessionMode.WRITER` | Toolbar 显示大纲按钮 / 用户输入注入大纲块 / 长助手消息节选 / 章节跳转 |
 
-**模式差异通过 [SessionModeStrategy](../app/src/main/java/com/example/aichat/session/SessionModeStrategy.kt) 注入，不再有 `if (writerAssistant)` 分支**。看 [features/SESSION_MODES.md](features/SESSION_MODES.md) 了解如何加新模式（如 inkos）。
+**模式差异通过 [SessionModeStrategy](../app/src/main/java/com/example/aichat/session/SessionModeStrategy.kt) 注入，不再有 `if (writerAssistant)` 分支**。看 [features/SESSION_MODES.md](features/SESSION_MODES.md) 了解如何加新模式。Writer 模式的故事结构（roles/relation/foreshadow/status/...）见 [features/STORY_TYPES.md](features/STORY_TYPES.md)。
 
 ### 2.2 三层架构
 
