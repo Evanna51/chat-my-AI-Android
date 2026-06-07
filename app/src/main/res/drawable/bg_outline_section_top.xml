@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Section 卡片 顶部 (圆角只在上方)。无内部分隔线由各 item 自带。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/ios_cell_bg" />
+    <corners
+        android:topLeftRadius="14dp"
+        android:topRightRadius="14dp" />
+</shape>

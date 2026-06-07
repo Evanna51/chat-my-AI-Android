@@ -73,7 +73,7 @@ class SessionOutlineActivity : ThemedActivity() {
         val btnAdd = findViewById<MaterialButton>(R.id.btnAddOutline)
         val btnMore = findViewById<MaterialButton?>(R.id.btnMore)
 
-        adapter = SessionOutlineAdapter()
+        adapter = SessionOutlineAdapter(this, sessionId)
         adapter.setOnItemActionListener(object : SessionOutlineAdapter.OnItemActionListener {
             override fun onEdit(item: SessionOutlineItem) {
                 showEditDialog(item)

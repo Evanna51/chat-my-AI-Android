@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 展开态: row 下方接一个内容区, 显示完整字段 + 操作按钮 (编辑/删除/启用)。
+     具体字段渲染在代码里按 type 走不同模板, 这里只提供 container + 通用按钮。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:layout_marginHorizontal="16dp"
+    android:background="@drawable/bg_outline_section_middle"
+    android:paddingHorizontal="16dp"
+    android:paddingBottom="14dp">
+
+    <LinearLayout
+        android:id="@+id/expandedFieldContainer"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingTop="2dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingTop="10dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnExpandedEdit"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="编辑"
+            android:textSize="13sp"
+            app:icon="@drawable/ic_action_edit"
+            app:iconSize="16dp"
+            app:iconTint="?attr/colorOnSurfaceVariant" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="1dp"
+            android:layout_weight="1" />
+
+        <com.google.android.material.materialswitch.MaterialSwitch
+            android:id="@+id/switchExpandedSelected"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="8dp"
+            android:visibility="gone" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnExpandedDelete"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="删除"
+            android:textSize="13sp"
+            app:icon="@drawable/ic_action_delete"
+            app:iconSize="16dp"
+            app:iconTint="?attr/colorOnSurfaceVariant" />
+    </LinearLayout>
+</LinearLayout>
