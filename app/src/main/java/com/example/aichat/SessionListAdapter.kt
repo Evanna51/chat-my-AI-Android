@@ -96,7 +96,7 @@ class SessionListAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             avatar = s.avatar
             avatarImageBase64 = s.avatarImageBase64
         }
-        AssistantAvatarHelper.bindAvatar(h.avatarImage, h.avatar, avatarShim, "🤖")
+        AssistantAvatarHelper.bindAvatar(h.avatarImage, h.avatar, avatarShim, s.title)
         h.title?.let { tv ->
             var title = if (s.title != null && s.title.isNotEmpty()) s.title else "新对话"
             if (s.favorite && !s.pinned) title = "★ $title"

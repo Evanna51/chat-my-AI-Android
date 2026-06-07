@@ -22,7 +22,7 @@ import com.example.aichat.SessionChatOptionsStore
 import com.example.aichat.chat.ChatTimeContext
 import com.example.aichat.chat.ProactiveBudget
 
-import com.example.aichat.chat.ProactivePromptBuilder
+import com.example.aichat.prompts.Prompts
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit
  * Lifecycle:
  *   1. Verify auto-chat still on for sessionId
  *   2. Consume budget via [ProactiveBudget] (atomic)
- *   3. Build follow-up prompt via [ProactivePromptBuilder.buildFollowUpInstruction]
+ *   3. Build follow-up prompt via [Prompts.Proactive.followUpInstruction]
  *   4. Synchronously wait on [ChatService.chat] via [CountDownLatch]
  *   5. On non-[SKIP] response: persist as Message(role=ASSISTANT, proactiveKind=2)
  *      and fire a notification via [ProactiveMessageNotifier]
@@ -210,7 +210,7 @@ class ProactiveFollowUpWorker(
             if (relationshipHint.isNotEmpty()) append(relationshipHint).append('\n')
             val origin = opts.systemPrompt.trim()
             if (origin.isNotEmpty()) append(origin).append('\n')
-            append(ProactivePromptBuilder.buildSystemSuffix(closeness))
+            append(Prompts.Proactive.systemSuffix(closeness))
         }
         val effective = opts.copy(
             modelKey = effectiveModelKey,
@@ -228,7 +228,7 @@ class ProactiveFollowUpWorker(
         val budgetUsed = if (opts.proactiveResetDate == ProactiveBudget.todayStamp())
             opts.proactiveCountToday else 0
         val budgetLimit = ProactiveBudget.effectiveLimit(opts.proactiveDailyBudget)
-        val instruction = ProactivePromptBuilder.buildFollowUpInstruction(
+        val instruction = Prompts.Proactive.followUpInstruction(
             silenceSec = silenceSec,
             previousIntent = previousIntent,
             chainDepth = chainDepth,

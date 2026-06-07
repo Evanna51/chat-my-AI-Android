@@ -20,7 +20,9 @@ object WriterModeStrategy : SessionModeStrategy {
     override val autoFocusLatestOnSetMessages: Boolean = true
     override val hidesPinnedActions: Boolean = false
     override val showsWriterOutlineButton: Boolean = true
+    override val showsInkToggle: Boolean = true
     override val supportsAutoTts: Boolean = false
+    override val supportsOutlineExport: Boolean = true
 
     override fun buildUserMessageForApi(rawInput: String, ctx: SessionContext): String {
         val source = rawInput.trim()

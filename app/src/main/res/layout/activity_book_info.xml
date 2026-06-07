@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/ios_grouped_bg">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/ios_grouped_bg"
+        app:elevation="0dp"
+        app:title="@string/book_info"
+        app:navigationIcon="?attr/homeAsUpIndicator" />
+
+    <TextView
+        android:id="@+id/textBookStatus"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="8dp"
+        android:textSize="13sp"
+        android:textColor="@color/ios_section_label"
+        android:visibility="gone" />
+
+    <!-- 操作行: 写下一章 / 审计 / 编辑 -->
+    <LinearLayout
+        android:id="@+id/rowBookActions"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="8dp"
+        android:visibility="gone">
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnWriteNext"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="4dp"
+            android:minHeight="36dp"
+            android:textSize="12sp"
+            android:text="写下一章" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnAuditChapter"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:minHeight="36dp"
+            android:textSize="12sp"
+            android:text="审计章节" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnEditBook"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:minHeight="36dp"
+            android:textSize="12sp"
+            android:text="编辑书籍" />
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnPullChapter"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_weight="1"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:minHeight="36dp"
+            android:textSize="12sp"
+            android:text="拉章节进聊天" />
+    </LinearLayout>
+
+    <!-- 实时事件流 (SSE) — 折叠的、固定高度、自动滚到底 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardEventStream"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="8dp"
+        app:cardElevation="0dp"
+        app:cardBackgroundColor="@color/ios_cell_bg"
+        app:cardCornerRadius="12dp"
+        app:strokeWidth="0dp"
+        android:visibility="gone">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="12dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_weight="1"
+                    android:layout_height="wrap_content"
+                    android:text="实时事件流"
+                    android:textSize="13sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/list_title_color" />
+                <TextView
+                    android:id="@+id/btnClearEventStream"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:padding="6dp"
+                    android:text="清空"
+                    android:textSize="12sp"
+                    android:textColor="@color/ios_section_label" />
+            </LinearLayout>
+
+            <ScrollView
+                android:id="@+id/scrollEventStream"
+                android:layout_width="match_parent"
+                android:layout_height="160dp"
+                android:layout_marginTop="6dp"
+                android:scrollbars="vertical">
+                <TextView
+                    android:id="@+id/textEventStream"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:textSize="11sp"
+                    android:textColor="@color/list_subtitle_color"
+                    android:textIsSelectable="true"
+                    android:lineSpacingExtra="2dp" />
+            </ScrollView>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:id="@+id/contentContainer"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="32dp"
+            android:visibility="gone" />
+    </ScrollView>
+
+    <TextView
+        android:id="@+id/textEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:textColor="@color/ios_section_label"
+        android:textSize="14sp"
+        android:padding="32dp"
+        android:visibility="gone" />
+</LinearLayout>

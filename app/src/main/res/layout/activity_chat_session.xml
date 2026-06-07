@@ -356,6 +356,24 @@
                 android:padding="8dp"
                 app:tint="?attr/colorOnSurface" />
 
+            <TextView
+                android:id="@+id/btnInkToggle"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_ink_toggle"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:minWidth="52dp"
+                android:paddingStart="14dp"
+                android:paddingEnd="14dp"
+                android:text="@string/ink_toggle_label"
+                android:textColor="@color/ink_toggle_text"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:visibility="gone" />
+
             <LinearLayout
                 android:id="@+id/layoutAddActions"
                 android:layout_width="match_parent"

@@ -7,23 +7,12 @@
     android:layout_height="wrap_content"
     android:orientation="vertical">
 
-    <!-- Section: 模型选择 -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/session_model"
-        android:textSize="13sp"
-        android:textColor="@color/ios_section_label"
-        android:paddingStart="20dp"
-        android:paddingEnd="20dp"
-        android:paddingTop="24dp"
-        android:paddingBottom="8dp" />
-
     <com.google.android.material.card.MaterialCardView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
+        android:layout_marginTop="16dp"
         app:cardElevation="0dp"
         app:cardBackgroundColor="@color/ios_cell_bg"
         app:cardCornerRadius="16dp"
@@ -62,46 +51,25 @@
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
-    <!-- Section: 系统提示 -->
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/system_prompt"
-        android:textSize="13sp"
-        android:textColor="@color/ios_section_label"
-        android:paddingStart="20dp"
-        android:paddingEnd="20dp"
-        android:paddingTop="24dp"
-        android:paddingBottom="8dp" />
-
-    <com.google.android.material.card.MaterialCardView
+    <com.example.aichat.widget.GlassTextInputLayout
+        android:id="@+id/layoutSystemPrompt"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
-        app:cardElevation="0dp"
-        app:cardBackgroundColor="@color/ios_cell_bg"
-        app:cardCornerRadius="16dp"
-        app:strokeWidth="0dp">
-
-        <com.example.aichat.widget.GlassTextInputLayout
-            android:id="@+id/layoutSystemPrompt"
+        android:layout_marginTop="16dp"
+        android:hint="@string/system_prompt"
+        style="@style/Widget.AIChat.GlassInput">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/editSystemPrompt"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@string/system_prompt"
-            style="@style/Widget.AIChat.GlassInput"
-            android:layout_margin="16dp">
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/editSystemPrompt"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="top|start"
-                android:inputType="textMultiLine"
-                android:maxLines="12"
-                android:minLines="4"
-                android:scrollbars="vertical" />
-        </com.example.aichat.widget.GlassTextInputLayout>
-    </com.google.android.material.card.MaterialCardView>
+            android:gravity="top|start"
+            android:inputType="textMultiLine"
+            android:maxLines="12"
+            android:minLines="4"
+            android:scrollbars="vertical" />
+    </com.example.aichat.widget.GlassTextInputLayout>
 
     <!-- Section: 参数 -->
     <TextView

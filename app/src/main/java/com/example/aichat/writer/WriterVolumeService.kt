@@ -7,6 +7,7 @@ import com.example.aichat.ChatService
 import com.example.aichat.chat.ChatCallback
 import com.example.aichat.ModelConfig
 import com.example.aichat.chat.ChatTextHelpers
+import com.example.aichat.prompts.Prompts
 import com.google.gson.JsonObject
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -72,14 +73,7 @@ class WriterVolumeService(private val service: ChatService) {
         val api = retrofit.create(ChatApi::class.java)
 
         val requestMessages = ArrayList<ChatApi.ChatMessage>()
-        requestMessages.add(ChatApi.ChatMessage("system",
-            "你是小说写作助手。请把以下覆盖范围内的章节计划合并成一篇“卷大纲”。\n" +
-                    "目标：替代多章细节，保留主线推进、人物状态、关键事件、伏笔/回收、知情边界关键变化。\n" +
-                    "硬约束：\n" +
-                    "1) 输出纯文本中文，不要 Markdown 代码块。\n" +
-                    "2) 控制在 600 字以内，分段使用【小标题】方式（如【主线推进】【人物状态】【关键事件】【伏笔】【知情边界变化】）。\n" +
-                    "3) 不要凭空添加未在输入中提到的事件或角色。\n" +
-                    "4) 不要 Thinking/Reasoning 文本。"))
+        requestMessages.add(ChatApi.ChatMessage("system", Prompts.Writer.VolumeMerge.SYSTEM))
         requestMessages.add(ChatApi.ChatMessage("user",
             "【目标卷标题】" + volumeTitle + "\n" +
                     "【覆盖范围】" + coverageRange + "\n\n" +
@@ -179,20 +173,7 @@ class WriterVolumeService(private val service: ChatService) {
         val api = retrofit.create(ChatApi::class.java)
 
         val requestMessages = ArrayList<ChatApi.ChatMessage>()
-        requestMessages.add(ChatApi.ChatMessage("system",
-            "你是小说写作的【知情边界提取助手】。我会给你一段按类型分组的小说大纲（章节大纲 / 人物资料 / 世界背景 / 已有知情约束）。\n" +
-                    "你的任务：基于其中事实，为大纲中实际出现的章节生成「知情边界条目」，作为主写作模型生成正文时必须严守的硬约束。\n\n" +
-                    "仅输出一个 JSON 对象（不要 Markdown、不要解释、不要 Thinking 文本）：\n" +
-                    "{\"items\":[{\"chapter\":\"章节标题或'通用'\",\"title\":\"角色名 - 信息点\",\"content\":\"陈述句\"}, ...]}\n\n" +
-                    "强约束：\n" +
-                    "1) 输出必须以 { 开头、以 } 结尾。\n" +
-                    "2) chapter 必须是大纲【章节大纲】里真实出现的标题原文；适用于多章/跨时段写「通用」。\n" +
-                    "3) title 严格形式：\"角色名 - 信息点\"。信息点为名词短语，不要带「知道/不知道」等动词。\n" +
-                    "4) content 是单句陈述，主语为 title 中的角色，结构为 \"X 知道 Y\" / \"X 不知道 Y\" / \"X 误以为 Y\"，不要解释推理过程。\n" +
-                    "5) 重点抓：秘密、伏笔、信息差、需某事件后才得知的事；忽略全员常识与无悬念的公开事件。\n" +
-                    "6) 同一 (chapter, 角色名, 信息点) 不得重复；items 总数 ≤ 15；单条 content ≤ 60 字。\n" +
-                    "7) 推不出的条目不要输出；不要捏造大纲未提到的信息。\n" +
-                    "8) 若提供了【目标章节范围】小节，items 的 chapter 字段必须取自该范围（外加可选的「通用」）。"))
+        requestMessages.add(ChatApi.ChatMessage("system", Prompts.Writer.KnowledgeBoundary.SYSTEM))
         requestMessages.add(ChatApi.ChatMessage("user", outline))
 
         val request = ChatApi.ChatRequest()

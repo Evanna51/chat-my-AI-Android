@@ -9,6 +9,7 @@ import com.example.aichat.Message
 import com.example.aichat.ModelConfig
 import com.example.aichat.R
 import com.example.aichat.chat.ChatTextHelpers
+import com.example.aichat.prompts.Prompts
 import com.google.gson.JsonObject
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -84,23 +85,9 @@ class WriterOutlineService(private val service: ChatService) {
             .build()
         val api = retrofit.create(ChatApi::class.java)
 
-        val styleGuide = outlinePrompt?.trim().orEmpty()
-        val styleLine = if (styleGuide.isNotEmpty())
-            "\n8) 文风与风格指导：$styleGuide" else ""
-
         val requestMessages = ArrayList<ChatApi.ChatMessage>()
         requestMessages.add(ChatApi.ChatMessage("system",
-            "你是对话大纲助手。请根据输入对话生成“信息保真”的大纲正文（80到320字），宁可稍长也不要遗漏关键信息。\n" +
-                    "仅输出一个JSON对象，不要任何额外文本。\n" +
-                    "严格格式:{\"outline\":\"...\"}\n" +
-                    "强约束:\n" +
-                    "1) 输出必须以 { 开始、以 } 结束。\n" +
-                    "2) 只允许一个键 outline，不要额外键。\n" +
-                    "3) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。\n" +
-                    "4) outline 内容不要标题，不要列表。\n" +
-                    "5) 必须保留关键细节：人物/对象名称、核心事件、动机或目标、约束条件、结果或当前进展。\n" +
-                    "6) 若原文出现时间、地点、数字、专有名词、规则设定，优先保留，不要泛化改写。\n" +
-                    "7) 避免空泛词（如“发生了一些事”“进行了讨论”），改为具体事实。" + styleLine))
+            Prompts.Writer.DialogueOutline.system(outlinePrompt.orEmpty())))
         requestMessages.add(ChatApi.ChatMessage("user", prompt))
 
         val request = ChatApi.ChatRequest()
@@ -211,22 +198,8 @@ class WriterOutlineService(private val service: ChatService) {
         val api = retrofit.create(ChatApi::class.java)
 
         val requestMessages = ArrayList<ChatApi.ChatMessage>()
-        val styleGuide2 = outlinePrompt?.trim().orEmpty()
-        val styleLine2 = if (styleGuide2.isNotEmpty())
-            "\n8) 文风与风格指导：$styleGuide2" else ""
-
         requestMessages.add(ChatApi.ChatMessage("system",
-            "你是小说写作助手。请把输入内容提炼为可放入大纲的条目正文（80到280字），要求细节充分、便于后续续写。\n" +
-                    "仅输出一个JSON对象，不要任何额外文本。\n" +
-                    "严格格式:{\"summary\":\"...\"}\n" +
-                    "强约束:\n" +
-                    "1) 输出必须以 { 开始、以 } 结束。\n" +
-                    "2) 只允许一个键 summary，不要额外键。\n" +
-                    "3) 不要Markdown代码块，不要解释，不要Thinking/Reasoning文本。\n" +
-                    "4) summary 内容不要标题，不要列表。\n" +
-                    "5) 必须覆盖：关键事件经过、人物意图/冲突、重要设定或规则、任务线索与阶段结果。\n" +
-                    "6) 保留可复用细节：时间地点、名称称谓、数字阈值、道具/能力/组织名等。\n" +
-                    "7) 不要只写结论，需包含必要过程与因果关系。" + styleLine2))
+            Prompts.Writer.NovelSummary.system(outlinePrompt.orEmpty())))
         requestMessages.add(ChatApi.ChatMessage("user", source))
 
         val request = ChatApi.ChatRequest()

@@ -12,8 +12,6 @@
     <string name="api_key">API Key</string>
     <string name="model">模型</string>
     <string name="save">保存</string>
-    <string name="export_success">导出成功</string>
-    <string name="export_failed">导出失败</string>
     <string name="search_hint">搜索…</string>
     <string name="settings_options">设置选项</string>
     <string name="general_settings">常规设置</string>
@@ -44,6 +42,7 @@
     <string name="history_conversation">历史对话</string>
     <string name="current_conversation">当前对话</string>
     <string name="add">添加</string>
+    <string name="ink_toggle_label">Ink</string>
     <string name="add_file">导入文件</string>
     <string name="add_location">添加位置</string>
     <string name="add_time">添加时间</string>
@@ -229,9 +228,9 @@
     <string name="semantic_search_no_embedding_model">请先在「模型配置」中选择嵌入模型</string>
     <string name="semantic_search_failed">语义搜索失败：%1$s</string>
 
-    <!-- Remote sync (wi-chat-server) -->
-    <string name="remote_sync_settings">远程同步</string>
-    <string name="remote_sync_enabled">启用远程同步</string>
+    <!-- Remote service (wi-chat-server) -->
+    <string name="remote_sync_settings">远程服务</string>
+    <string name="remote_sync_enabled">启用远程服务</string>
     <string name="remote_sync_server_section">服务器</string>
     <string name="remote_sync_status_section">状态</string>
     <string name="remote_sync_base_url_hint">服务器地址（如 http://192.168.5.7:8787）</string>
@@ -241,18 +240,37 @@
     <string name="remote_sync_last_synced">最近同步</string>
     <string name="remote_sync_test_connection">测试连接</string>
     <string name="remote_sync_run_now">立即同步</string>
-    <string name="remote_sync_saved">远程同步设置已保存</string>
+    <string name="remote_sync_saved">远程服务设置已保存</string>
     <string name="remote_sync_base_url_required">请先填写服务器地址</string>
     <string name="remote_sync_test_ok">连接成功</string>
     <string name="remote_sync_test_failed">连接失败：服务器不可达</string>
     <string name="remote_sync_not_ready">请先填写服务器地址并启用</string>
     <string name="remote_sync_running">正在同步…</string>
+    <!-- Dual-mode (居家 / 外出) -->
+    <string name="remote_sync_mode_section">服务器配置</string>
+    <string name="remote_sync_mode_home">居家模式</string>
+    <string name="remote_sync_mode_away">外出模式</string>
+    <string name="remote_sync_current_mode">当前模式</string>
+    <string name="remote_sync_auto_switch_hint">WiFi 打开且居家服务器可达 → 自动切居家；WiFi 关闭或居家不可达 → 自动切外出。</string>
     <string name="remote_sync_no_pending">无待同步内容</string>
     <string name="remote_sync_drained_summary">已同步：accepted=%1$d, skipped=%2$d, rejected=%3$d</string>
     <string name="remote_sync_failed">同步失败：%1$s</string>
     <string name="tool_call_log">工具调用日志</string>
     <string name="tool_call_log_empty">本会话还没有工具调用记录</string>
     <string name="character_info">查看角色信息</string>
+    <string name="book_info">查看书籍信息</string>
+    <string name="action_export">导出会话</string>
+    <string name="export_format_title">选择导出格式</string>
+    <string name="export_format_json">JSON</string>
+    <string name="export_format_txt">TXT</string>
+    <string name="export_format_html">HTML</string>
+    <string name="export_scope_title">选择导出范围</string>
+    <string name="export_scope_all">全部对话（用户 + 助手）</string>
+    <string name="export_scope_assistant_only">仅助手回复</string>
+    <string name="export_scope_outline_only">仅大纲</string>
+    <string name="export_success">已导出</string>
+    <string name="export_failed">导出失败：%1$s</string>
+    <string name="export_empty_outline">没有大纲可导出</string>
     <string name="character_info_empty">暂无角色信息（未绑定人设或尚未拉取）</string>
     <string name="character_info_fetched_at">拉取于 %1$s</string>
     <string name="tool_call_label_call">工具调用</string>

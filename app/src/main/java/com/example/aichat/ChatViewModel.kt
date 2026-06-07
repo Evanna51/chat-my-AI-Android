@@ -12,7 +12,7 @@ import com.example.aichat.chat.ChatHandle
 import com.example.aichat.chat.ChatTimeContext
 import com.example.aichat.chat.ProactiveChatPlanner
 import com.example.aichat.chat.ProactiveMeta
-import com.example.aichat.chat.ProactivePromptBuilder
+import com.example.aichat.prompts.Prompts
 import com.example.aichat.chat.ToolMessageRecord
 import com.example.aichat.session.SessionMode
 import com.example.aichat.session.mode
@@ -487,7 +487,7 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
         val effectiveAutoChat = options.autoChatEnabled && isCharacter
         Log.d(TAG, "autoChat: autoChatEnabled=${options.autoChatEnabled} isCharacter=$isCharacter → effectiveAutoChat=$effectiveAutoChat | aid=$assistantId")
         val autoChatSuffix = if (effectiveAutoChat)
-            ProactivePromptBuilder.buildSystemSuffix(closeness) else ""
+            Prompts.Proactive.systemSuffix(closeness) else ""
         val localSystemPrompt = (options.systemPrompt ?: "").trim()
 
         val promptSource: String

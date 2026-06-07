@@ -48,8 +48,11 @@ object AssistantAvatarHelper {
         val avatarText = if (assistant != null) safe(assistant.avatar) else ""
         if (avatarText.isNotEmpty()) return avatarText
         val fallback = safe(fallbackName)
-        if (fallback.isNotEmpty()) return fallback.substring(0, 1)
-        return "助"
+        if (fallback.isNotEmpty()) {
+            val cp = fallback.codePointAt(0)
+            return String(Character.toChars(cp))
+        }
+        return "🤖"
     }
 
     @JvmStatic

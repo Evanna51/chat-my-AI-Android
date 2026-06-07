@@ -13,4 +13,5 @@ object DefaultModeStrategy : SessionModeStrategy {
     override val hidesPinnedActions: Boolean = false
     override val showsWriterOutlineButton: Boolean = false
     override val supportsAutoTts: Boolean = false
+    override val supportsOutlineExport: Boolean = false
 }

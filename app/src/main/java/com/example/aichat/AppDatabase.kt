@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SessionAssistantBindingEntity::class,
         RelationshipStateEntity::class
     ],
-    version = 11,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -199,7 +199,7 @@ abstract class AppDatabase : RoomDatabase() {
          *    支撑 per-session 自动对话开关 + 每日预算计数.
          *  - message 表加 proactiveKind, 标记 split / follow-up 来源, 用于审计与统计.
          *
-         * 协议见 chat/ProactiveMetaParser, chat/ProactivePromptBuilder.
+         * 协议见 chat/ProactiveMetaParser, prompts/Prompts.Proactive.
          */
         val MIGRATION_9_10 = object : Migration(9, 10) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -221,6 +221,36 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** v12: inkOS toggle (writer 模式专属). 当前仅 UI 持久化, R7 接入 inkos 时按此字段切换 generator. */
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `inkosEnabled` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        /** v13: 在 inkos 端绑定的 bookId (writer 模式). 由「章节计划」走 inkos 建书时回填. */
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `inkosBookId` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        /** v14: inkos 子类预设 (palace-erotic / mingqing-erotic / urban-erotic) + 可编辑 book_rules YAML. */
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `inkosSubtype` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `inkosBookRulesYaml` TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
+        /** v15: inkos 建书规模参数 - 目标章数 + 每章字数 (替代 inkos 默认的 200/3000, 更贴近作者实际需求). */
+        val MIGRATION_14_15 = object : Migration(14, 15) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `inkosTargetChapters` INTEGER NOT NULL DEFAULT 30")
+                db.execSQL("ALTER TABLE `session_chat_options` ADD COLUMN `inkosChapterWordCount` INTEGER NOT NULL DEFAULT 5000")
+            }
+        }
+
         @JvmStatic
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -229,7 +259,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "ai_chat_db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .allowMainThreadQueries() // 临时：待优化2(ViewModel)完成后移除
                 .build()
                 .also { INSTANCE = it }

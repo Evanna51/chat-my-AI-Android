@@ -42,8 +42,15 @@ interface SessionModeStrategy {
     /** writer 模式才显示 toolbar 的 outline 按钮 */
     val showsWriterOutlineButton: Boolean
 
+    /** writer 模式才显示底部输入栏的 Ink (inkOS) toggle */
+    val showsInkToggle: Boolean
+        get() = false
+
     /** character 模式才支持自动 TTS 朗读 */
     val supportsAutoTts: Boolean
+
+    /** writer 模式才支持「仅大纲 / 仅助手」等更细粒度导出范围；其它模式只导出全部对话 */
+    val supportsOutlineExport: Boolean
 
     // ─────────── 行为钩子 ───────────
 

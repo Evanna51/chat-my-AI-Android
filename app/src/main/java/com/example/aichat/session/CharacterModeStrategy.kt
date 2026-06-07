@@ -24,6 +24,7 @@ object CharacterModeStrategy : SessionModeStrategy {
     override val hidesPinnedActions: Boolean = true
     override val showsWriterOutlineButton: Boolean = false
     override val supportsAutoTts: Boolean = true
+    override val supportsOutlineExport: Boolean = false
 
     override fun resolveVoicePlay(message: Message, raw: String): VoicePlayPayload {
         val parsed = EmotionTagParser.parse(raw)

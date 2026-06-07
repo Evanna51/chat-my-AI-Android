@@ -391,6 +391,11 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             if (h.boundMessage !== target) continue
             val content = target.content ?: ""
             val hasVisibleContent = content.trim().isNotEmpty()
+            // 当首字到达时, typing indicator GONE 与 textContent VISIBLE 必须在同一布局帧切换,
+            // 否则两者在 FrameLayout 中会短暂叠加, 视觉上出现「输入中」与首字上下重叠.
+            if (hasVisibleContent) {
+                h.layoutTypingIndicator.visibility = View.GONE
+            }
             h.textContent.visibility = if (hasVisibleContent) View.VISIBLE else View.GONE
             if (hasVisibleContent) {
                 bindAssistantContentStreaming(h, target, content)

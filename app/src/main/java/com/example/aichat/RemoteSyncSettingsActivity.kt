@@ -15,6 +15,7 @@ import com.example.aichat.sync.WsClient
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.tabs.TabLayout
 import com.google.android.material.textfield.TextInputEditText
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -28,12 +29,20 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
 
     private lateinit var switchEnabled: MaterialSwitch
     private lateinit var switchSearchMemoryTool: MaterialSwitch
+    private lateinit var tabsMode: TabLayout
     private lateinit var editBaseUrl: TextInputEditText
     private lateinit var editApiKey: TextInputEditText
     private lateinit var textDeviceId: TextView
+    private lateinit var textCurrentMode: TextView
     private lateinit var textPending: TextView
     private lateinit var textLastAt: TextView
     private lateinit var textLastError: TextView
+
+    /** Mode currently shown in the edit fields (not necessarily the active mode). */
+    private var editingMode: RemoteSyncConfigStore.Mode = RemoteSyncConfigStore.Mode.HOME
+
+    /** Suppresses tab-listener re-entry while we programmatically swap text. */
+    private var suppressTabListener = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,18 +53,37 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
 
         switchEnabled = findViewById(R.id.switchRemoteSyncEnabled)
         switchSearchMemoryTool = findViewById(R.id.switchSearchMemoryTool)
+        tabsMode = findViewById(R.id.tabsRemoteSyncMode)
         editBaseUrl = findViewById(R.id.editRemoteSyncBaseUrl)
         editApiKey = findViewById(R.id.editRemoteSyncApiKey)
         textDeviceId = findViewById(R.id.textRemoteSyncDeviceId)
+        textCurrentMode = findViewById(R.id.textRemoteSyncCurrentMode)
         textPending = findViewById(R.id.textRemoteSyncPending)
         textLastAt = findViewById(R.id.textRemoteSyncLastAt)
         textLastError = findViewById(R.id.textRemoteSyncLastError)
 
         switchEnabled.isChecked = store.isEnabled()
         switchSearchMemoryTool.isChecked = store.isSearchMemoryToolEnabled()
-        editBaseUrl.setText(store.getBaseUrl())
-        editApiKey.setText(store.getApiKey())
         textDeviceId.text = DeviceIdProvider.get(this)
+
+        // Default editing tab = currently active mode.
+        editingMode = store.getMode()
+        suppressTabListener = true
+        tabsMode.getTabAt(editingMode.tabIndex())?.select()
+        suppressTabListener = false
+        loadFieldsForMode(editingMode)
+
+        tabsMode.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                if (suppressTabListener) return
+                // Save current tab's edits into memory before swapping.
+                stashEditsIntoStore(editingMode)
+                editingMode = modeFromTabIndex(tab.position)
+                loadFieldsForMode(editingMode)
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab) {}
+            override fun onTabReselected(tab: TabLayout.Tab) {}
+        })
 
         findViewById<MaterialButton>(R.id.btnRemoteSyncSave).setOnClickListener { saveAndApply() }
         findViewById<MaterialButton>(R.id.btnRemoteSyncTest).setOnClickListener { testConnection() }
@@ -68,12 +96,27 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
         refreshStatus()
     }
 
+    private fun RemoteSyncConfigStore.Mode.tabIndex(): Int =
+        if (this == RemoteSyncConfigStore.Mode.HOME) 0 else 1
+
+    private fun modeFromTabIndex(idx: Int): RemoteSyncConfigStore.Mode =
+        if (idx == 0) RemoteSyncConfigStore.Mode.HOME else RemoteSyncConfigStore.Mode.AWAY
+
+    private fun loadFieldsForMode(mode: RemoteSyncConfigStore.Mode) {
+        editBaseUrl.setText(store.getBaseUrl(mode))
+        editApiKey.setText(store.getApiKey(mode))
+    }
+
+    /** Persist the form values into the store under the given mode (no side effects). */
+    private fun stashEditsIntoStore(mode: RemoteSyncConfigStore.Mode) {
+        store.setBaseUrl(mode, editBaseUrl.text?.toString().orEmpty())
+        store.setApiKey(mode, editApiKey.text?.toString().orEmpty())
+    }
+
     private fun saveAndApply() {
-        val baseUrl = editBaseUrl.text?.toString().orEmpty()
-        val apiKey = editApiKey.text?.toString().orEmpty()
+        // Persist whichever tab the user is currently editing.
+        stashEditsIntoStore(editingMode)
         val enabled = switchEnabled.isChecked
-        store.setBaseUrl(baseUrl)
-        store.setApiKey(apiKey)
         store.setEnabled(enabled)
         store.setSearchMemoryToolEnabled(switchSearchMemoryTool.isChecked)
         if (enabled) {
@@ -134,7 +177,6 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
                 }
                 Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
                 refreshStatus()
-                // Schedule WorkManager periodic if user just enabled
                 if (store.isEnabled()) SyncScheduler.start(applicationContext)
             }
         }
@@ -187,7 +229,13 @@ class RemoteSyncSettingsActivity : ThemedActivity() {
             val pending = AppDatabase.getInstance(this).messageDao().pendingSyncCount()
             val lastAt = store.getLastSyncAt()
             val lastError = store.getLastError()
+            val activeMode = store.getMode()
             runOnUiThread {
+                textCurrentMode.text = getString(
+                    if (activeMode == RemoteSyncConfigStore.Mode.HOME)
+                        R.string.remote_sync_mode_home
+                    else R.string.remote_sync_mode_away
+                )
                 textPending.text = pending.toString()
                 textLastAt.text = if (lastAt > 0) {
                     SimpleDateFormat("MM-dd HH:mm:ss", Locale.US).format(Date(lastAt))

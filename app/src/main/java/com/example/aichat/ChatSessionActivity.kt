@@ -1,6 +1,7 @@
 package com.example.aichat
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -65,6 +66,7 @@ import com.example.aichat.session.SessionContext
 import com.example.aichat.session.ChatAttachmentController
 import com.example.aichat.session.ChapterJumpController
 import com.example.aichat.session.StreamTypewriter
+import com.example.aichat.session.SessionExporter
 import com.example.aichat.chat.ChatCallback
 import com.example.aichat.chat.ChatHandle
 
@@ -108,6 +110,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     private lateinit var attachmentController: ChatAttachmentController
     private lateinit var chapterJumpController: ChapterJumpController
     private lateinit var streamTypewriter: StreamTypewriter
+    private lateinit var sessionExporter: SessionExporter
     /** 流式开始时间 (elapsedRealtime). 用于 [STOP_GUARD_MS] 防误触检查. */
     private var streamStartedAtMs: Long = 0L
     private lateinit var chatService: ChatService
@@ -120,6 +123,18 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
             if (uri == null) return@registerForActivityResult
             attachmentController.onFilePicked(uri)
+        }
+
+    /**
+     * SAF CREATE_DOCUMENT launcher 用于会话导出。
+     * 用 StartActivityForResult（而不是 CreateDocument 合约）是因为后者把 mime 绑死在注册时刻，
+     * 而导出格式是用户运行时选的（json/txt/html），mime 不同。
+     */
+    private val exportDocumentLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
+            val uri = result.data?.data ?: return@registerForActivityResult
+            if (::sessionExporter.isInitialized) sessionExporter.onDocumentCreated(uri)
         }
 
     private val photoPickerLauncher: ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> =
@@ -457,6 +472,17 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
             currentAdapter = currentAdapter,
             host = this,
         )
+        sessionExporter = SessionExporter(
+            activity = this,
+            sessionId = sessionId,
+            mode = mode,
+            createDocumentLauncher = exportDocumentLauncher,
+            getMessages = { ArrayList(allMessages) },
+            getSessionTitle = {
+                chatTitleView?.text?.toString()?.trim().orEmpty().ifEmpty { sessionId }
+            },
+            getOutline = { outlineStore?.getAll(sessionId).orEmpty() },
+        )
         val assistantStateListener = object : MessageAdapter.OnAssistantStateChangedListener {
             override fun onAssistantStateChanged() {
                 historyAdapter.notifyDataSetChanged()
@@ -491,6 +517,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
                 layoutAddActions.visibility = if (addActionsExpanded) View.VISIBLE else View.GONE
             }
         }
+        bindInkToggle()
         btnAddFile?.setOnClickListener { filePickerLauncher.launch(arrayOf("*/*")) }
         btnAddLocation?.setOnClickListener { handleAddLocationClicked() }
         btnAddPhoto?.setOnClickListener {
@@ -1037,6 +1064,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         btnWriterOutline?.visibility = if (mode.showsWriterOutlineButton) View.VISIBLE else View.GONE
         refreshAutoTtsButton()
         sessionOptions = resolveChatOptions()
+        bindInkToggle()
         applyMessagesAndTitle()
         // Bootstrap (coreMemories / coreFacts / relationshipState) — fire-and-forget;
         // 跨日才会真正发请求, 同日 no-op. ChatViewModel 拼 prompt 时直接读 in-memory cache.
@@ -1106,10 +1134,14 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
 
     private fun showSessionMoreMenu(anchor: View) {
         val density = resources.displayMetrics.density
+        // writer 模式: 「查看角色信息」位置换成「查看书籍信息」, 走 BookInfoActivity 连 inkos
+        val infoLabel = if (mode.usesWriterAdapter)
+            getString(R.string.book_info) else getString(R.string.character_info)
         val labels = listOf(
             getString(R.string.quick_jump_chapters),
             getString(R.string.tool_call_log),
-            getString(R.string.character_info),
+            infoLabel,
+            getString(R.string.action_export),
         )
         val popup = ListPopupWindow(this)
         popup.setAdapter(ArrayAdapter(this, R.layout.item_popup_menu, labels))
@@ -1128,7 +1160,8 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
             when (position) {
                 0 -> chapterJumpController.show()
                 1 -> openToolCallLog()
-                2 -> openCharacterInfo()
+                2 -> if (mode.usesWriterAdapter) openBookInfo() else openCharacterInfo()
+                3 -> sessionExporter.show()
             }
         }
         popup.show()
@@ -1142,6 +1175,11 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     private fun openCharacterInfo() {
         startActivity(Intent(this, CharacterInfoActivity::class.java)
             .putExtra(CharacterInfoActivity.EXTRA_SESSION_ID, sessionId))
+    }
+
+    private fun openBookInfo() {
+        startActivity(Intent(this, BookInfoActivity::class.java)
+            .putExtra(BookInfoActivity.EXTRA_SESSION_ID, sessionId))
     }
 
     // R8: 章节跳转的 9 个方法 + ChapterJumpItem 已搬到 ChapterJumpController。
@@ -1379,6 +1417,46 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         val id = assistantId
         val assistant = if (id.isNullOrEmpty()) null else MyAssistantStore(this).getById(id)
         return SessionModeStrategy.from(assistant)
+    }
+
+    private fun bindInkToggle() {
+        val btn = findViewById<View>(R.id.btnInkToggle) ?: return
+        if (!mode.showsInkToggle) {
+            btn.visibility = View.GONE
+            return
+        }
+        btn.visibility = View.VISIBLE
+        btn.isSelected = sessionOptions.inkosEnabled
+        btn.setOnClickListener {
+            if (sessionOptions.inkosEnabled) {
+                // 关闭直接生效, 不需要后端探测
+                sessionOptions.inkosEnabled = false
+                btn.isSelected = false
+                SessionChatOptionsStore(this).save(sessionId, sessionOptions)
+                return@setOnClickListener
+            }
+            // 开启前探测 inkos studio 是否可达 — 失败回退避免状态与实际能力错位
+            btn.isEnabled = false
+            executor.execute {
+                val ok = com.example.aichat.inkos.InkosClient.probe()
+                mainHandler.post {
+                    btn.isEnabled = true
+                    if (ok) {
+                        sessionOptions.inkosEnabled = true
+                        btn.isSelected = true
+                        SessionChatOptionsStore(this).save(sessionId, sessionOptions)
+                        Toast.makeText(this, "Ink 已连接", Toast.LENGTH_SHORT).show()
+                    } else {
+                        btn.isSelected = false
+                        Toast.makeText(
+                            this,
+                            "Ink 后端连接失败 (${com.example.aichat.inkos.InkosClient.BASE_URL})",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
+            }
+        }
     }
 
     /**

@@ -10,6 +10,7 @@ import com.example.aichat.ChapterPlanContext
 import com.example.aichat.ModelConfig
 import com.example.aichat.SessionOutlineItem
 import com.example.aichat.chat.ChatTextHelpers
+import com.example.aichat.prompts.Prompts
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -70,31 +71,7 @@ class WriterChapterPlanService(private val service: ChatService) {
         val api = retrofit.create(ChatApi::class.java)
 
         val requestMessages = ArrayList<ChatApi.ChatMessage>()
-        requestMessages.add(ChatApi.ChatMessage("system",
-            "你是小说章节规划助手。\n" +
-                    "你将收到：(a) 一段按类型分组的大纲上下文（含章节序列、人物、世界、知情等），(b) 一个明确的【本次必须规划的章节】标题。\n" +
-                    "你的唯一任务：为【该目标章节本身】（不是它的前一章，也不是它的下一章）输出一个结构化写作计划。\n\n" +
-                    "仅输出一个 JSON 对象（绝对禁止 Markdown 代码块、解释、Thinking 文本）：\n" +
-                    "{\"chapterGoal\":\"\",\"startState\":\"\",\"endState\":\"\",\"characterDrives\":[],\"knowledgeBoundary\":[],\"eventChain\":[],\"foreshadow\":[],\"payoff\":[],\"forbidden\":[],\"styleGuide\":\"\",\"targetLength\":\"\"}\n\n" +
-                    "字段语义（务必严格匹配，前端会一一回填到对应输入框）：\n" +
-                    "- chapterGoal: 字符串，本章核心目标（≤120字）。\n" +
-                    "- startState: 字符串，本章开场时的人物/局面状态。\n" +
-                    "- endState: 字符串，本章收尾时的状态，需与 startState 形成可见对比。\n" +
-                    "- characterDrives: 对象数组 [{\"name\":\"\",\"goal\":\"\",\"misbelief\":\"\",\"emotion\":\"\"}]，每个出场关键角色一项；name 必填。\n" +
-                    "- knowledgeBoundary: 字符串数组；每条一行短陈述，形如 \"X 知道/不知道/误以为 Y\"。\n" +
-                    "- eventChain: 字符串数组（3-7 项），按时间顺序，每条形如 \"起因 → 行为 → 结果\"，不得照抄前文已发生事件。\n" +
-                    "- foreshadow: 字符串数组，本章埋下的伏笔。\n" +
-                    "- payoff: 字符串数组，本章兑现/回收的伏笔。\n" +
-                    "- forbidden: 字符串数组，本章不应写的内容（剧透、违反人设的动作、跳跃式叙述等）。\n" +
-                    "- styleGuide: 字符串，文风 / 节奏 / 视角提示。\n" +
-                    "- targetLength: 字符串（即使是数字也用引号），例如 \"3000\"。\n\n" +
-                    "强约束（违反任意一条都视为失败）：\n" +
-                    "1) 输出必须以 { 开头、以 } 结尾，必须保留全部 11 个键；空值用 \"\" 或 [] 占位。\n" +
-                    "2) 严禁把目标章节误解成「下一章 / 续写章节」——你输出的计划就是用户指定的那一章本身。\n" +
-                    "3) 若是【覆盖】模式，请基于「目标章节当前大纲」做重写或细化；不是为后续章节做规划。\n" +
-                    "4) 计划要呼应章节序列中【本次必须规划的章节】所在位置——之前章节是已发生事实，之后章节（如有）是未来约束。\n" +
-                    "5) 不得违背【知情约束】：角色只能基于其已知信息行动；让某角色得知新信息需在 eventChain 中给出获取路径。\n" +
-                    "6) 内容具体可执行；避免「角色继续推进剧情」之类的空话。"))
+        requestMessages.add(ChatApi.ChatMessage("system", Prompts.Writer.ChapterPlan.SYSTEM))
         requestMessages.add(ChatApi.ChatMessage("user", buildChapterPlanUserPrompt(ctx)))
 
         val request = ChatApi.ChatRequest()

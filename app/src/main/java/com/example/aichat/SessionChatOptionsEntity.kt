@@ -97,4 +97,34 @@ class SessionChatOptionsEntity {
     @ColumnInfo(defaultValue = "0")
     @JvmField
     var proactiveDailyBudget: Int = 0
+
+    /** inkOS toggle (writer 模式专属)。v12 加入. */
+    @ColumnInfo(defaultValue = "0")
+    @JvmField
+    var inkosEnabled: Boolean = false
+
+    /** v13: 在 inkos 端绑定的 bookId (writer 模式)。空 = 未绑定. */
+    @ColumnInfo(defaultValue = "")
+    @JvmField
+    var inkosBookId: String = ""
+
+    /** v14: inkos 子类预设 id (对应 inkos /genres 的 genre id). */
+    @ColumnInfo(defaultValue = "")
+    @JvmField
+    var inkosSubtype: String = ""
+
+    /** v14: inkos book_rules YAML 内容. 空 = 走预设. */
+    @ColumnInfo(defaultValue = "")
+    @JvmField
+    var inkosBookRulesYaml: String = ""
+
+    /** v15: 目标章数 (默认 30). */
+    @ColumnInfo(defaultValue = "30")
+    @JvmField
+    var inkosTargetChapters: Int = 30
+
+    /** v15: 每章字数 (默认 5000). */
+    @ColumnInfo(defaultValue = "5000")
+    @JvmField
+    var inkosChapterWordCount: Int = 5000
 }

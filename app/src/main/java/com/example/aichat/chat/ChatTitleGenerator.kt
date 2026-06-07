@@ -7,6 +7,7 @@ import com.example.aichat.ChatApi
 import com.example.aichat.ChatService
 import com.example.aichat.ModelConfig
 import com.example.aichat.R
+import com.example.aichat.prompts.Prompts
 import com.google.gson.JsonObject
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -80,12 +81,7 @@ class ChatTitleGenerator(private val service: ChatService) {
         val api = retrofit.create(ChatApi::class.java)
 
         val requestMessages = ArrayList<ChatApi.ChatMessage>()
-        val titlePrompt = "你是标题助手。根据输入生成一个中文短标题。\n" +
-                "仅输出一个JSON对象，不要任何额外文本。\n" +
-                "严格格式:{\"title\":\"3到12个字中文短标题\"}\n" +
-                "约束: 不要标点，不要换行，不要解释。\n" +
-                "输入:" + source
-        requestMessages.add(ChatApi.ChatMessage("user", titlePrompt))
+        requestMessages.add(ChatApi.ChatMessage("user", Prompts.Title.userPrompt(source)))
 
         val request = ChatApi.ChatRequest()
         request.model = config.modelId
