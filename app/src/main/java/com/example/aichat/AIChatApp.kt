@@ -2,7 +2,7 @@ package com.example.aichat
 
 import android.app.Application
 import androidx.appcompat.app.AppCompatDelegate
-import com.example.aichat.inkos.InkosClient
+import com.example.aichat.story.InkosRulesMigration
 import com.example.aichat.sync.RemoteSyncConfigStore
 import com.example.aichat.sync.SyncScheduler
 import com.example.aichat.sync.WsClient
@@ -17,8 +17,9 @@ class AIChatApp : Application() {
         applyTheme()
         VolcEngineTTSManager.init(this)
         VolcEngineHttpTTS.init(cacheDir)
-        InkosClient.init(this)
         RoomMigrationHelper.migrateIfNeeded(this)
+        // v16 后置迁移: 把 Room 暂存的旧 inkosBookRulesYaml 写成 rules outline item.
+        InkosRulesMigration.runIfPending(this)
         ProactiveMessageNotifier(this).ensureChannel()
         if (RemoteSyncConfigStore(this).isEnabled()) {
             SyncScheduler.start(this)

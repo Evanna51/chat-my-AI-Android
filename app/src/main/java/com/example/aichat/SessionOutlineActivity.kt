@@ -98,7 +98,8 @@ class SessionOutlineActivity : ThemedActivity() {
     }
 
     private fun showMoreMenu(anchor: View) {
-        val labels = listOf("知情注入", "章节计划", "生成卷纲")
+        // 「章节计划」已被「生成书籍」替代 (S6); 走 Story Tools 反向初始化 outline。
+        val labels = listOf("知情注入", "生成书籍", "生成卷纲")
         val density = resources.displayMetrics.density
         val popup = android.widget.ListPopupWindow(this)
         popup.setAdapter(android.widget.ArrayAdapter(this, R.layout.item_popup_menu, labels))
@@ -120,7 +121,7 @@ class SessionOutlineActivity : ThemedActivity() {
             popup.dismiss()
             when (position) {
                 0 -> runKnowledgeExtraction()
-                1 -> runChapterPlanGeneration()
+                1 -> runBookGeneration()
                 2 -> runVolumeGeneration()
             }
         }
@@ -145,8 +146,6 @@ class SessionOutlineActivity : ThemedActivity() {
     }
 
     override fun onDestroy() {
-        for (l in inkosListeners) com.example.aichat.inkos.InkosEventBus.removeListener(l)
-        inkosListeners.clear()
         executor.shutdown()
         super.onDestroy()
     }
@@ -1086,130 +1085,23 @@ class SessionOutlineActivity : ThemedActivity() {
     }
 
     /**
-     * 章节计划：先选目标章节（已有 / 续写新章），再调模型生成 → 弹编辑对话框 → 保存到大纲。
-     *
-     * Ink toggle 打开时,改走 inkos:把当前完整大纲作为 blurb,POST /api/v1/books/create,
-     * 让 inkos pipeline 用大纲生成 story bible / outline 等结构化资料,而不是走本地章节计划。
+     * 章节计划（已停用）: S6 用「生成书籍」替代,见 [runBookGeneration]。
+     * 保留函数定义避免外部引用未清理;实际入口在 popup menu 已切换。
      */
+    // TODO(story): 评估是否回归。若回归,先迁移 startChapterPlanRequest 逻辑到 Story Tools。
+    @Suppress("unused")
     private fun runChapterPlanGeneration() {
-        if (SessionChatOptionsStore(this).get(sessionId).inkosEnabled) {
-            sendOutlineToInkos()
-            return
-        }
         showChapterTargetPicker { spec ->
             startChapterPlanRequest(spec)
         }
     }
 
-    private fun sendOutlineToInkos() {
-        val items = outlineStore.getAll(sessionId)
-        if (items.isEmpty()) {
-            Toast.makeText(this, "大纲为空,先添加大纲条目再发给 Ink", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val opts = SessionChatOptionsStore(this).get(sessionId)
-        val meta = SessionMetaStore(this).get(sessionId)
-        val title = meta.title.trim().ifEmpty { opts.sessionTitle.trim() }
-            .ifEmpty { "未命名作品-$sessionId" }
-
-        // 子类预设决定 genre 和 book_rules YAML。
-        // 用户在会话设置里改过 inkosBookRulesYaml 就走它,没改走预设默认模板。
-        val preset = com.example.aichat.inkos.InkosSubtypePresets.byId(opts.inkosSubtype)
-        val bookRulesYaml = opts.inkosBookRulesYaml.trim().ifEmpty { preset.defaultBookRulesYaml }
-        val blurb = com.example.aichat.inkos.InkosBlurbBuilder.build(items, title, bookRulesYaml)
-
-        Toast.makeText(this, "正在发起 Ink 建书 ($title, ${preset.displayName}, blurb ${blurb.length}字)…", Toast.LENGTH_LONG).show()
-        android.util.Log.i("InkBookCreate", "POST start: title=$title genre=${preset.genreId} blurbLen=${blurb.length}")
-
-        executor.execute {
-            // 兜底 try/catch — 任何异常都要在 UI 上反映出来, 不能让 executor 静默吞掉。
-            val result: com.example.aichat.inkos.InkosClient.BookCreateResult = try {
-                com.example.aichat.inkos.InkosClient.createBook(
-                    title = title,
-                    blurb = blurb,
-                    genre = preset.genreId,
-                    targetChapters = opts.inkosTargetChapters,
-                    chapterWordCount = opts.inkosChapterWordCount,
-                )
-            } catch (t: Throwable) {
-                android.util.Log.e("InkBookCreate", "createBook threw", t)
-                com.example.aichat.inkos.InkosClient.BookCreateResult(
-                    false, null, "异常: ${t.javaClass.simpleName} ${t.message}"
-                )
-            }
-            android.util.Log.i("InkBookCreate", "POST done: ok=${result.ok} bookId=${result.bookId} err=${result.errorMessage}")
-
-            runOnUiThread {
-                if (result.ok && result.bookId != null) {
-                    val saved = SessionChatOptionsStore(this).get(sessionId)
-                    saved.inkosBookId = result.bookId
-                    SessionChatOptionsStore(this).save(sessionId, saved)
-
-                    Toast.makeText(this, "Ink 已开始建书: ${result.bookId}, 跳转到书籍信息看实时进度", Toast.LENGTH_SHORT).show()
-                    watchInkosBookProgress(result.bookId, title)
-
-                    // 立刻在 inkos 端建一个 session 绑书 — 否则 studio UI 的 session 导航
-                    // 看不到这本书 (POST /books/create 不会自动建 session)。
-                    val targetBookId = result.bookId
-                    executor.execute {
-                        val sid = com.example.aichat.inkos.InkosClient.createBookSession(targetBookId)
-                        android.util.Log.i("InkBookCreate", "bound studio session=$sid for bookId=$targetBookId")
-                    }
-
-                    // 自动跳到 BookInfoActivity 看事件流, 否则用户找不到进度
-                    startActivity(
-                        android.content.Intent(this, BookInfoActivity::class.java)
-                            .putExtra(BookInfoActivity.EXTRA_SESSION_ID, sessionId)
-                    )
-                } else {
-                    Toast.makeText(
-                        this,
-                        "Ink 建书失败: ${result.errorMessage ?: "未知错误"} (URL=${com.example.aichat.inkos.InkosClient.BASE_URL})",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-        }
-    }
-
     /**
-     * SSE 监听给定 bookId 的 `book:created` / `book:error`。匹配到就 Toast + 摘掉自己。
-     * Activity 销毁时一并摘掉,避免对死 context 调 Toast。
+     * 「生成书籍」: 把所有 chapter outline 作为输入,调主对话模型 + Story Tools,
+     * 反向初始化 world / roles / volume / rules。S6 完整实现。
      */
-    private val inkosListeners = mutableSetOf<com.example.aichat.inkos.InkosEventBus.Listener>()
-    private fun watchInkosBookProgress(bookId: String, title: String) {
-        val listener = object : com.example.aichat.inkos.InkosEventBus.Listener {
-            override fun onEvent(event: String, data: com.google.gson.JsonObject) {
-                val id = data.get("bookId")?.takeIf { !it.isJsonNull }?.asString
-                if (id != bookId) return
-                when (event) {
-                    "book:created" -> {
-                        Toast.makeText(
-                            this@SessionOutlineActivity,
-                            "Ink 已建好《$title》",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        detach(this)
-                    }
-                    "book:error" -> {
-                        val err = data.get("error")?.takeIf { !it.isJsonNull }?.asString ?: "未知"
-                        Toast.makeText(
-                            this@SessionOutlineActivity,
-                            "Ink 建书失败: $err",
-                            Toast.LENGTH_LONG
-                        ).show()
-                        detach(this)
-                    }
-                }
-            }
-        }
-        inkosListeners.add(listener)
-        com.example.aichat.inkos.InkosEventBus.addListener(listener)
-    }
-
-    private fun detach(l: com.example.aichat.inkos.InkosEventBus.Listener) {
-        inkosListeners.remove(l)
-        com.example.aichat.inkos.InkosEventBus.removeListener(l)
+    private fun runBookGeneration() {
+        com.example.aichat.story.BookGenerator.run(this, sessionId, executor, ::runOnUiThread)
     }
 
     private data class ChapterPlanTargetSpec(

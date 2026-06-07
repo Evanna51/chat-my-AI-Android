@@ -517,7 +517,6 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
                 layoutAddActions.visibility = if (addActionsExpanded) View.VISIBLE else View.GONE
             }
         }
-        bindInkToggle()
         btnAddFile?.setOnClickListener { filePickerLauncher.launch(arrayOf("*/*")) }
         btnAddLocation?.setOnClickListener { handleAddLocationClicked() }
         btnAddPhoto?.setOnClickListener {
@@ -1064,7 +1063,6 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         btnWriterOutline?.visibility = if (mode.showsWriterOutlineButton) View.VISIBLE else View.GONE
         refreshAutoTtsButton()
         sessionOptions = resolveChatOptions()
-        bindInkToggle()
         applyMessagesAndTitle()
         // Bootstrap (coreMemories / coreFacts / relationshipState) — fire-and-forget;
         // 跨日才会真正发请求, 同日 no-op. ChatViewModel 拼 prompt 时直接读 in-memory cache.
@@ -1134,7 +1132,8 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
 
     private fun showSessionMoreMenu(anchor: View) {
         val density = resources.displayMetrics.density
-        // writer 模式: 「查看角色信息」位置换成「查看书籍信息」, 走 BookInfoActivity 连 inkos
+        // writer 模式: 「书籍信息」复用 SessionOutlineActivity (新的故事 outline 就是全书结构化资料);
+        // character 模式走专属角色信息页。
         val infoLabel = if (mode.usesWriterAdapter)
             getString(R.string.book_info) else getString(R.string.character_info)
         val labels = listOf(
@@ -1160,7 +1159,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
             when (position) {
                 0 -> chapterJumpController.show()
                 1 -> openToolCallLog()
-                2 -> if (mode.usesWriterAdapter) openBookInfo() else openCharacterInfo()
+                2 -> if (mode.usesWriterAdapter) openWriterOutline() else openCharacterInfo()
                 3 -> sessionExporter.show()
             }
         }
@@ -1177,9 +1176,9 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
             .putExtra(CharacterInfoActivity.EXTRA_SESSION_ID, sessionId))
     }
 
-    private fun openBookInfo() {
-        startActivity(Intent(this, BookInfoActivity::class.java)
-            .putExtra(BookInfoActivity.EXTRA_SESSION_ID, sessionId))
+    private fun openWriterOutline() {
+        startActivity(Intent(this, SessionOutlineActivity::class.java)
+            .putExtra(SessionOutlineActivity.EXTRA_SESSION_ID, sessionId))
     }
 
     // R8: 章节跳转的 9 个方法 + ChapterJumpItem 已搬到 ChapterJumpController。
@@ -1289,10 +1288,60 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         })
     }
 
+    /**
+     * 自动朗读待播队列。split / follow-up 的多段消息按顺序串行播放,
+     * 避免后到的段调 [VolcEngineTTSManager.speak] 时把前一段抢断。
+     * 单纯用 messageId 入队即可: 实际播放时按 id 在 [allMessages] 里取最新 content。
+     */
+    private val pendingAutoTtsMessageIds = ArrayDeque<Long>()
+
     private fun maybeAutoReadAssistantMessage(message: Message?, content: String) {
         if (!autoTtsEnabled || !mode.supportsAutoTts) return
         if (message == null || content.isBlank()) return
-        handleVoicePlay(message)
+        // 已在队列里就不重复入队 (split 阶段同一条 row 可能多次进 onSuccess).
+        if (pendingAutoTtsMessageIds.contains(message.id)) return
+        pendingAutoTtsMessageIds.addLast(message.id)
+        // 上一段还在播 → 等它结束后由 onStateChanged 回调 drain.
+        if (VolcEngineTTSManager.isPlaying()) return
+        drainAutoTtsQueue()
+    }
+
+    private fun drainAutoTtsQueue() {
+        if (!autoTtsEnabled || !mode.supportsAutoTts) {
+            pendingAutoTtsMessageIds.clear()
+            return
+        }
+        while (true) {
+            val nextId = pendingAutoTtsMessageIds.removeFirstOrNull() ?: return
+            val msg = allMessages.firstOrNull { it.id == nextId } ?: continue
+            val raw = msg.content?.trim() ?: ""
+            if (raw.isEmpty()) continue
+            val payload = mode.resolveVoicePlay(msg, raw)
+            val text = payload?.text ?: raw
+            if (text.isBlank()) continue
+            val callback = object : VolcEngineTTSManager.TTSCallback {
+                override fun onStateChanged(state: VolcEngineTTSManager.State) {
+                    val playingId = if (state == VolcEngineTTSManager.State.PLAYING ||
+                        state == VolcEngineTTSManager.State.LOADING
+                    ) msg.id else null
+                    historyAdapter.updateVoicePlayState(playingId)
+                    currentAdapter.updateVoicePlayState(playingId)
+                    // 该段播完 → drain 下一段. PAUSED / LOADING 不触发.
+                    if (state == VolcEngineTTSManager.State.IDLE) {
+                        drainAutoTtsQueue()
+                    }
+                }
+                override fun onError(errorMessage: String) {
+                    Toast.makeText(this@ChatSessionActivity, errorMessage, Toast.LENGTH_SHORT).show()
+                    historyAdapter.updateVoicePlayState(null)
+                    currentAdapter.updateVoicePlayState(null)
+                    // 当前段失败 → 跳过, 继续播下一段, 避免一条出错卡死整队.
+                    drainAutoTtsQueue()
+                }
+            }
+            VolcEngineTTSManager.speak(text, msg.id, callback, payload?.speechParams)
+            return
+        }
     }
 
     private fun toggleAutoTts() {
@@ -1301,7 +1350,10 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         autoTtsEnabled = !autoTtsEnabled
         autoReadStore.setEnabled(id, autoTtsEnabled)
         btnAutoTtsView?.alpha = if (autoTtsEnabled) 1.0f else 0.4f
-        if (!autoTtsEnabled) VolcEngineTTSManager.stop()
+        if (!autoTtsEnabled) {
+            pendingAutoTtsMessageIds.clear()
+            VolcEngineTTSManager.stop()
+        }
         Toast.makeText(
             this,
             if (autoTtsEnabled) R.string.auto_tts_on else R.string.auto_tts_off,
@@ -1315,6 +1367,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         btn.visibility = if (visible) View.VISIBLE else View.GONE
         if (!visible) {
             autoTtsEnabled = false
+            pendingAutoTtsMessageIds.clear()
             return
         }
         autoTtsEnabled = autoReadStore.isEnabled(assistantId)
@@ -1417,46 +1470,6 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         val id = assistantId
         val assistant = if (id.isNullOrEmpty()) null else MyAssistantStore(this).getById(id)
         return SessionModeStrategy.from(assistant)
-    }
-
-    private fun bindInkToggle() {
-        val btn = findViewById<View>(R.id.btnInkToggle) ?: return
-        if (!mode.showsInkToggle) {
-            btn.visibility = View.GONE
-            return
-        }
-        btn.visibility = View.VISIBLE
-        btn.isSelected = sessionOptions.inkosEnabled
-        btn.setOnClickListener {
-            if (sessionOptions.inkosEnabled) {
-                // 关闭直接生效, 不需要后端探测
-                sessionOptions.inkosEnabled = false
-                btn.isSelected = false
-                SessionChatOptionsStore(this).save(sessionId, sessionOptions)
-                return@setOnClickListener
-            }
-            // 开启前探测 inkos studio 是否可达 — 失败回退避免状态与实际能力错位
-            btn.isEnabled = false
-            executor.execute {
-                val ok = com.example.aichat.inkos.InkosClient.probe()
-                mainHandler.post {
-                    btn.isEnabled = true
-                    if (ok) {
-                        sessionOptions.inkosEnabled = true
-                        btn.isSelected = true
-                        SessionChatOptionsStore(this).save(sessionId, sessionOptions)
-                        Toast.makeText(this, "Ink 已连接", Toast.LENGTH_SHORT).show()
-                    } else {
-                        btn.isSelected = false
-                        Toast.makeText(
-                            this,
-                            "Ink 后端连接失败 (${com.example.aichat.inkos.InkosClient.BASE_URL})",
-                            Toast.LENGTH_LONG
-                        ).show()
-                    }
-                }
-            }
-        }
     }
 
     /**
@@ -2015,6 +2028,8 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
                 applyMessagesAndTitle()
                 // 不 force: AI follow-up 主动消息不该抢用户阅读位置.
                 maybeAutoScrollToBottom(false)
+                // split / follow-up 后续段也要进自动朗读队列, 否则只读第一段.
+                maybeAutoReadAssistantMessage(msg, msg.content.orEmpty())
             }
             ChatViewModel.ProactiveMessageEvent.KIND_REMOVE -> {
                 // split 取消时清掉还没填上内容的 typing placeholder 行.

@@ -15,7 +15,7 @@ import com.example.aichat.VolcEngineHttpTTS
  * - **唯一允许 `when (mode)` 的地方**是 [SessionModeStrategy.from] 工厂；
  *   其它任何地方出现 `when (mode)` / `if (mode.is...)` 都是退步
  *
- * 添加新模式（如 inkos） = **新建一个 strategy 文件 + 加一支 from() 分支**，
+ * 添加新模式 = **新建一个 strategy 文件 + 加一支 from() 分支**，
  * **零修改现有 strategy**。
  */
 interface SessionModeStrategy {
@@ -42,9 +42,6 @@ interface SessionModeStrategy {
     /** writer 模式才显示 toolbar 的 outline 按钮 */
     val showsWriterOutlineButton: Boolean
 
-    /** writer 模式才显示底部输入栏的 Ink (inkOS) toggle */
-    val showsInkToggle: Boolean
-        get() = false
 
     /** character 模式才支持自动 TTS 朗读 */
     val supportsAutoTts: Boolean

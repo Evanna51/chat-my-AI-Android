@@ -37,30 +37,5 @@ data class SessionChatOptions(
      * 在 OutlinePromptBuilder 构建大纲上下文时追加到末尾，喂给模型辅助生成。
      * 对话配置和助手配置都可设置；对话级覆盖助手级。
      */
-    @JvmField var outlinePrompt: String = "",
-    /**
-     * inkOS toggle (writer 模式专属)。当前仅 UI 持久化；R7 接入 inkos 生成器时按此字段切换。
-     */
-    @JvmField var inkosEnabled: Boolean = false,
-    /**
-     * 本会话在 inkos 端绑定的 bookId。
-     * 由「章节计划」走 inkos 建书时回填; 「查看书籍信息」按此查询 inkos REST。
-     * 空 = 尚未在 inkos 创建对应书籍。
-     */
-    @JvmField var inkosBookId: String = "",
-    /**
-     * inkos 建书时用的子类预设 id, 对应 inkos /genres 里的 genre id。
-     * 取值之一: palace-erotic / mingqing-erotic / urban-erotic (自定义 zh genre)。
-     * 空 = 走 [InkosSubtypePresets.DEFAULT]。
-     */
-    @JvmField var inkosSubtype: String = "",
-    /**
-     * inkos book_rules section 的 YAML 内容。在子类预设的基础上用户可改。
-     * 空 = 用 [InkosSubtypePresets] 里对应子类的默认模板。
-     */
-    @JvmField var inkosBookRulesYaml: String = "",
-    /** inkos 建书时的目标章数(短篇/中篇/长篇). 默认 30, 范围典型 10~50. */
-    @JvmField var inkosTargetChapters: Int = 30,
-    /** inkos 每章目标字数. 默认 5000, 范围典型 4000~7000. */
-    @JvmField var inkosChapterWordCount: Int = 5000
+    @JvmField var outlinePrompt: String = ""
 )

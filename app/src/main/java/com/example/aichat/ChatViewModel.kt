@@ -58,8 +58,8 @@ class ChatViewModel(@NonNull application: Application) : AndroidViewModel(applic
     // --- Internal state ---
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val db: AppDatabase = AppDatabase.getInstance(application)
-    // 字段类型用 ChatGenerator 接口而非具体 ChatService，方便 R7 接入 inkos 时
-    // 按 SessionMode 切到 InkosGenerator。当前唯一实现就是 ChatService。
+    // 字段类型用 ChatGenerator 接口而非具体 ChatService，便于按 SessionMode
+    // 在未来切到其它实现。当前唯一实现就是 ChatService。
     private val chatService: com.example.aichat.chat.ChatGenerator = ChatService(application)
     private val mainHandler = Handler(Looper.getMainLooper())
 

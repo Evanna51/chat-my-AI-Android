@@ -16,7 +16,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         SessionAssistantBindingEntity::class,
         RelationshipStateEntity::class
     ],
-    version = 15,
+    version = 16,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -251,6 +251,75 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v16: 移除全部 inkos 字段（6 列）+ 把非空的 `inkosBookRulesYaml`
+         * 暂存到 `_pending_inkos_rules_migration` 表，由 [AIChatApp.onCreate]
+         * 启动时迁移成 SessionOutlineItem(type=rules)，写入 SharedPreferences,
+         * 然后清空表。SQLite < 3.35 不支持 DROP COLUMN, 走「建新表 / 拷数据 / 删旧表」。
+         */
+        val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 1) 暂存非空 YAML 给 AIChatApp 启动迁移
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `_pending_inkos_rules_migration` (" +
+                    "`sessionId` TEXT PRIMARY KEY NOT NULL, " +
+                    "`yaml` TEXT NOT NULL)"
+                )
+                db.execSQL(
+                    "INSERT OR REPLACE INTO `_pending_inkos_rules_migration` (sessionId, yaml) " +
+                    "SELECT sessionId, inkosBookRulesYaml FROM session_chat_options " +
+                    "WHERE inkosBookRulesYaml IS NOT NULL AND inkosBookRulesYaml != ''"
+                )
+
+                // 2) 建新表 (无 inkos 列), 字段顺序对齐当前 Entity
+                db.execSQL(
+                    "CREATE TABLE `session_chat_options_v16` (" +
+                    "`sessionId` TEXT PRIMARY KEY NOT NULL, " +
+                    "`sessionTitle` TEXT, " +
+                    "`sessionAvatar` TEXT, " +
+                    "`sessionAvatarImageBase64` TEXT NOT NULL DEFAULT '', " +
+                    "`modelKey` TEXT, " +
+                    "`systemPrompt` TEXT, " +
+                    "`stop` TEXT, " +
+                    "`contextMessageCount` INTEGER NOT NULL DEFAULT 6, " +
+                    "`googleThinkingBudget` INTEGER NOT NULL DEFAULT 1024, " +
+                    "`temperature` REAL NOT NULL DEFAULT 0.7, " +
+                    "`topP` REAL NOT NULL DEFAULT 1.0, " +
+                    "`maxTokens` INTEGER, " +
+                    "`frequencyPenalty` REAL, " +
+                    "`presencePenalty` REAL, " +
+                    "`topK` INTEGER, " +
+                    "`streamOutput` INTEGER NOT NULL DEFAULT 1, " +
+                    "`autoChapterPlan` INTEGER NOT NULL DEFAULT 0, " +
+                    "`thinking` INTEGER NOT NULL DEFAULT 0, " +
+                    "`autoChatEnabled` INTEGER NOT NULL DEFAULT 0, " +
+                    "`proactiveCountToday` INTEGER NOT NULL DEFAULT 0, " +
+                    "`proactiveResetDate` INTEGER NOT NULL DEFAULT 0, " +
+                    "`proactiveDailyBudget` INTEGER NOT NULL DEFAULT 0)"
+                )
+
+                // 3) 拷数据
+                db.execSQL(
+                    "INSERT INTO `session_chat_options_v16` (" +
+                    "sessionId, sessionTitle, sessionAvatar, sessionAvatarImageBase64, " +
+                    "modelKey, systemPrompt, stop, contextMessageCount, googleThinkingBudget, " +
+                    "temperature, topP, maxTokens, frequencyPenalty, presencePenalty, topK, " +
+                    "streamOutput, autoChapterPlan, thinking, autoChatEnabled, " +
+                    "proactiveCountToday, proactiveResetDate, proactiveDailyBudget) " +
+                    "SELECT sessionId, sessionTitle, sessionAvatar, sessionAvatarImageBase64, " +
+                    "modelKey, systemPrompt, stop, contextMessageCount, googleThinkingBudget, " +
+                    "temperature, topP, maxTokens, frequencyPenalty, presencePenalty, topK, " +
+                    "streamOutput, autoChapterPlan, thinking, autoChatEnabled, " +
+                    "proactiveCountToday, proactiveResetDate, proactiveDailyBudget " +
+                    "FROM session_chat_options"
+                )
+
+                // 4) 删旧表, 改名
+                db.execSQL("DROP TABLE `session_chat_options`")
+                db.execSQL("ALTER TABLE `session_chat_options_v16` RENAME TO `session_chat_options`")
+            }
+        }
+
         @JvmStatic
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
@@ -259,7 +328,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "ai_chat_db"
                 )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                 .allowMainThreadQueries() // 临时：待优化2(ViewModel)完成后移除
                 .build()
                 .also { INSTANCE = it }

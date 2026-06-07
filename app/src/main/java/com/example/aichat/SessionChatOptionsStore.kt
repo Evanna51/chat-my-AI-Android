@@ -63,12 +63,6 @@ class SessionChatOptionsStore(context: Context) {
             entity.proactiveCountToday = opts.proactiveCountToday
             entity.proactiveResetDate = opts.proactiveResetDate
             entity.proactiveDailyBudget = opts.proactiveDailyBudget
-            entity.inkosEnabled = opts.inkosEnabled
-            entity.inkosBookId = opts.inkosBookId
-            entity.inkosSubtype = opts.inkosSubtype
-            entity.inkosBookRulesYaml = opts.inkosBookRulesYaml
-            entity.inkosTargetChapters = opts.inkosTargetChapters
-            entity.inkosChapterWordCount = opts.inkosChapterWordCount
             return entity
         }
 
@@ -95,12 +89,6 @@ class SessionChatOptionsStore(context: Context) {
             opts.proactiveCountToday = entity.proactiveCountToday
             opts.proactiveResetDate = entity.proactiveResetDate
             opts.proactiveDailyBudget = entity.proactiveDailyBudget
-            opts.inkosEnabled = entity.inkosEnabled
-            opts.inkosBookId = entity.inkosBookId
-            opts.inkosSubtype = entity.inkosSubtype
-            opts.inkosBookRulesYaml = entity.inkosBookRulesYaml
-            opts.inkosTargetChapters = entity.inkosTargetChapters
-            opts.inkosChapterWordCount = entity.inkosChapterWordCount
             return opts
         }
     }
