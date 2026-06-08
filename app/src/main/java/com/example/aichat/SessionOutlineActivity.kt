@@ -42,6 +42,11 @@ class SessionOutlineActivity : ThemedActivity() {
     private lateinit var textEmpty: TextView
     private val executor = Executors.newSingleThreadExecutor()
 
+    /** 监听 SessionOutlineStore 数据变化，工具操作（BookGenerator/StoryStateSync 等）完成时自动刷新列表 */
+    private val outlineChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "outlines_$sessionId") refreshList()
+    }
+
     /** 解析大纲提示词：优先会话级，回退到助手级 */
     private fun resolveOutlinePrompt(): String {
         // 会话级 outlinePrompt
@@ -159,6 +164,18 @@ class SessionOutlineActivity : ThemedActivity() {
             copyOutlineToNewSession()
             true
         } else super.onOptionsItemSelected(item)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        getSharedPreferences("aichat_session_outlines", MODE_PRIVATE)
+            .registerOnSharedPreferenceChangeListener(outlineChangeListener)
+    }
+
+    override fun onStop() {
+        getSharedPreferences("aichat_session_outlines", MODE_PRIVATE)
+            .unregisterOnSharedPreferenceChangeListener(outlineChangeListener)
+        super.onStop()
     }
 
     override fun onResume() {

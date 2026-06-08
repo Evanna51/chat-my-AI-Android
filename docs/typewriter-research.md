@@ -7,6 +7,56 @@
 
 ---
 
+## 已落地修复（截至 2026-06-08）
+
+### P1：作家模式长文流式 UI 卡死（commit `13d7ebf`）
+
+**根因**：`MessageAdapter.bindAssistantContentStreaming` 在展开态每 16ms 调一次 `setText(fullContent)`，TextView 每帧做 O(n) 全文 layout，5000+ 字的章节会把主线程撑爆。
+
+**修复**：
+- `AssistantHolder` 新增 `streamingRenderedLength: Int = 0`，记录上次渲染到哪个字符位置
+- 首次渲染：`textContent.text = content`（必要的全文 layout，仅一次）
+- 后续帧：`textContent.append(content.substring(rendered))`（增量 4 字符，远小于 O(n)）
+- `fullBind` 时重置 `streamingRenderedLength = 0`，保证 rebind 后从头渲染
+
+**文件**：`app/src/main/java/com/example/aichat/MessageAdapter.kt`
+
+### P2：多章节后帧率下降（commit 当前分支）
+
+**根因**：`CHARS_PER_FRAME = 4` 在 60fps 下每秒 250 次 `append()` + `ArrayList(attachedAssistantHolders)` snapshot 拷贝 + `pendingChars.substring()` 字符串分配，高频小对象制造 GC 压力。章节越多、积累文本越长，每次 `append()` 后 Android `DynamicLayout` 重计算耗时越明显。
+
+**修复**：`CHARS_PER_FRAME: 4 → 8`，每秒帧循环次数减半（250 → 125 次），主线程 layout/GC 压力降低 50%。500 cps 对阅读体验无影响。
+
+**文件**：`app/src/main/java/com/example/aichat/session/StreamTypewriter.kt`
+
+### P3：大纲页面不实时刷新（commit 当前分支）
+
+**根因**：`SessionOutlineActivity` 依赖 `onResume()` 的 `refreshList()`，但工具操作（StoryStateSync / BookGenerator / ChapterToOutlineSync）在后台线程通过 `SessionOutlineStore`（SharedPreferences）写数据时，页面仍在前台，`onResume` 不会再触发。
+
+**修复**：注册 `SharedPreferences.OnSharedPreferenceChangeListener`，监听 `"aichat_session_outlines"` 的 `"outlines_$sessionId"` key 变化，自动调 `refreshList()`。在 `onStart` 注册、`onStop` 注销，覆盖所有"页面可见"期间的写操作。
+
+**文件**：`app/src/main/java/com/example/aichat/SessionOutlineActivity.kt`
+
+---
+
+## 待解决 / 已知未修复
+
+### ① `applyMessagesFully` fallback 仍在
+
+当流式 holder 滚出视口（如用户往上翻看历史），`renderStreamingMessageIfVisible` 返回 false，`StreamTypewriter` 回退到 `host.applyMessagesFully()`。这会触发 Activity 重建整个消息列表（包括 5-6 条 3000 字章节的 TextView 重 layout），在 handler 帧速率下重复执行，是剩余卡顿的主要来源。
+
+解法方向：R10.7 的 payload-only `notifyItemChanged`（见第 6 节迁移 outline）。
+
+### ② 极长章节 TextView layout 仍是 O(n)
+
+即使 `append(8 chars)` 本身很快，`DynamicLayout` 在字符超过 ~10,000 时仍需从插入点往后重排所有行，理论上是 O(n - insert_pos)。终极解法：R10.4+R10.5 的 ViewModel StateFlow + Choreographer，让字符以 60fps VSynced 速率出，而不是 Handler 估算帧边界。
+
+### ③ target 双轨 / cancel 路径仍混乱
+
+见第 0 节诊断要点 2、4。未进 R10，留给完整迁移。
+
+---
+
 ## 0. 现状诊断
 
 现有 `StreamTypewriter` 的核心是 `Handler.postDelayed` 双循环：

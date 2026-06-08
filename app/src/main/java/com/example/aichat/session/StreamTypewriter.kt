@@ -50,7 +50,9 @@ class StreamTypewriter(
         private const val RENDER_THROTTLE_BUSY_MS = 48L
         private const val RENDER_BUSY_PENDING_CHARS = 80
         private const val FRAME_MS = 16L
-        private const val CHARS_PER_FRAME = 4
+        // 每帧 8 字符：在 60fps 下约 500 cps，兼顾流畅感与主线程开销。
+        // 相比之前的 4 cps，减少 50% 的 append/GC 次数，改善多章节后的卡顿。
+        private const val CHARS_PER_FRAME = 8
     }
 
     private var renderPending = false
