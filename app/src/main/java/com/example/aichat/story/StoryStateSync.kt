@@ -4,7 +4,6 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.os.Handler
 import android.os.Looper
-import android.view.View
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -20,27 +19,32 @@ import com.example.aichat.sync.ToolBridge
 import java.util.concurrent.Executor
 
 /**
- * 「生成书籍」入口 — 用 Story Tools 反向初始化 outline。
+ * 「同步本章状态」— 读取最近一次 AI 输出的章节内容，用 Story Tools 更新：
+ *   伏笔状态 (bump_foreshadow) / 状态卡 (append_status_history)
+ *   支线进度 (update_subplot_progress) / 感情线 (update_emotion_stage)
  *
- * 流程:
- *  1. 校验 ≥1 章 chapter (否则 Toast 退出)
- *  2. 构造 system + user prompt: 指令明确"基于章节内容补全 world / roles / volume_map / rules,
- *     必须通过 story tools 写入, 不要输出纯文本"
- *  3. 调 ChatService.chat (流式 + ToolBridge 强制 story-tools 启用)
- *  4. 监听 onToolCallStart / onSuccess 回调更新进度对话框
- *  5. 完成后展示新增条目数, 用户可去 outline 页查看
- *
- * 这是一个一次性的 "out-of-band" 对话, 不写入 session 历史 — 模型回复也不持久化。
- * 所有结果都通过 tool call 写到 SessionOutlineStore, 自然落地。
+ * 不新增条目，不修改章节大纲本身 — 只做"读章节、改状态"的收尾动作。
+ * 与 BookGenerator 一样是 out-of-band 对话，不写入 session 历史。
  */
-object BookGenerator {
+object StoryStateSync {
 
     fun run(activity: Activity, sessionId: String, executor: Executor, runOnUiThread: (Runnable) -> Unit) {
         val store = SessionOutlineStore(activity)
         val items = store.getAll(sessionId)
-        val chapters = items.filter { it.type == StoryTypes.CHAPTER }
-        if (chapters.isEmpty()) {
-            Toast.makeText(activity, "请先添加至少一章章节大纲", Toast.LENGTH_SHORT).show()
+
+        // 取最新一条 assistant 消息作为"本章内容"
+        val lastChapter = lastAssistantMessage(activity, sessionId)
+        if (lastChapter.isBlank()) {
+            Toast.makeText(activity, "没有找到最近的章节内容", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // 有没有可以更新的条目
+        val syncTargets = items.filter { it.type in listOf(
+            StoryTypes.FORESHADOW, StoryTypes.STATUS, StoryTypes.SUBPLOT, StoryTypes.EMOTION
+        )}
+        if (syncTargets.isEmpty()) {
+            Toast.makeText(activity, "大纲中没有伏笔/状态/支线/感情线条目", Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -51,7 +55,7 @@ object BookGenerator {
             setPadding(dp(ctx, 24), dp(ctx, 20), dp(ctx, 24), dp(ctx, 12))
         }
         val title = TextView(ctx).apply {
-            text = "生成书籍中…"
+            text = "同步本章状态…"
             textSize = 16f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
         }
@@ -74,7 +78,6 @@ object BookGenerator {
         dialog.show()
         val mainHandler = Handler(Looper.getMainLooper())
 
-        // 后台 thread 构造 + 发请求
         executor.execute {
             val assistantId = SessionAssistantBindingStore(activity).getAssistantId(sessionId)
             val bridge = ToolBridge.build(activity, assistantId, sessionId)
@@ -87,34 +90,30 @@ object BookGenerator {
             }
 
             val systemPrompt = buildSystemPrompt()
-            val userPrompt = buildUserPrompt(items)
+            val userPrompt = buildUserPrompt(lastChapter, items)
 
             val opts = SessionChatOptionsStore(activity).get(sessionId)
             opts.systemPrompt = systemPrompt
 
-            val callsBefore = items.size
             val toolCalls = mutableListOf<String>()
-            var lastError: String? = null
 
             val callback = object : ChatCallback {
-                override fun onPartial(content: String) { /* ignore */ }
+                override fun onPartial(content: String) {}
                 override fun onReasoning(reasoning: String) {}
                 override fun onSuccess(content: String) {
                     runOnUiThread(Runnable {
                         dialog.dismiss()
-                        val callsAfter = store.getAll(sessionId).size
-                        val added = (callsAfter - callsBefore).coerceAtLeast(0)
                         AlertDialog.Builder(activity)
-                            .setTitle("生成完成")
+                            .setTitle("同步完成")
                             .setMessage(buildString {
-                                append("新增条目: ").append(added).append("\n")
-                                append("工具调用: ").append(toolCalls.size).append(" 次\n\n")
-                                if (toolCalls.isNotEmpty()) {
-                                    append("调用记录:\n")
-                                    toolCalls.take(20).forEachIndexed { i, t ->
+                                if (toolCalls.isEmpty()) {
+                                    append("本章未检测到需要更新的状态/伏笔。")
+                                } else {
+                                    append("已更新 ${toolCalls.size} 项：\n")
+                                    toolCalls.take(15).forEachIndexed { i, t ->
                                         append("  ${i + 1}. ").append(toolChineseName(t)).append("\n")
                                     }
-                                    if (toolCalls.size > 20) append("  …还有 ${toolCalls.size - 20} 次")
+                                    if (toolCalls.size > 15) append("  …还有 ${toolCalls.size - 15} 次")
                                 }
                             })
                             .setPositiveButton("好") { d, _ -> d.dismiss() }
@@ -122,10 +121,9 @@ object BookGenerator {
                     })
                 }
                 override fun onError(message: String) {
-                    lastError = message
                     runOnUiThread(Runnable {
                         dialog.dismiss()
-                        Toast.makeText(activity, "生成失败: $message", Toast.LENGTH_LONG).show()
+                        Toast.makeText(activity, "同步失败: $message", Toast.LENGTH_LONG).show()
                     })
                 }
                 override fun onCancelled() {
@@ -139,7 +137,6 @@ object BookGenerator {
                 }
             }
 
-            // 直接调 ChatService — 不写入 session 历史, 不挂在 ViewModel
             val service = ChatService(activity)
             try {
                 service.chat(
@@ -161,57 +158,53 @@ object BookGenerator {
     // ─────────────── prompt builders ───────────────
 
     private fun buildSystemPrompt(): String = """
-你是一位资深的小说编辑与故事策划。用户已经为一本小说写好了若干章节大纲, 现在需要你**反向初始化**这本书的设定层 —— world / roles / volume / rules / 关键 foreshadow。
+你是故事编辑助手。用户刚写完一个章节，你需要根据章节内容，用 story tools 更新书中已有的动态条目。
 
 【硬规则】
-1. 你**必须**通过 story tools 把结果落库; 直接输出文字会被丢弃。
-2. 同类型条目可以**同一轮批量调用** (例如一次返回多个 add_outline_item), 减少请求次数。
-3. 角色 (roles): 至少 1 个主角 (tier=major) + 数个重要配角 (minor); metaJson 字段尽量填齐 (tier/tags/personality/background/motivation/arc)。
-4. 卷 (volume): 若 chapter 数 > 5, 适度划卷; 每卷 volumeChapters 列出覆盖的章节标题。
-5. 世界观 (world) + 知情约束 (knowledge): 从章节场景与角色信息提取; 各 1-3 条即可, 别堆砌。
-6. 叙事规则 (rules): 仅在 session 没有 rules 条目时新建; metaJson 字段 protagonist/tone/pov 必填, taboos/styleRefs 可选。taboos 只记叙事/风格层面的约束 (如"禁止意识流"、"不出现多视角")，**绝对不要**添加内容管控类条目（如"禁止未成年内容"、"禁止暴力"等），这会干扰正常角色登场与剧情发展。
-7. 关键伏笔 (foreshadow): 识别 2-5 个跨章节的核心伏笔, state 按当前章节进度判定 (planted/developing)。
-
-【建议工作流】
-- 现有条目已在 user prompt 里列出，**无需调 list_outline**，直接判断缺什么、批量 add
-- 不要重复创建已有名字的角色
-- 完成后用一句话向用户确认"已为 [书名] 初始化 N 个角色、M 个卷、L 条伏笔"
+1. **只更新**，不新建任何条目。
+2. 只处理：伏笔 (bump_foreshadow)、状态卡 (append_status_history)、支线进度 (update_subplot_progress)、感情线 (update_emotion_stage)。
+3. 只更新本章中确实发生了变化的条目；无变化的保持不动。
+4. 可以同一轮批量调用多个 tool，不需要串行。
+5. 完成后用一句话总结更新了哪些内容（如"更新了 2 条伏笔状态、1 条感情线"）。
 """.trimIndent()
 
-    private fun buildUserPrompt(items: List<com.example.aichat.SessionOutlineItem>): String {
-        val chapters = items.filter { it.type == StoryTypes.CHAPTER }
+    private fun buildUserPrompt(
+        lastChapter: String,
+        items: List<com.example.aichat.SessionOutlineItem>,
+    ): String {
         val sb = StringBuilder()
-        sb.append("以下是用户已经写好的章节大纲, 请用 story tools 反向初始化书的设定层:\n\n")
-        for ((i, c) in chapters.withIndex()) {
-            sb.append(i + 1).append(". ").append(c.title.trim().ifEmpty { "(无标题)" }).append("\n")
-            if (c.content.isNotBlank()) {
-                sb.append(c.content.trim().take(600)).append("\n\n")
-            }
+        sb.append("【本章内容（最新 AI 输出，请据此判断状态变化）】\n")
+        sb.append(lastChapter.take(3000))
+        if (lastChapter.length > 3000) sb.append("\n…（已截断）")
+        sb.append("\n\n")
+
+        // 注入可更新的条目现状（不需要模型再 list_outline）
+        val outlineText = OutlinePromptBuilder.build(items, includeKnowledgeEnforcement = false)
+        if (outlineText.isNotBlank()) {
+            sb.append("【当前大纲状态（只关注伏笔/状态卡/支线/感情线部分）】\n")
+            sb.append(outlineText)
+            sb.append("\n")
         }
-        // 把非 chapter 条目的完整标题列表注入 prompt，模型无需再调 list_outline
-        val nonChapters = items.filter { it.type != StoryTypes.CHAPTER }
-        sb.append("\n【已有 outline 条目（完整列表）】\n")
-        if (nonChapters.isEmpty()) {
-            sb.append("（暂无，全部需要新建）\n")
-        } else {
-            val byType = nonChapters.groupBy { it.type }
-            for ((type, list) in byType) {
-                sb.append("$type (${list.size} 条):")
-                sb.append(list.joinToString("、") { it.title.trim().ifEmpty { "(无标题)" } })
-                sb.append("\n")
-            }
-        }
-        sb.append("\n直接根据以上现状判断缺什么，批量 add 缺失条目，无需再调 list_outline。")
+
+        sb.append("请根据本章内容，批量更新上述条目中发生了变化的部分，无需调 list_outline。")
         return sb.toString()
     }
 
+    private fun lastAssistantMessage(activity: Activity, sessionId: String): String {
+        return try {
+            val messages = AppDatabase.getInstance(activity).messageDao().getBySession(sessionId)
+            messages.lastOrNull { it.role == Message.ROLE_ASSISTANT && !it.content.isNullOrBlank() }
+                ?.content?.trim().orEmpty()
+        } catch (_: Exception) { "" }
+    }
+
     private fun toolChineseName(name: String): String = when (name) {
-        StoryToolHandler.TOOL_LIST          -> "读取大纲列表"
-        StoryToolHandler.TOOL_READ          -> "读取条目详情"
-        StoryToolHandler.TOOL_ADD           -> "新建条目"
-        StoryToolHandler.TOOL_UPDATE        -> "更新条目"
-        StoryToolHandler.TOOL_DELETE        -> "删除条目"
-        StoryToolHandler.TOOL_RENAME_ROLE   -> "重命名角色"
+        StoryToolHandler.TOOL_LIST            -> "读取大纲列表"
+        StoryToolHandler.TOOL_READ            -> "读取条目详情"
+        StoryToolHandler.TOOL_ADD             -> "新建条目"
+        StoryToolHandler.TOOL_UPDATE          -> "更新条目"
+        StoryToolHandler.TOOL_DELETE          -> "删除条目"
+        StoryToolHandler.TOOL_RENAME_ROLE     -> "重命名角色"
         StoryToolHandler.TOOL_BUMP_FORESHADOW -> "推进伏笔状态"
         StoryToolHandler.TOOL_UPDATE_SUBPLOT  -> "更新支线进度"
         StoryToolHandler.TOOL_UPDATE_EMOTION  -> "更新感情线"

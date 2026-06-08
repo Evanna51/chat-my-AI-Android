@@ -457,12 +457,6 @@ object StoryEditDialogs {
             meta.pov)
         out += Field("pov") { pov() }
 
-        appendLabel(ctx, container, "时态")
-        val tense = appendPicker(ctx, container, "选择时态",
-            listOf("" to "(未设)", "past" to "过去时", "present" to "现在时"),
-            meta.tense)
-        out += Field("tense") { tense() }
-
         appendLabel(ctx, container, "禁忌项 (用 | 或换行分隔)")
         val etTaboos = appendEdit(ctx, container, "可空", meta.taboos.joinToString("\n"), singleLine = false)
         out += Field("taboos") { etTaboos.text.toString() }
@@ -470,12 +464,6 @@ object StoryEditDialogs {
         appendLabel(ctx, container, "风格参考 (用 | 或换行分隔)")
         val etStyle = appendEdit(ctx, container, "可空, 如 张爱玲 / 严歌苓", meta.styleRefs.joinToString("\n"), singleLine = false)
         out += Field("styleRefs") { etStyle.text.toString() }
-
-        if (meta.customYaml.isNotBlank()) {
-            appendLabel(ctx, container, "自定义 YAML (老 inkos 迁移保底, 不建议手改)")
-            val etCustom = appendEdit(ctx, container, "保留段", meta.customYaml, singleLine = false)
-            out += Field("customYaml") { etCustom.text.toString() }
-        }
 
         out += Field("__content") { item?.content.orEmpty() }
         return out
@@ -550,10 +538,8 @@ object StoryEditDialogs {
                 protagonist = collected["protagonist"].orEmpty().trim(),
                 tone = collected["tone"].orEmpty().trim(),
                 pov = collected["pov"].orEmpty(),
-                tense = collected["tense"].orEmpty(),
                 taboos = splitMultiSep(collected["taboos"]),
                 styleRefs = splitMultiSep(collected["styleRefs"]),
-                customYaml = collected["customYaml"].orEmpty().trim(),
             )
             StoryMeta.toJson(m)
         }

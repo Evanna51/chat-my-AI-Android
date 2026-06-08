@@ -37,5 +37,10 @@ data class SessionChatOptions(
      * 在 OutlinePromptBuilder 构建大纲上下文时追加到末尾，喂给模型辅助生成。
      * 对话配置和助手配置都可设置；对话级覆盖助手级。
      */
-    @JvmField var outlinePrompt: String = ""
+    @JvmField var outlinePrompt: String = "",
+    /**
+     * Writer 模式专属：每次章节输出结束后，由模型自动调 story tools 更新伏笔/状态/支线/感情线。
+     * 开启后在 system prompt 末尾追加同步指令；关闭则不注入，tool call 全靠手动触发。
+     */
+    @JvmField var autoSyncStoryState: Boolean = false,
 )

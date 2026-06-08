@@ -85,6 +85,15 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         //     STREAM_RENDER_BUSY_PENDING_CHARS / STREAM_TYPEWRITER_FRAME_MS /
         //     STREAM_TYPEWRITER_CHARS_PER_FRAME 已搬到 StreamTypewriter 内部。
         private const val LOADING_PLACEHOLDER_TEXT = "[...正在输入中]"
+        /** Writer 模式"自动同步状态"功能注入到 system prompt 末尾的指令。 */
+        private const val AUTO_SYNC_INSTRUCTION =
+            "【自动状态同步（已启用）】\n" +
+            "每次输出完章节正文后，用 story tools 同步以下变化（同一轮可批量调用）：\n" +
+            "- 有进展的伏笔 → bump_foreshadow\n" +
+            "- 角色状态变化 → append_status_history\n" +
+            "- 支线推进 → update_subplot_progress\n" +
+            "- 感情线变化 → update_emotion_stage\n" +
+            "如果本轮输出不是章节正文（如回答问题、解释设定），跳过工具调用。"
         // 微信式分页：默认只渲染最近 60 条，上拉加载更多。降低长会话打开时的卡顿。
         // 注意：此处和 ChatViewModel 共享同名常量；分页逻辑在 ViewModel，Activity
         // 这里仅用于"是否需要 history/current 双 RecyclerView"判定。
@@ -1132,14 +1141,16 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
 
     private fun showSessionMoreMenu(anchor: View) {
         val density = resources.displayMetrics.density
-        // writer 模式: 「书籍信息」复用 SessionOutlineActivity (新的故事 outline 就是全书结构化资料);
-        // character 模式走专属角色信息页。
-        val infoLabel = if (mode.usesWriterAdapter)
-            getString(R.string.book_info) else getString(R.string.character_info)
-        val labels = listOf(
+        // writer 模式: 大纲已有专属 toolbar 按钮，more menu 不再重复放「书籍信息」入口。
+        // character 模式保留「角色信息」（读服务端数据，与大纲页无关）。
+        val labels = if (mode.usesWriterAdapter) listOf(
             getString(R.string.quick_jump_chapters),
             getString(R.string.tool_call_log),
-            infoLabel,
+            getString(R.string.action_export),
+        ) else listOf(
+            getString(R.string.quick_jump_chapters),
+            getString(R.string.tool_call_log),
+            getString(R.string.character_info),
             getString(R.string.action_export),
         )
         val popup = ListPopupWindow(this)
@@ -1156,11 +1167,19 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
         popup.verticalOffset = extraVertical
         popup.setOnItemClickListener { _, _, position, _ ->
             popup.dismiss()
-            when (position) {
-                0 -> chapterJumpController.show()
-                1 -> openToolCallLog()
-                2 -> if (mode.usesWriterAdapter) openWriterOutline() else openCharacterInfo()
-                3 -> sessionExporter.show()
+            if (mode.usesWriterAdapter) {
+                when (position) {
+                    0 -> chapterJumpController.show()
+                    1 -> openToolCallLog()
+                    2 -> sessionExporter.show()
+                }
+            } else {
+                when (position) {
+                    0 -> chapterJumpController.show()
+                    1 -> openToolCallLog()
+                    2 -> openCharacterInfo()
+                    3 -> sessionExporter.show()
+                }
             }
         }
         popup.show()
@@ -1497,7 +1516,15 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     private fun buildSessionContext(): SessionContext {
         val outlineBlock = if (mode.usesWriterAdapter) {
             val outlines = outlineStore?.getAll(sessionId).orEmpty()
-            OutlinePromptBuilder.build(outlines, includeKnowledgeEnforcement = true)
+            val maxChapters = estimateCurrentChapterCount()
+            val base = OutlinePromptBuilder.build(
+                outlines,
+                includeKnowledgeEnforcement = true,
+                maxVisibleChapters = maxChapters,
+            )
+            if (sessionOptions.autoSyncStoryState && base.isNotBlank()) {
+                base + "\n\n" + AUTO_SYNC_INSTRUCTION
+            } else base
         } else ""
         val id = assistantId
         val assistant = if (id.isNullOrEmpty()) null else MyAssistantStore(this).getById(id)
@@ -1508,6 +1535,25 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
             options = sessionOptions,
             writerOutlineBlock = outlineBlock,
         )
+    }
+
+    /**
+     * 估算"当前在写第几章"：统计 session 中字数 ≥ 300 的 assistant 消息数量，
+     * 作为已完成章节数的代理，+1 得到当前章。
+     * 返回 null 表示无法判断（新会话），此时 OutlinePromptBuilder 注入全部章节。
+     *
+     * 例：已有 1 条长 assistant 消息 → 第 1 章已写完 → 当前写第 2 章 → 返回 2。
+     */
+    private fun estimateCurrentChapterCount(): Int? {
+        return try {
+            val messages = AppDatabase.getInstance(this).messageDao().getBySession(sessionId)
+            val writtenChapters = messages.count {
+                it.role == Message.ROLE_ASSISTANT &&
+                    (it.content?.length ?: 0) >= 300
+            }
+            if (writtenChapters == 0) null   // 尚未写过章节，不截断
+            else writtenChapters + 1          // 已写 N 章 → 正在写第 N+1 章 → 显示前 N+1 章
+        } catch (_: Exception) { null }
     }
 
     /**

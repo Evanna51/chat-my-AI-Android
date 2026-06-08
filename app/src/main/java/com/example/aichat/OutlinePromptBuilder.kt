@@ -31,11 +31,14 @@ object OutlinePromptBuilder {
     /**
      * @param items 全部 outline 条目（任意顺序，内部按 createdAt 已经排好）
      * @param includeKnowledgeEnforcement true 时在知情约束段后追加"角色只能用已知信息"等强约束句
+     * @param maxVisibleChapters 最多展示几章大纲（null = 全部）。用于"写第 N 章时不暴露后续章节"。
+     *   例：写第 2 章 → maxVisibleChapters=2，只注入第 1、2 章，第 3 章起截断。
      * @return 结构化大纲文本；若 outline 完全为空（去掉 deselected 之后），返回空串
      */
     fun build(
         items: List<SessionOutlineItem>,
         includeKnowledgeEnforcement: Boolean = true,
+        maxVisibleChapters: Int? = null,
     ): String {
         if (items.isEmpty()) return ""
 
@@ -85,10 +88,13 @@ object OutlinePromptBuilder {
             }
         }
 
-        // 3. 章节大纲（去掉被卷纲覆盖的，去掉 deselected）
-        val visibleChapters = chapters.filter {
+        // 3. 章节大纲（去掉被卷纲覆盖的，去掉 deselected，按 maxVisibleChapters 截断）
+        val allVisibleChapters = chapters.filter {
             it.selected && (it.title.trim().isEmpty() || it.title.trim() !in coveredTitles)
         }
+        val visibleChapters = if (maxVisibleChapters != null && maxVisibleChapters > 0)
+            allVisibleChapters.take(maxVisibleChapters) else allVisibleChapters
+        val hiddenCount = allVisibleChapters.size - visibleChapters.size
         if (visibleChapters.isNotEmpty()) {
             sb.append("【章节大纲】\n")
             for ((idx, c) in visibleChapters.withIndex()) {
@@ -100,6 +106,9 @@ object OutlinePromptBuilder {
                     sb.append(indentLines(content, "   "))
                 }
                 sb.append("\n")
+            }
+            if (hiddenCount > 0) {
+                sb.append("（后续 $hiddenCount 章大纲已隐藏，避免影响当前章节创作）\n")
             }
             sb.append("\n")
         }

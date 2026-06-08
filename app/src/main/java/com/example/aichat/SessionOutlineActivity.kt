@@ -105,20 +105,18 @@ class SessionOutlineActivity : ThemedActivity() {
     }
 
     private fun showMoreMenu(anchor: View) {
-        // 「章节计划」已被「生成书籍」替代 (S6); 走 Story Tools 反向初始化 outline。
-        val labels = listOf("知情注入", "生成书籍", "生成卷纲")
+        val autoSync = SessionChatOptionsStore(this).get(sessionId).autoSyncStoryState
+        val autoSyncLabel = if (autoSync) "自动同步 ✓" else "自动同步 ○"
+        val labels = listOf("知情注入", "生成书籍", "生成卷纲", "同步本章状态", autoSyncLabel)
         val density = resources.displayMetrics.density
         val popup = android.widget.ListPopupWindow(this)
         popup.setAdapter(android.widget.ArrayAdapter(this, R.layout.item_popup_menu, labels))
         popup.anchorView = anchor
-        popup.width = (180 * density + 0.5f).toInt()
+        popup.width = (200 * density + 0.5f).toInt()
         popup.isModal = true
         popup.setBackgroundDrawable(
             androidx.core.content.ContextCompat.getDrawable(this, R.drawable.bg_popup_menu)
         )
-        // 弹窗显示在按钮上方，与按钮保留 8dp 间距（向上偏移：减去按钮高度 + 弹窗自身高度估算 + 间距）
-        // ListPopupWindow 的 verticalOffset 是相对 anchor.top 的偏移；要弹在 anchor 上方，
-        // 用负值：- (popupHeight + 8dp)。popupHeight 估算为 itemCount * 48dp。
         val itemHeightDp = 48
         val gapDp = 8
         val estimatedHeightPx = (labels.size * itemHeightDp * density + 0.5f).toInt()
@@ -130,9 +128,25 @@ class SessionOutlineActivity : ThemedActivity() {
                 0 -> runKnowledgeExtraction()
                 1 -> runBookGeneration()
                 2 -> runVolumeGeneration()
+                3 -> runStateSyncManual()
+                4 -> toggleAutoSyncStoryState()
             }
         }
         popup.show()
+    }
+
+    private fun runStateSyncManual() {
+        com.example.aichat.story.StoryStateSync.run(this, sessionId, executor, ::runOnUiThread)
+    }
+
+    private fun toggleAutoSyncStoryState() {
+        val store = SessionChatOptionsStore(this)
+        val opts = store.get(sessionId)
+        opts.autoSyncStoryState = !opts.autoSyncStoryState
+        store.save(sessionId, opts)
+        val msg = if (opts.autoSyncStoryState) "已开启自动同步（每章结束后模型自动更新状态）"
+                  else "已关闭自动同步"
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

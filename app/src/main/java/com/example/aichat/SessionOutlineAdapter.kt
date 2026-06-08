@@ -222,6 +222,11 @@ class SessionOutlineAdapter(
         when (item.type) {
             StoryTypes.CHAPTER -> {
                 icon.setImageResource(R.drawable.ic_chapter_dot)
+                val preview = item.content.trim().take(60)
+                if (preview.isNotEmpty()) {
+                    subtitle.text = if (item.content.length > 60) "$preview…" else preview
+                    subtitle.visibility = View.VISIBLE
+                }
                 val chars = item.content.length
                 if (chars > 0) {
                     meta.text = chars.toString()
@@ -241,8 +246,14 @@ class SessionOutlineAdapter(
                 val m = StoryMeta.parseRole(item.metaJson)
                 badge.text = tierLabel(m.tier)
                 badge.visibility = View.VISIBLE
-                if (m.tags.isNotEmpty()) {
-                    subtitle.text = m.tags.joinToString("、")
+                val subtitleText = when {
+                    m.tags.isNotEmpty() -> m.tags.joinToString("、")
+                    m.personality.isNotBlank() -> m.personality.take(40)
+                    m.background.isNotBlank() -> m.background.take(40)
+                    else -> ""
+                }
+                if (subtitleText.isNotEmpty()) {
+                    subtitle.text = subtitleText
                     subtitle.visibility = View.VISIBLE
                 }
             }
@@ -266,6 +277,11 @@ class SessionOutlineAdapter(
                 val m = StoryMeta.parseSubplot(item.metaJson)
                 meta.text = "${m.progress.coerceIn(0, 100)}%"
                 meta.visibility = View.VISIBLE
+                val preview = item.content.trim().take(50)
+                if (preview.isNotEmpty()) {
+                    subtitle.text = if (item.content.length > 50) "$preview…" else preview
+                    subtitle.visibility = View.VISIBLE
+                }
             }
             StoryTypes.EMOTION -> {
                 icon.setImageResource(R.drawable.ic_action_favorite)
@@ -283,24 +299,54 @@ class SessionOutlineAdapter(
                 val m = StoryMeta.parseForeshadow(item.metaJson)
                 badge.text = foreshadowStateLabel(m.state)
                 badge.visibility = View.VISIBLE
+                val preview = item.content.trim().take(50)
+                if (preview.isNotEmpty()) {
+                    subtitle.text = if (item.content.length > 50) "$preview…" else preview
+                    subtitle.visibility = View.VISIBLE
+                }
             }
             StoryTypes.STATUS -> {
                 icon.setImageResource(R.drawable.ic_action_read)
                 val m = StoryMeta.parseStatus(item.metaJson)
                 val owner = if (m.ownerRoleId.isNotBlank()) roleName(m.ownerRoleId) else null
-                if (owner != null) {
-                    subtitle.text = owner
+                val subtitleText = when {
+                    owner != null && m.current.isNotBlank() -> "$owner · ${m.current.take(30)}"
+                    owner != null -> owner
+                    m.current.isNotBlank() -> m.current.take(40)
+                    else -> ""
+                }
+                if (subtitleText.isNotEmpty()) {
+                    subtitle.text = subtitleText
                     subtitle.visibility = View.VISIBLE
                 }
             }
             StoryTypes.RULES -> {
                 icon.setImageResource(R.drawable.ic_action_settings)
+                val m = StoryMeta.parseRules(item.metaJson)
+                val subtitleText = listOfNotNull(
+                    m.protagonist.takeIf { it.isNotBlank() }?.take(30),
+                    m.tone.takeIf { it.isNotBlank() }
+                ).joinToString(" · ")
+                if (subtitleText.isNotEmpty()) {
+                    subtitle.text = subtitleText
+                    subtitle.visibility = View.VISIBLE
+                }
             }
             StoryTypes.WORLD -> {
                 icon.setImageResource(R.drawable.ic_action_outline)
+                val preview = item.content.trim().take(60)
+                if (preview.isNotEmpty()) {
+                    subtitle.text = if (item.content.length > 60) "$preview…" else preview
+                    subtitle.visibility = View.VISIBLE
+                }
             }
             StoryTypes.KNOWLEDGE -> {
                 icon.setImageResource(R.drawable.ic_action_hide)
+                val preview = item.content.trim().take(60)
+                if (preview.isNotEmpty()) {
+                    subtitle.text = if (item.content.length > 60) "$preview…" else preview
+                    subtitle.visibility = View.VISIBLE
+                }
             }
             else -> {
                 icon.visibility = View.GONE
@@ -384,13 +430,8 @@ class SessionOutlineAdapter(
                 appendField(ctx, container, "主角设定", m.protagonist)
                 appendField(ctx, container, "基调", m.tone)
                 appendField(ctx, container, "视角", m.pov)
-                appendField(ctx, container, "时态", m.tense)
                 if (m.taboos.isNotEmpty()) appendField(ctx, container, "禁忌", m.taboos.joinToString("、"))
                 if (m.styleRefs.isNotEmpty()) appendField(ctx, container, "风格参考", m.styleRefs.joinToString("、"))
-                if (m.customYaml.isNotBlank()) {
-                    appendLabel(ctx, container, "自定义 YAML (老数据迁移保底)")
-                    appendPlain(ctx, container, m.customYaml.take(300))
-                }
             }
             StoryTypes.CHAPTER, StoryTypes.VOLUME, StoryTypes.WORLD, StoryTypes.KNOWLEDGE -> {
                 appendField(ctx, container, "内容", item.content.trim())
