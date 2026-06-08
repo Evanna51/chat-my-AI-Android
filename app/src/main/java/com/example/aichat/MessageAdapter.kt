@@ -507,6 +507,7 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
             }
         } else if (holder is AssistantHolder) {
             holder.boundMessage = m
+            if (fullBind) holder.streamingRenderedLength = 0
             holder.textTimestamp.text = formatTimestamp(m.createdAt)
             holder.textContent.alpha = 1f
             if (characterMode) {
@@ -711,6 +712,12 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         val actionDelete: View = itemView.findViewById(R.id.actionDelete)
         var lastHasVisibleContent: Boolean = false
         var boundMessage: Message? = null
+        /**
+         * 流式 append 优化：记录上次 renderStreamingMessageIfVisible 已追加到 textContent 的字符数。
+         * 下次 tick 只 append 增量，避免每帧 setText(全文) 触发全文 measure/layout（O(n) → O(4)）。
+         * fullBind 时重置为 0。
+         */
+        var streamingRenderedLength: Int = 0
     }
 
     private fun cycleAssistantActionLevel(message: Message?) {
@@ -858,14 +865,32 @@ class MessageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder> {
         var expanded = m != null && assistantStateStore.isExpanded(m)
         if (disableAssistantCollapseToggle) expanded = true
         if (!expanded) {
-            h.textContent.text = if (characterMode) CharacterDisplayRenderer.render(h.textContent, content) else content
+            // 折叠态：3行截断，每次 setText 没问题（短文本）
+            h.streamingRenderedLength = 0
             h.textContent.maxLines = 3
             h.textContent.ellipsize = TextUtils.TruncateAt.END
+            h.textContent.text = if (characterMode) CharacterDisplayRenderer.render(h.textContent, content) else content
             return
         }
         h.textContent.maxLines = Int.MAX_VALUE
         h.textContent.ellipsize = null
-        h.textContent.text = if (characterMode) CharacterDisplayRenderer.render(h.textContent, content) else content
+        if (characterMode) {
+            // character 模式走 SpannableString，不支持增量 append
+            h.streamingRenderedLength = 0
+            h.textContent.text = CharacterDisplayRenderer.render(h.textContent, content)
+            return
+        }
+        // 展开态纯文本：增量 append，避免每帧 setText(全文) 触发全文 layout（O(n) → O(4)）
+        val rendered = h.streamingRenderedLength
+        if (rendered <= 0 || content.length < rendered) {
+            // 首次渲染 / 内容意外缩短（reset）
+            h.textContent.text = content
+            h.streamingRenderedLength = content.length
+        } else if (content.length > rendered) {
+            h.textContent.append(content.substring(rendered))
+            h.streamingRenderedLength = content.length
+        }
+        // content.length == rendered：无新字符，跳过 setText/append
     }
 
     private fun updateCollapseToggleAffixForAttachedHolders() {
