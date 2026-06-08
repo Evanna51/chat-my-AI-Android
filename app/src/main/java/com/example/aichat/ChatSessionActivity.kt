@@ -284,6 +284,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     private var btnAutoTtsView: ImageButton? = null
     private val autoReadStore by lazy { AutoReadStore(this) }
     private var outlineStore: SessionOutlineStore? = null
+    private val messageChapterBindingStore by lazy { com.example.aichat.story.MessageChapterBindingStore(this) }
     private var sessionOptions: SessionChatOptions = SessionChatOptions()
     @Volatile private var autoNamingInFlight = false
     private var assistantResponseInProgress = false
@@ -1430,33 +1431,78 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     override fun summarizeMessageToOutline(message: Message) {
         val source = message.content?.trim() ?: ""
         if (source.isEmpty()) {
-            Toast.makeText(this, "消息为空，无法提取", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "消息为空，无法操作", Toast.LENGTH_SHORT).show()
             return
         }
+        val store = outlineStore ?: return
+        val chapters = store.getAll(sessionId)
+            .filter { it.type == com.example.aichat.story.StoryTypes.CHAPTER }
+        showChapterBindDialog(message, chapters)
+    }
+
+    /**
+     * 弹出章节绑定对话框：
+     *  - 选择已有章节 → 把本条消息显式绑定到该章（供 estimateCurrentChapterCount 使用）
+     *  - 新增章节 → 走 AI 提取摘要（旧有逻辑）
+     *
+     * 对话框打开时自动预选"最可能匹配"的章节（ChapterNumberParser 从消息前 150 字推断）。
+     */
+    private fun showChapterBindDialog(message: Message, chapters: List<SessionOutlineItem>) {
+        val labels = chapters.map { it.title.trim().ifEmpty { "(无标题)" } }.toMutableList<String>()
+        labels.add("+ 新增章节（AI 提取摘要）")
+        val NEW_IDX = labels.lastIndex
+
+        // 预选：从消息首段提取序号，匹配大纲章节
+        val snippet = message.content?.take(150).orEmpty()
+        val detectedOrdinal = com.example.aichat.story.ChapterNumberParser.extract(snippet)
+        var preselect = NEW_IDX
+        if (detectedOrdinal != null) {
+            val idx = chapters.indexOfFirst {
+                com.example.aichat.story.ChapterNumberParser.extract(it.title) == detectedOrdinal
+            }
+            if (idx >= 0) preselect = idx
+        }
+
+        var selected = preselect
+        AlertDialog.Builder(this)
+            .setTitle("绑定章节大纲")
+            .setSingleChoiceItems(labels.toTypedArray(), preselect) { _, which -> selected = which }
+            .setNegativeButton("取消", null)
+            .setPositiveButton("确定") { _, _ ->
+                if (selected == NEW_IDX) {
+                    doSummarizeToNewChapter(message.content?.trim() ?: "")
+                } else {
+                    val chapter = chapters.getOrNull(selected) ?: return@setPositiveButton
+                    messageChapterBindingStore.clearForChapter(sessionId, chapter.id)
+                    messageChapterBindingStore.bind(sessionId, message.id, chapter.id)
+                    Toast.makeText(
+                        this,
+                        "已绑定到「${chapter.title.trim().ifEmpty { "(无标题)" }}」",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+            .show()
+    }
+
+    private fun doSummarizeToNewChapter(source: String) {
         Toast.makeText(this, "正在提取到大纲…", Toast.LENGTH_SHORT).show()
         val oprompt = resolveOutlinePrompt()
         chatService.summarizeMessageForOutline(source, oprompt, object : ChatCallback {
             override fun onSuccess(content: String) {
                 mainHandler.post {
                     val summary = content.trim()
-                    if (summary.isEmpty()) {
-                        onError("提取结果为空")
-                        return@post
-                    }
+                    if (summary.isEmpty()) { onError("提取结果为空"); return@post }
                     val next = outlineStore!!.nextChapterIndex(sessionId)
                     val title = "章节$next"
                     outlineStore!!.add(sessionId, "chapter", title, summary)
                     Toast.makeText(this@ChatSessionActivity, "已添加到大纲：$title", Toast.LENGTH_SHORT).show()
                 }
             }
-
             override fun onError(message: String) {
                 mainHandler.post {
-                    Toast.makeText(
-                        this@ChatSessionActivity,
-                        if (message.isNotEmpty()) message else "提取失败",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast.makeText(this@ChatSessionActivity,
+                        if (message.isNotEmpty()) message else "提取失败", Toast.LENGTH_LONG).show()
                 }
             }
         })
@@ -1541,10 +1587,11 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     /**
      * 估算"当前在写第几章"，用于 OutlinePromptBuilder.maxVisibleChapters 截断。
      *
-     * 优先策略：取最后一条 assistant 消息的前 150 字，逆序比对章节标题，匹配到即返回
-     * 该章在 outline 列表中的 1-based 位置（不再往后的章节）。
-     * 不匹配时降级：统计字数 ≥ 300 的 assistant 消息数量作为已完成章节计数，+1。
-     * 返回 null 表示无法判断，此时注入全部章节大纲。
+     * 优先级（高→低）：
+     *  1. 用户显式绑定（showChapterBindDialog 写入 MessageChapterBindingStore）
+     *  2. ChapterNumberParser：从消息前 150 字提取序号，比对大纲章节标题
+     *  3. 标题子串包含匹配（兜底）
+     *  4. 长消息计数法（最后降级）
      */
     private fun estimateCurrentChapterCount(outlines: List<SessionOutlineItem>): Int? {
         return try {
@@ -1552,13 +1599,30 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
                 it.type == com.example.aichat.story.StoryTypes.CHAPTER && it.selected
             }
             val messages = AppDatabase.getInstance(this).messageDao().getBySession(sessionId)
+            val lastAssistant = messages.lastOrNull {
+                it.role == Message.ROLE_ASSISTANT && !it.content.isNullOrBlank()
+            }
 
-            // 优先：文字匹配
-            if (chapters.isNotEmpty()) {
-                val snippet = messages.lastOrNull {
-                    it.role == Message.ROLE_ASSISTANT && !it.content.isNullOrBlank()
-                }?.content?.take(150).orEmpty()
+            if (chapters.isNotEmpty() && lastAssistant != null) {
+                // 1. 显式绑定
+                val boundId = messageChapterBindingStore.getChapterId(sessionId, lastAssistant.id)
+                if (boundId != null) {
+                    val idx = chapters.indexOfFirst { it.id == boundId }
+                    if (idx >= 0) return idx + 1
+                }
+
+                val snippet = lastAssistant.content?.take(150).orEmpty()
                 if (snippet.isNotBlank()) {
+                    // 2. 序号解析匹配
+                    val ord = com.example.aichat.story.ChapterNumberParser.extract(snippet)
+                    if (ord != null) {
+                        val idx = chapters.indexOfFirst {
+                            com.example.aichat.story.ChapterNumberParser.extract(it.title) == ord
+                        }
+                        if (idx >= 0) return idx + 1
+                    }
+
+                    // 3. 标题子串兜底
                     val idx = chapters.indexOfLast { ch ->
                         val title = ch.title.trim()
                         title.isNotEmpty() && snippet.contains(title)
@@ -1567,7 +1631,7 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
                 }
             }
 
-            // 降级：计数法
+            // 4. 长消息计数法
             val writtenChapters = messages.count {
                 it.role == Message.ROLE_ASSISTANT && (it.content?.length ?: 0) >= 300
             }
