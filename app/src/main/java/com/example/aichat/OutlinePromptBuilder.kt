@@ -33,12 +33,15 @@ object OutlinePromptBuilder {
      * @param includeKnowledgeEnforcement true 时在知情约束段后追加"角色只能用已知信息"等强约束句
      * @param maxVisibleChapters 最多展示几章大纲（null = 全部）。用于"写第 N 章时不暴露后续章节"。
      *   例：写第 2 章 → maxVisibleChapters=2，只注入第 1、2 章，第 3 章起截断。
+     * @param compactRoles true 时角色档案只输出名字+tier+tag，详细字段省略（AI 可用 read_outline 按需获取）。
+     *   Writer 实时 prompt 建议开启，避免无关角色大量占用 token。
      * @return 结构化大纲文本；若 outline 完全为空（去掉 deselected 之后），返回空串
      */
     fun build(
         items: List<SessionOutlineItem>,
         includeKnowledgeEnforcement: Boolean = true,
         maxVisibleChapters: Int? = null,
+        compactRoles: Boolean = false,
     ): String {
         if (items.isEmpty()) return ""
 
@@ -114,7 +117,7 @@ object OutlinePromptBuilder {
         }
 
         // 4. 角色档案 (按 tier 分组)
-        appendRoles(sb, roles)
+        appendRoles(sb, roles, compact = compactRoles)
 
         // 5. 角色关系
         appendRelations(sb, relations, roleIdToName)
@@ -176,7 +179,7 @@ object OutlinePromptBuilder {
         sb.append("```\n\n")
     }
 
-    private fun appendRoles(sb: StringBuilder, roles: List<SessionOutlineItem>) {
+    private fun appendRoles(sb: StringBuilder, roles: List<SessionOutlineItem>, compact: Boolean = false) {
         val active = roles.filter { it.selected }
         if (active.isEmpty()) return
         sb.append("【角色档案】\n")
@@ -186,29 +189,45 @@ object OutlinePromptBuilder {
         }
         val order = listOf("major", "minor", "extra")
         val ordered = (order + (grouped.keys - order.toSet())).distinct()
-        for (tier in ordered) {
-            val list = grouped[tier] ?: continue
-            sb.append("## ").append(tierLabel(tier)).append("\n")
-            for (r in list) {
-                val name = r.title.trim().ifEmpty { "(未命名角色)" }
-                val meta = StoryMeta.parseRole(r.metaJson)
-                sb.append("### ").append(name)
-                if (meta.tags.isNotEmpty()) sb.append("  [").append(meta.tags.joinToString("、")).append("]")
-                sb.append("\n")
-                appendRoleField(sb, "性格", meta.personality)
-                appendRoleField(sb, "外观/反差", meta.appearance)
-                appendRoleField(sb, "小传", meta.background)
-                appendRoleField(sb, "内在驱动", meta.motivation)
-                appendRoleField(sb, "成长弧光", meta.arc)
-                // legacy: content 字段(老 task 迁过来的纯文本)
-                val legacy = r.content.trim()
-                if (legacy.isNotEmpty()
-                    && meta.personality.isBlank() && meta.background.isBlank()) {
-                    sb.append("- 描述: ").append(legacy).append("\n")
-                }
+        if (compact) {
+            // 紧凑模式：每 tier 一行，只列名字+tag，详情由 AI 通过 read_outline 按需获取
+            for (tier in ordered) {
+                val list = grouped[tier] ?: continue
+                sb.append(tierLabel(tier)).append("：")
+                sb.append(list.joinToString("、") { r ->
+                    val name = r.title.trim().ifEmpty { "(未命名)" }
+                    val tags = StoryMeta.parseRole(r.metaJson).tags
+                    if (tags.isNotEmpty()) "$name[${tags.joinToString("/")}]" else name
+                })
                 sb.append("\n")
             }
+            sb.append("（角色详情可用 read_outline 按需查询）\n")
+        } else {
+            for (tier in ordered) {
+                val list = grouped[tier] ?: continue
+                sb.append("## ").append(tierLabel(tier)).append("\n")
+                for (r in list) {
+                    val name = r.title.trim().ifEmpty { "(未命名角色)" }
+                    val meta = StoryMeta.parseRole(r.metaJson)
+                    sb.append("### ").append(name)
+                    if (meta.tags.isNotEmpty()) sb.append("  [").append(meta.tags.joinToString("、")).append("]")
+                    sb.append("\n")
+                    appendRoleField(sb, "性格", meta.personality)
+                    appendRoleField(sb, "外观/反差", meta.appearance)
+                    appendRoleField(sb, "小传", meta.background)
+                    appendRoleField(sb, "内在驱动", meta.motivation)
+                    appendRoleField(sb, "成长弧光", meta.arc)
+                    // legacy: content 字段(老 task 迁过来的纯文本)
+                    val legacy = r.content.trim()
+                    if (legacy.isNotEmpty()
+                        && meta.personality.isBlank() && meta.background.isBlank()) {
+                        sb.append("- 描述: ").append(legacy).append("\n")
+                    }
+                    sb.append("\n")
+                }
+            }
         }
+        sb.append("\n")
     }
 
     private fun appendRoleField(sb: StringBuilder, label: String, value: String) {

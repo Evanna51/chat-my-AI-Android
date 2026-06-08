@@ -1516,11 +1516,12 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     private fun buildSessionContext(): SessionContext {
         val outlineBlock = if (mode.usesWriterAdapter) {
             val outlines = outlineStore?.getAll(sessionId).orEmpty()
-            val maxChapters = estimateCurrentChapterCount()
+            val maxChapters = estimateCurrentChapterCount(outlines)
             val base = OutlinePromptBuilder.build(
                 outlines,
                 includeKnowledgeEnforcement = true,
                 maxVisibleChapters = maxChapters,
+                compactRoles = true,
             )
             if (sessionOptions.autoSyncStoryState && base.isNotBlank()) {
                 base + "\n\n" + AUTO_SYNC_INSTRUCTION
@@ -1538,21 +1539,39 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     }
 
     /**
-     * 估算"当前在写第几章"：统计 session 中字数 ≥ 300 的 assistant 消息数量，
-     * 作为已完成章节数的代理，+1 得到当前章。
-     * 返回 null 表示无法判断（新会话），此时 OutlinePromptBuilder 注入全部章节。
+     * 估算"当前在写第几章"，用于 OutlinePromptBuilder.maxVisibleChapters 截断。
      *
-     * 例：已有 1 条长 assistant 消息 → 第 1 章已写完 → 当前写第 2 章 → 返回 2。
+     * 优先策略：取最后一条 assistant 消息的前 150 字，逆序比对章节标题，匹配到即返回
+     * 该章在 outline 列表中的 1-based 位置（不再往后的章节）。
+     * 不匹配时降级：统计字数 ≥ 300 的 assistant 消息数量作为已完成章节计数，+1。
+     * 返回 null 表示无法判断，此时注入全部章节大纲。
      */
-    private fun estimateCurrentChapterCount(): Int? {
+    private fun estimateCurrentChapterCount(outlines: List<SessionOutlineItem>): Int? {
         return try {
-            val messages = AppDatabase.getInstance(this).messageDao().getBySession(sessionId)
-            val writtenChapters = messages.count {
-                it.role == Message.ROLE_ASSISTANT &&
-                    (it.content?.length ?: 0) >= 300
+            val chapters = outlines.filter {
+                it.type == com.example.aichat.story.StoryTypes.CHAPTER && it.selected
             }
-            if (writtenChapters == 0) null   // 尚未写过章节，不截断
-            else writtenChapters + 1          // 已写 N 章 → 正在写第 N+1 章 → 显示前 N+1 章
+            val messages = AppDatabase.getInstance(this).messageDao().getBySession(sessionId)
+
+            // 优先：文字匹配
+            if (chapters.isNotEmpty()) {
+                val snippet = messages.lastOrNull {
+                    it.role == Message.ROLE_ASSISTANT && !it.content.isNullOrBlank()
+                }?.content?.take(150).orEmpty()
+                if (snippet.isNotBlank()) {
+                    val idx = chapters.indexOfLast { ch ->
+                        val title = ch.title.trim()
+                        title.isNotEmpty() && snippet.contains(title)
+                    }
+                    if (idx >= 0) return idx + 1
+                }
+            }
+
+            // 降级：计数法
+            val writtenChapters = messages.count {
+                it.role == Message.ROLE_ASSISTANT && (it.content?.length ?: 0) >= 300
+            }
+            if (writtenChapters == 0) null else writtenChapters + 1
         } catch (_: Exception) { null }
     }
 
