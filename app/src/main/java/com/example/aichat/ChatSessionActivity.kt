@@ -1486,26 +1486,13 @@ class ChatSessionActivity : ThemedActivity(), SessionUiHost, ChatAttachmentContr
     }
 
     private fun doSummarizeToNewChapter(source: String) {
-        Toast.makeText(this, "正在提取到大纲…", Toast.LENGTH_SHORT).show()
-        val oprompt = resolveOutlinePrompt()
-        chatService.summarizeMessageForOutline(source, oprompt, object : ChatCallback {
-            override fun onSuccess(content: String) {
-                mainHandler.post {
-                    val summary = content.trim()
-                    if (summary.isEmpty()) { onError("提取结果为空"); return@post }
-                    val next = outlineStore!!.nextChapterIndex(sessionId)
-                    val title = "章节$next"
-                    outlineStore!!.add(sessionId, "chapter", title, summary)
-                    Toast.makeText(this@ChatSessionActivity, "已添加到大纲：$title", Toast.LENGTH_SHORT).show()
-                }
-            }
-            override fun onError(message: String) {
-                mainHandler.post {
-                    Toast.makeText(this@ChatSessionActivity,
-                        if (message.isNotEmpty()) message else "提取失败", Toast.LENGTH_LONG).show()
-                }
-            }
-        })
+        com.example.aichat.story.ChapterToOutlineSync.run(
+            activity = this,
+            sessionId = sessionId,
+            chapterContent = source,
+            executor = executor,
+            runOnUiThread = { mainHandler.post(it) },
+        )
     }
 
     private fun resolveOutlinePrompt(): String {
